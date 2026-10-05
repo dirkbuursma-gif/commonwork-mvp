@@ -375,6 +375,240 @@ main {
   font-size: 0.9rem;
 }
 
+.profile-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.55fr) minmax(260px, 0.75fr);
+  align-items: start;
+  gap: 20px;
+}
+
+.profile-copy-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+.profile-copy-grid p {
+  margin-bottom: 0;
+}
+
+.profile-privacy-note,
+.field-help,
+.field-optional {
+  color: var(--muted);
+  font-size: 0.79rem;
+  font-weight: 400;
+}
+
+.onboarding-shell {
+  display: grid;
+  max-width: 940px;
+  gap: 18px;
+  margin-inline: auto;
+}
+
+.onboarding-steps {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.onboarding-step a {
+  display: flex;
+  min-height: 56px;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--panel);
+  color: var(--muted);
+  font-size: 0.81rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.onboarding-step.active a {
+  border-color: var(--green);
+  background: var(--soft);
+  color: var(--green);
+}
+
+.onboarding-step.complete a {
+  border-color: color-mix(in srgb, var(--green) 35%, var(--line));
+  color: var(--ink);
+}
+
+.step-number {
+  display: grid;
+  width: 25px;
+  height: 25px;
+  flex: 0 0 25px;
+  place-items: center;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  font-size: 0.72rem;
+}
+
+.onboarding-panel > .subtitle {
+  margin-bottom: 20px;
+}
+
+.onboarding-form {
+  display: grid;
+  gap: 3px;
+}
+
+.onboarding-form .field {
+  margin: 12px 0;
+}
+
+.field textarea,
+.field select {
+  width: 100%;
+  min-height: 46px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--ink);
+  resize: vertical;
+}
+
+.field textarea:focus,
+.field select:focus {
+  border-color: var(--green);
+  outline: 3px solid color-mix(in srgb, var(--green) 20%, transparent);
+}
+
+.field-help {
+  display: block;
+  margin-top: 3px;
+}
+
+.form-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+.inline-form-section,
+.suggestion-panel {
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+
+.inline-form-section h3,
+.evidence-list > h3,
+.competence-group > h3 {
+  margin-bottom: 8px;
+  font: 600 1rem/1.3 var(--display);
+}
+
+.suggestion-panel summary {
+  width: fit-content;
+  color: var(--green);
+  font-size: 0.88rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.suggestion-panel[open] .onboarding-form {
+  margin-top: 14px;
+}
+
+.competence-list,
+.competence-groups,
+.evidence-list {
+  display: grid;
+  gap: 12px;
+}
+
+.competence-item,
+.evidence-item {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 15px 0;
+  border-top: 1px solid var(--line);
+}
+
+.competence-item-copy {
+  min-width: 0;
+}
+
+.competence-item h3,
+.competence-item h4 {
+  margin: 0 0 4px;
+  font-size: 0.98rem;
+}
+
+.competence-item p,
+.evidence-item p {
+  margin: 4px 0;
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.evidence-list {
+  margin-top: 22px;
+}
+
+.evidence-label {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.status-note {
+  display: inline-block;
+  margin: 5px 8px 0 0;
+  color: var(--faint);
+  font-size: 0.75rem;
+}
+
+.preference-group {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 14px 0;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+}
+
+.preference-group legend {
+  padding: 0 5px;
+  color: var(--green);
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.preference-option {
+  display: flex;
+  min-height: 42px;
+  align-items: center;
+  gap: 9px;
+  font-size: 0.84rem;
+}
+
+.preference-option input {
+  width: 17px;
+  height: 17px;
+  accent-color: var(--green);
+}
+
 .auth-page {
   display: grid;
   min-height: 100vh;
@@ -531,6 +765,10 @@ main {
   .dashboard-grid {
     grid-template-columns: minmax(0, 1fr);
   }
+
+  .profile-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 @media (max-width: 767px) {
@@ -560,6 +798,39 @@ main {
 
   .dashboard-grid {
     gap: 14px;
+  }
+
+  .profile-copy-grid,
+  .preference-group {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .onboarding-steps {
+    gap: 5px;
+  }
+
+  .onboarding-step a {
+    min-height: 64px;
+    flex-direction: column;
+    justify-content: center;
+    gap: 3px;
+    padding: 6px 3px;
+    text-align: center;
+    font-size: 0.66rem;
+  }
+
+  .form-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .form-actions .btn {
+    width: 100%;
+  }
+
+  .competence-item,
+  .evidence-item {
+    flex-direction: column;
   }
 
   .focus-panel {

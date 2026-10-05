@@ -1,0 +1,340 @@
+---
+import AppLayout from '../layouts/AppLayout.astro';
+import EmptyState from '../components/app/EmptyState.astro';
+import { createSupabaseServerClient } from '../lib/supabase/server';
+import type {
+  CanonicalCompetence,
+  CompetenceEvidence,
+  ContactPreferences,
+  MemberProfile,
+  ProfileCompetence,
+} from '../lib/competence-data';
+import {
+  getCanonicalCompetencies,
+  getCompetenceEvidence,
+  getContactPreferences,
+  getMyProfile,
+  getProfileCompetencies,
+} from '../lib/competence-data';
+
+const user = Astro.locals.user;
+const localPreview = user?.isLocalTestUser === true;
+const supabase = localPreview ? null : createSupabaseServerClient(Astro);
+const stepNames = ['contribution', 'competencies', 'evidence', 'conversations'] as const;
+type StepName = (typeof stepNames)[number];
+const requestedStep = Astro.url.searchParams.get('step');
+const step: StepName = stepNames.includes(requestedStep as StepName)
+  ? (requestedStep as StepName)
+  : 'contribution';
+const stepLabels = [
+  { id: 'contribution', label: 'Contribution' },
+  { id: 'competencies', label: 'Competencies' },
+  { id: 'evidence', label: 'Evidence' },
+  { id: 'conversations', label: 'Conversations' },
+] as const;
+const stepIndex = stepNames.indexOf(step);
+const status = Astro.url.searchParams.get('status');
+const notices: Record<string, string> = {
+  invalid: 'Check the required fields and try again.',
+  'invalid-competency': 'Choose an active competence from the vocabulary.',
+  'invalid-url': 'Use a valid http or https evidence link, or leave the link blank.',
+  'competency-exists-or-save-failed': 'That competence may already be on your profile, or could not be saved.',
+  'competency-added': 'Competence added to your profile.',
+  'competency-removed': 'Competence removed. Its attached evidence was removed with it.',
+  'evidence-added': 'Evidence added to your profile.',
+  'evidence-removed': 'Evidence removed.',
+  'suggestion-saved': 'Suggestion saved for vocabulary review.',
+  saved: 'Profile details saved.',
+  'save-failed': 'We could not save that change. Please review the details and try again.',
+  'preview-readonly': 'The local preview session is read-only. Use a real Supabase sign-in to save profile data.',
+};
+
+let profile: MemberProfile | null = null;
+let competencies: ProfileCompetence[] = [];
+let evidence: CompetenceEvidence[] = [];
+let canonicalCompetencies: CanonicalCompetence[] = [];
+let preferences: ContactPreferences | null = null;
+let loadError = false;
+
+if (!localPreview && supabase && user) {
+  try {
+    [profile, competencies, canonicalCompetencies, preferences] = await Promise.all([
+      getMyProfile(supabase),
+      getProfileCompetencies(supabase, user.id),
+      getCanonicalCompetencies(supabase),
+      getContactPreferences(supabase, user.id),
+    ]);
+    evidence = await getCompetenceEvidence(supabase, competencies.map((item) => item.id));
+  } catch {
+    loadError = true;
+  }
+}
+
+const profileDisplayName =
+  profile?.display_name ||
+  (typeof user?.user_metadata?.full_name === 'string' ? user.user_metadata.full_name : '') ||
+  '';
+const isReadyForEvidence = competencies.length > 0;
+const isReadyForConversations = evidence.length > 0;
+---
+
+<AppLayout title="Build your profile" section="competence">
+  <div class="page-head">
+    <div>
+      <div class="eyebrow">Your competence profile</div>
+      <h1>Build what you can contribute.</h1>
+      <p class="subtitle">A short profile, grounded in work you have done and conversations you welcome.</p>
+    </div>
+  </div>
+
+  {localPreview ? (
+    <div class="stack">
+      <div class="form-notice" role="status">Database features require Supabase sign-in. The local preview login is read-only and cannot create demo profile data.</div>
+      <section class="panel panel-pad">
+        <EmptyState
+          symbol="◇"
+          title="Profile data is not connected"
+          description="Use a real invited Supabase account to create and save a competence profile."
+        />
+      </section>
+    </div>
+  ) : !supabase ? (
+    <div class="form-notice error" role="alert">Supabase is not configured. Add the project URL and anon key before using database-backed onboarding.</div>
+  ) : loadError ? (
+    <div class="form-notice error" role="alert">We could not load your profile data. Please reload or try again shortly.</div>
+  ) : (
+    <div class="onboarding-shell">
+      <nav aria-label="Profile setup progress">
+        <ol class="onboarding-steps">
+          {stepLabels.map((item, index) => (
+            <li class:list={['onboarding-step', { active: item.id === step, complete: index < stepIndex }]}>
+              <a href={`/onboarding?step=${item.id}`} aria-current={item.id === step ? 'step' : undefined}>
+                <span class="step-number" aria-hidden="true">{index < stepIndex ? '✓' : index + 1}</span>
+                <span>{item.label}</span>
+              </a>
+            </li>
+          ))}
+        </ol>
+      </nav>
+
+      {status && notices[status] && <p class="form-notice" role="status">{notices[status]}</p>}
+      {profile?.onboarding_completed && (
+        <p class="form-notice" role="status">Your profile is complete. You can keep refining it at any time.</p>
+      )}
+
+      {step === 'contribution' && (
+        <section class="panel panel-pad onboarding-panel" aria-labelledby="contribution-title">
+          <div class="eyebrow">Step 1 of 4</div>
+          <h2 id="contribution-title">Start with the work you know</h2>
+          <p class="subtitle">Help people understand your contribution without a CV, title or self-rated expertise score.</p>
+          <form method="post" action="/api/onboarding" class="onboarding-form">
+            <input type="hidden" name="action" value="save-profile" />
+            <label class="field" for="display-name">
+              Name shown on your profile
+              <input id="display-name" name="display_name" required maxlength="120" value={profile?.display_name ?? profileDisplayName} autocomplete="name" />
+            </label>
+            <label class="field" for="professional-summary">
+              Professional summary
+              <textarea id="professional-summary" name="professional_summary" required maxlength="1200" rows="3" placeholder="Describe the work you do and the problems you understand.">{profile?.professional_summary ?? ''}</textarea>
+            </label>
+            <label class="field" for="what-contribute">
+              What can you contribute to another professional?
+              <textarea id="what-contribute" name="what_i_contribute" required maxlength="2000" rows="4" placeholder="For example: a method, practical experience, a useful introduction or a perspective from work you've done.">{profile?.what_i_contribute ?? ''}</textarea>
+            </label>
+            <label class="field" for="what-exploring">
+              What are you exploring? <span class="field-optional">Optional</span>
+              <textarea id="what-exploring" name="what_i_am_exploring" maxlength="2000" rows="3" placeholder="Share the business questions or areas you are learning about.">{profile?.what_i_am_exploring ?? ''}</textarea>
+            </label>
+            <label class="field" for="profile-visibility">
+              Profile visibility
+              <select id="profile-visibility" name="profile_visibility">
+                <option value="private" selected={profile?.profile_visibility !== 'members'}>Private while I build it</option>
+                <option value="members" selected={profile?.profile_visibility === 'members'}>Discoverable to signed-in members</option>
+              </select>
+              <span class="field-help">Private profiles are visible only to you. Discoverable profiles show only approved profile fields.</span>
+            </label>
+            <div class="form-actions">
+              <span class="form-footnote">No age, gender, nationality or date of birth is requested.</span>
+              <button class="btn primary" type="submit">Save and continue</button>
+            </div>
+          </form>
+        </section>
+      )}
+
+      {step === 'competencies' && (
+        <section class="panel panel-pad onboarding-panel" aria-labelledby="competencies-title">
+          <div class="eyebrow">Step 2 of 4</div>
+          <h2 id="competencies-title">Name what you know and do</h2>
+          <p class="subtitle">Choose a shared competence, describe how you apply it, and use examples later to give it context.</p>
+
+          {competencies.length > 0 ? (
+            <div class="competence-list" aria-label="Competencies on your profile">
+              {competencies.map((item) => (
+                <article class="competence-item">
+                  <div class="competence-item-copy">
+                    <span class="eyebrow">{item.competencies?.category.replaceAll('_', ' ')}</span>
+                    <h3>{item.competencies?.name}</h3>
+                    <p>{item.member_statement}</p>
+                    <span class="status-note">{item.evidence_status === 'demonstrated' ? 'Evidence added' : 'Declared'}</span>
+                  </div>
+                  <form method="post" action="/api/onboarding">
+                    <input type="hidden" name="action" value="remove-competency" />
+                    <input type="hidden" name="profile_competency_id" value={item.id} />
+                    <button class="btn small" type="submit" aria-label={`Remove ${item.competencies?.name}`}>Remove</button>
+                  </form>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <EmptyState symbol="＋" title="Add your first competence" description="Competencies describe knowledge, practical capability or a way of working." />
+          )}
+
+          <form method="post" action="/api/onboarding" class="onboarding-form inline-form-section">
+            <input type="hidden" name="action" value="add-competency" />
+            <h3>Add a competence</h3>
+            <label class="field" for="competency-id">
+              Shared competence
+              <select id="competency-id" name="competency_id" required>
+                <option value="" selected disabled>Select a competence</option>
+                {canonicalCompetencies.map((item) => (
+                  <option value={item.id}>{item.category.replaceAll('_', ' ')} · {item.name}</option>
+                ))}
+              </select>
+            </label>
+            <label class="field" for="member-statement">
+              How do you apply this?
+              <textarea id="member-statement" name="member_statement" required maxlength="1200" rows="3" placeholder="Describe your experience in your own words."></textarea>
+            </label>
+            <label class="field" for="evidence-status">
+              Evidence status
+              <select id="evidence-status" name="evidence_status">
+                <option value="declared">Declared</option>
+                <option value="demonstrated">Demonstrated by an example I will add</option>
+              </select>
+            </label>
+            <button class="btn" type="submit">Add competence</button>
+          </form>
+
+          <details class="suggestion-panel">
+            <summary>Can’t find a suitable competence?</summary>
+            <form method="post" action="/api/onboarding" class="onboarding-form">
+              <input type="hidden" name="action" value="suggest-competency" />
+              <label class="field" for="suggestion-name">Suggested term<input id="suggestion-name" name="suggestion_name" required maxlength="120" /></label>
+              <label class="field" for="suggestion-category">Category
+                <select id="suggestion-category" name="suggestion_category" required>
+                  <option value="knowledge">Knowledge</option>
+                  <option value="practical_capability">Practical capability</option>
+                  <option value="way_of_working">Way of working</option>
+                </select>
+              </label>
+              <label class="field" for="suggestion-explanation">Why is it useful?<textarea id="suggestion-explanation" name="suggestion_explanation" required maxlength="600" rows="2"></textarea></label>
+              <button class="btn" type="submit">Suggest for review</button>
+            </form>
+          </details>
+
+          <div class="form-actions">
+            <a class="btn" href="/onboarding?step=contribution">Back</a>
+            {isReadyForEvidence ? <a class="btn primary" href="/onboarding?step=evidence">Continue to evidence</a> : <span class="field-help">Add at least one competence to continue.</span>}
+          </div>
+        </section>
+      )}
+
+      {step === 'evidence' && (
+        <section class="panel panel-pad onboarding-panel" aria-labelledby="evidence-title">
+          <div class="eyebrow">Step 3 of 4</div>
+          <h2 id="evidence-title">Show where you applied it</h2>
+          <p class="subtitle">A useful example explains the situation, your contribution and the outcome. Don’t include confidential information.</p>
+          {competencies.length === 0 ? (
+            <div class="form-notice" role="status">Add at least one competence before adding evidence.</div>
+          ) : (
+            <form method="post" action="/api/onboarding" class="onboarding-form">
+              <input type="hidden" name="action" value="add-evidence" />
+              <label class="field" for="evidence-competence">Competence supported
+                <select id="evidence-competence" name="profile_competency_id" required>
+                  {competencies.map((item) => <option value={item.id}>{item.competencies?.name}</option>)}
+                </select>
+              </label>
+              <label class="field" for="evidence-title-input">Example title<input id="evidence-title-input" name="title" required minlength="2" maxlength="180" placeholder="A concise name for the work" /></label>
+              <label class="field" for="evidence-context">Situation or business problem<textarea id="evidence-context" name="context" required minlength="2" maxlength="2000" rows="3"></textarea></label>
+              <label class="field" for="evidence-contribution">Your contribution<textarea id="evidence-contribution" name="contribution" required minlength="2" maxlength="2000" rows="3"></textarea></label>
+              <label class="field" for="evidence-outcome">Outcome or learning<textarea id="evidence-outcome" name="outcome" required minlength="2" maxlength="2000" rows="3"></textarea></label>
+              <label class="field" for="evidence-url">Supporting link <span class="field-optional">Optional</span><input id="evidence-url" name="evidence_url" type="url" inputmode="url" placeholder="https://" /></label>
+              <label class="field" for="evidence-visibility">Evidence visibility
+                <select id="evidence-visibility" name="visibility">
+                  <option value="matches_only" selected>Private for now; matches only later</option>
+                  <option value="private">Only me</option>
+                  <option value="members">Signed-in members with my discoverable profile</option>
+                </select>
+              </label>
+              <button class="btn primary" type="submit">Save evidence</button>
+            </form>
+          )}
+
+          {evidence.length > 0 && (
+            <div class="evidence-list" aria-label="Evidence on your profile">
+              <h3>Saved examples</h3>
+              {evidence.map((item) => (
+                <article class="evidence-item">
+                  <div><strong>{item.title}</strong><p>{item.outcome}</p><span class="status-note">{item.visibility.replaceAll('_', ' ')}</span></div>
+                  <form method="post" action="/api/onboarding">
+                    <input type="hidden" name="action" value="remove-evidence" />
+                    <input type="hidden" name="evidence_id" value={item.id} />
+                    <button class="btn small" type="submit" aria-label={`Remove evidence ${item.title}`}>Remove</button>
+                  </form>
+                </article>
+              ))}
+            </div>
+          )}
+
+          <div class="form-actions">
+            <a class="btn" href="/onboarding?step=competencies">Back</a>
+            {isReadyForConversations ? <a class="btn primary" href="/onboarding?step=conversations">Continue to conversations</a> : <span class="field-help">Add at least one evidence item to continue.</span>}
+          </div>
+        </section>
+      )}
+
+      {step === 'conversations' && (
+        <section class="panel panel-pad onboarding-panel" aria-labelledby="conversations-title">
+          <div class="eyebrow">Step 4 of 4</div>
+          <h2 id="conversations-title">Choose the conversations you welcome</h2>
+          <p class="subtitle">Your preferences stay private and can be changed at any time.</p>
+          <form method="post" action="/api/onboarding" class="onboarding-form">
+            <input type="hidden" name="action" value="save-preferences" />
+            <fieldset class="preference-group">
+              <legend>Open to</legend>
+              {[
+                ['open_to_peer_exchange', 'Peer exchange'],
+                ['open_to_advisory', 'Advisory conversations'],
+                ['open_to_projects', 'Projects'],
+                ['open_to_partnerships', 'Partnerships'],
+                ['open_to_opportunities', 'Professional opportunities'],
+                ['open_to_event_introductions', 'Event introductions'],
+                ['commercial_approaches', 'Commercial approaches'],
+              ].map(([name, label]) => (
+                <label class="preference-option">
+                  <input type="checkbox" name={name} checked={preferences?.[name as keyof typeof preferences] === true} />
+                  <span>{label}</span>
+                </label>
+              ))}
+            </fieldset>
+            <label class="field" for="availability-status">Availability
+              <select id="availability-status" name="availability_status">
+                <option value="open" selected={preferences?.availability_status === 'open'}>Open</option>
+                <option value="selective" selected={!preferences || preferences.availability_status === 'selective'}>Selective</option>
+                <option value="introductions_only" selected={preferences?.availability_status === 'introductions_only'}>Introductions only</option>
+                <option value="unavailable" selected={preferences?.availability_status === 'unavailable'}>Unavailable</option>
+              </select>
+            </label>
+            <label class="field" for="conversation-capacity">Conversation capacity per month
+              <input id="conversation-capacity" type="number" name="conversation_capacity" min="0" max="100" step="1" value={preferences?.conversation_capacity ?? 0} />
+            </label>
+            <div class="form-actions">
+              <a class="btn" href="/onboarding?step=evidence">Back</a>
+              <button class="btn primary" type="submit">Save and view profile</button>
+            </div>
+          </form>
+        </section>
+      )}
+    </div>
+  )}
+</AppLayout>

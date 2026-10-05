@@ -1,13 +1,44 @@
 ---
 import AppLayout from '../layouts/AppLayout.astro';
-import EmptyState from '../components/app/EmptyState.astro';
+import { createSupabaseServerClient } from '../lib/supabase/server';
+import type { CompetenceEvidence, ContactPreferences, MemberProfile, ProfileCompetence } from '../lib/competence-data';
+import { getCompetenceEvidence, getContactPreferences, getMyProfile, getProfileCompetencies } from '../lib/competence-data';
 
-const email = Astro.locals.user?.email ?? 'member';
+const user = Astro.locals.user;
+const localPreview = user?.isLocalTestUser === true;
+const supabase = localPreview ? null : createSupabaseServerClient(Astro);
+const email = user?.email ?? 'member';
 const displayName =
-  typeof Astro.locals.user?.user_metadata?.full_name === 'string'
-    ? Astro.locals.user.user_metadata.full_name
-    : email.split('@')[0];
+  (typeof user?.user_metadata?.full_name === 'string' && user.user_metadata.full_name) ||
+  email.split('@')[0] ||
+  'there';
 const firstName = displayName.split(/\s+/)[0] || 'there';
+let profile: MemberProfile | null = null;
+let competencies: ProfileCompetence[] = [];
+let evidence: CompetenceEvidence[] = [];
+let preferences: ContactPreferences | null = null;
+let loadError = false;
+
+if (!localPreview && supabase && user) {
+  try {
+    [profile, competencies, preferences] = await Promise.all([
+      getMyProfile(supabase),
+      getProfileCompetencies(supabase, user.id),
+      getContactPreferences(supabase, user.id),
+    ]);
+    evidence = await getCompetenceEvidence(supabase, competencies.map((item) => item.id));
+  } catch {
+    loadError = true;
+  }
+}
+
+const competenciesWithEvidence = new Set(evidence.map((item) => item.profile_competency_id)).size;
+const nextImprovement =
+  competencies.length === 0
+    ? 'Add your first competence.'
+    : competenciesWithEvidence < competencies.length
+      ? 'Add evidence to another competence.'
+      : 'Review your availability and conversation preferences.';
 ---
 
 <AppLayout title="Today" section="today">
@@ -15,56 +46,78 @@ const firstName = displayName.split(/\s+/)[0] || 'there';
     <div>
       <div class="eyebrow">Your Commonwork</div>
       <h1>Good morning, {firstName}.</h1>
-      <p class="subtitle">A little context can turn capability into a useful conversation.</p>
+      <p class="subtitle">A useful introduction starts with a clear picture of what you can contribute.</p>
     </div>
   </div>
 
-  <div class="dashboard-grid">
+  {localPreview ? (
     <div class="stack">
+      <p class="form-notice" role="status">Local preview session. Database-backed profile features require a real Supabase sign-in.</p>
       <section class="focus-panel">
-        <div>
-          <div class="eyebrow">Your next useful conversation</div>
-          <h2>Start with what you can contribute.</h2>
-          <p>Make your competence clear, then connect it to a real business need.</p>
-        </div>
-        <a class="btn primary" href="/competence">My competence</a>
-      </section>
-
-      <section class="panel panel-pad">
-        <div class="panel-head">
-          <div>
-            <h2>Relevant now</h2>
-            <p>Purposeful matches, with the reasons made clear.</p>
-          </div>
-        </div>
-        <EmptyState
-          symbol="↗"
-          title="Your network is taking shape"
-          description="Add the competence you can stand behind to make relevant conversations possible."
-        >
-          <a class="btn primary" href="/competence">Build your profile</a>
-        </EmptyState>
+        <div><div class="eyebrow">Your next useful step</div><h2>Build a competence profile</h2><p>Describe what you can contribute and add an example of where you applied it.</p></div>
+        <a class="btn primary" href="/onboarding">Preview onboarding</a>
       </section>
     </div>
-
-    <aside class="stack" aria-label="Your activity">
-      <section class="panel panel-pad">
-        <div class="panel-head">
+  ) : loadError ? (
+    <p class="form-notice error" role="alert">We could not load your profile progress. Please reload or try again shortly.</p>
+  ) : !supabase ? (
+    <p class="form-notice error" role="alert">Supabase is not configured. Profile progress is unavailable.</p>
+  ) : !profile || !profile.onboarding_completed ? (
+    <div class="dashboard-grid">
+      <div class="stack">
+        <section class="focus-panel">
           <div>
-            <h2>Introductions</h2>
-            <p>Private, purposeful and mutual.</p>
+            <div class="eyebrow">Your next useful step</div>
+            <h2>Complete your competence profile</h2>
+            <p>Add what you know, what you can do and evidence of where you have applied it.</p>
           </div>
-        </div>
-        <div class="stat-row"><span>Waiting for you</span><strong>None</strong></div>
-        <div class="stat-row"><span>In progress</span><strong>None</strong></div>
-        <a class="btn" href="/introductions">View introductions</a>
-      </section>
-      <section class="panel panel-pad">
-        <div class="eyebrow">A clear next step</div>
-        <h2>What does your work make possible?</h2>
-        <p class="subtitle">Describe the outcome you help create, not a list of titles.</p>
-        <a class="btn" href="/find">Find competence</a>
-      </section>
-    </aside>
-  </div>
+          <a class="btn primary" href="/onboarding">Continue onboarding</a>
+        </section>
+        <section class="panel panel-pad">
+          <div class="panel-head"><div><h2>Your profile so far</h2><p>Completion reflects saved profile data, not activity or popularity.</p></div></div>
+          <div class="stat-row"><span>Competencies documented</span><strong>{competencies.length}</strong></div>
+          <div class="stat-row"><span>Competencies with evidence</span><strong>{competenciesWithEvidence}</strong></div>
+          <div class="stat-row"><span>Availability</span><strong>{preferences?.availability_status.replaceAll('_', ' ') ?? 'Not set'}</strong></div>
+        </section>
+      </div>
+      <aside class="stack">
+        <section class="panel panel-pad">
+          <div class="eyebrow">Suggested profile improvement</div>
+          <h2>{nextImprovement}</h2>
+          <p class="subtitle">Small, evidence-backed details help other members understand where a conversation may be useful.</p>
+          <a class="btn" href={`/onboarding?step=${competencies.length ? 'evidence' : 'competencies'}`}>Improve profile</a>
+        </section>
+      </aside>
+    </div>
+  ) : (
+    <div class="dashboard-grid">
+      <div class="stack">
+        <section class="focus-panel">
+          <div>
+            <div class="eyebrow">Your competence profile is ready</div>
+            <h2>Make your next contribution easier to understand.</h2>
+            <p>Keep your examples and conversation preferences current as your work changes.</p>
+          </div>
+          <a class="btn primary" href={`/profiles/${profile.id}`}>View profile</a>
+        </section>
+        <section class="panel panel-pad">
+          <div class="panel-head"><div><h2>Profile progress</h2><p>Based on your saved profile data.</p></div></div>
+          <div class="stat-row"><span>Competencies documented</span><strong>{competencies.length}</strong></div>
+          <div class="stat-row"><span>Competencies with evidence</span><strong>{competenciesWithEvidence}</strong></div>
+          <div class="stat-row"><span>Current availability</span><strong>{preferences?.availability_status.replaceAll('_', ' ') ?? 'Not set'}</strong></div>
+        </section>
+      </div>
+      <aside class="stack">
+        <section class="panel panel-pad">
+          <div class="eyebrow">Suggested profile improvement</div>
+          <h2>{nextImprovement}</h2>
+          <a class="btn" href={`/onboarding?step=${competenciesWithEvidence < competencies.length ? 'evidence' : 'conversations'}`}>Review profile</a>
+        </section>
+        <section class="panel panel-pad">
+          <h2>Competence discovery</h2>
+          <p class="subtitle">Match suggestions are not available yet. Your profile will be used when transparent competence matching is built.</p>
+        </section>
+      </aside>
+    </div>
+  )}
 </AppLayout>
