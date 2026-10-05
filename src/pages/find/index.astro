@@ -1,0 +1,23 @@
+---
+import AppLayout from '../../layouts/AppLayout.astro';
+import EmptyState from '../../components/app/EmptyState.astro';
+---
+
+<AppLayout title="Find competence" section="find">
+  <div class="page-head">
+    <div>
+      <div class="eyebrow">A real business need</div>
+      <h1>Find competence</h1>
+      <p class="subtitle">Describe the outcome you need and the context behind it.</p>
+    </div>
+  </div>
+  <section class="panel panel-pad">
+    <EmptyState
+      symbol="⌕"
+      title="No competence needs yet"
+      description="A useful match begins with a clear problem, essential capabilities and relevant context."
+    >
+      <span class="btn" aria-disabled="true">Need builder in a later batch</span>
+    </EmptyState>
+  </section>
+</AppLayout>

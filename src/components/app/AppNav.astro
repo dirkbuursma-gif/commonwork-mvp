@@ -1,0 +1,69 @@
+---
+interface Props {
+  active: 'today' | 'competence' | 'find' | 'introductions' | 'events';
+  name: string;
+  email: string;
+}
+
+const { active, name, email } = Astro.props;
+const initials = name
+  .split(/\s+/)
+  .filter(Boolean)
+  .slice(0, 2)
+  .map((part) => part[0]?.toUpperCase())
+  .join('');
+
+const links = [
+  { id: 'today', label: 'Today', short: 'Today', href: '/today' },
+  { id: 'competence', label: 'My competence', short: 'Offer', href: '/competence' },
+  { id: 'find', label: 'Find competence', short: 'Find', href: '/find' },
+  { id: 'introductions', label: 'Introductions', short: 'Intros', href: '/introductions' },
+  { id: 'events', label: 'Events', short: 'Events', href: '/events' },
+] as const;
+---
+
+<aside class="sidebar">
+  <a class="brand" href="/today" aria-label="Commonwork home">
+    <svg class="brand-mark" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+      <path d="M7 10.5 16 5l9 5.5v11L16 27l-9-5.5v-11Z" stroke="currentColor" stroke-width="2" />
+      <path d="m7.5 10.7 8.5 5.1 8.5-5.1M16 15.8V27" stroke="currentColor" stroke-width="2" />
+      <circle cx="16" cy="16" r="2.5" fill="currentColor" />
+    </svg>
+    <span>Commonwork</span>
+  </a>
+
+  <nav class="nav-group" aria-label="Workspace">
+    <span class="nav-label">Workspace</span>
+    {links.map((link) => (
+      <a
+        class:list={['nav-link', { active: active === link.id }]}
+        href={link.href}
+        aria-current={active === link.id ? 'page' : undefined}
+      >
+        <span class="nav-glyph" aria-hidden="true">·</span>
+        <span>{link.label}</span>
+      </a>
+    ))}
+  </nav>
+
+  <div class="profile-chip" aria-label={`Signed in as ${name}`}>
+    <span class="avatar" aria-hidden="true">{initials || 'CW'}</span>
+    <span class="profile-copy">
+      <strong>{name}</strong>
+      <span>{email}</span>
+    </span>
+  </div>
+</aside>
+
+<nav class="mobile-nav" aria-label="Workspace">
+  {links.map((link) => (
+    <a
+      class:list={['nav-link', { active: active === link.id }]}
+      href={link.href}
+      aria-current={active === link.id ? 'page' : undefined}
+    >
+      <span class="nav-glyph" aria-hidden="true">·</span>
+      <span>{link.short}</span>
+    </a>
+  ))}
+</nav>

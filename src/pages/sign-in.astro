@@ -1,0 +1,66 @@
+---
+import AuthLayout from '../layouts/AuthLayout.astro';
+
+const configured = Boolean(
+  import.meta.env.PUBLIC_SUPABASE_URL && import.meta.env.PUBLIC_SUPABASE_ANON_KEY,
+);
+const status = Astro.url.searchParams.get('status');
+const notices: Record<string, { text: string; error: boolean }> = {
+  sent: { text: 'If this address belongs to an invited member, a sign-in link is on its way.', error: false },
+  invalid: { text: 'Enter a valid email address and try again.', error: true },
+  unavailable: { text: 'We could not send a sign-in link just now. Please try again shortly.', error: true },
+  'invalid-link': { text: 'That sign-in link is invalid or has expired. Request another one.', error: true },
+  configuration: { text: 'Sign-in is not configured yet. Contact your Commonwork administrator.', error: true },
+};
+const notice = status ? notices[status] : undefined;
+---
+
+<AuthLayout title="Sign in">
+  <main class="auth-page">
+    <section class="auth-intro" aria-label="Commonwork">
+      <a class="brand" href="/sign-in">
+        <svg class="brand-mark" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+          <path d="M7 10.5 16 5l9 5.5v11L16 27l-9-5.5v-11Z" stroke="currentColor" stroke-width="2" />
+          <path d="m7.5 10.7 8.5 5.1 8.5-5.1M16 15.8V27" stroke="currentColor" stroke-width="2" />
+          <circle cx="16" cy="16" r="2.5" fill="currentColor" />
+        </svg>
+        <span>Commonwork</span>
+      </a>
+      <div class="auth-copy">
+        <div class="eyebrow">Competence, in good company</div>
+        <h1>Make useful work visible.</h1>
+        <p>Connect what you know with what someone needs, through an introduction that makes sense to both of you.</p>
+      </div>
+      <p class="auth-note">A private professional network for thoughtful work and trusted introductions.</p>
+    </section>
+
+    <section class="auth-side">
+      <div class="auth-card">
+        <div class="eyebrow">Invite-only access</div>
+        <h2>Sign in to Commonwork</h2>
+        <p>Use the email address connected to your invitation. We’ll send you a secure sign-in link.</p>
+        {notice && <p class:list={['form-notice', { error: notice.error }]} role="status">{notice.text}</p>}
+        {configured ? (
+          <form method="post" action="/api/auth/sign-in">
+            <label class="field" for="email">
+              Email address
+              <input id="email" name="email" type="email" autocomplete="email" required maxlength="254" />
+            </label>
+            <button class="btn primary" type="submit">Send sign-in link</button>
+            <p class="form-footnote">New accounts can only be created by invitation.</p>
+          </form>
+        ) : (
+          <p class="form-notice error" role="status">Supabase is not configured yet. Sign-in will be available after the project environment is connected.</p>
+        )}
+        {import.meta.env.DEV && (
+          <div class="dev-access">
+            <p class="form-footnote">Local preview only. This test session does not connect to Supabase.</p>
+            <form method="post" action="/api/auth/test-session">
+              <button class="btn" type="submit">Enter local test workspace</button>
+            </form>
+          </div>
+        )}
+      </div>
+    </section>
+  </main>
+</AuthLayout>

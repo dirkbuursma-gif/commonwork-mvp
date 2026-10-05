@@ -1,0 +1,32 @@
+<button
+  class="icon-btn theme-toggle"
+  type="button"
+  data-theme-toggle
+  aria-label="Switch to dark theme"
+  aria-pressed="false"
+  title="Switch theme"
+>
+  <span aria-hidden="true">◐</span>
+</button>
+
+<script>
+  const root = document.documentElement;
+  const buttons = document.querySelectorAll<HTMLButtonElement>('[data-theme-toggle]');
+
+  function setTheme(theme: 'light' | 'dark') {
+    root.dataset.theme = theme;
+    buttons.forEach((button) => {
+      button.setAttribute('aria-label', `Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`);
+      button.setAttribute('aria-pressed', String(theme === 'dark'));
+    });
+    window.localStorage.setItem('commonwork-theme', theme);
+  }
+
+  const savedTheme = window.localStorage.getItem('commonwork-theme');
+  setTheme(savedTheme === 'dark' ? 'dark' : 'light');
+  buttons.forEach((button) => {
+    button.addEventListener('click', () => {
+      setTheme(root.dataset.theme === 'dark' ? 'light' : 'dark');
+    });
+  });
+</script>

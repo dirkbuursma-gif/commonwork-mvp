@@ -1,0 +1,51 @@
+---
+import AppNav from '../components/app/AppNav.astro';
+import ThemeToggle from '../components/app/ThemeToggle.astro';
+import '../styles/tokens.css';
+import '../styles/global.css';
+import '../styles/components.css';
+
+interface Props {
+  title: string;
+  section: 'today' | 'competence' | 'find' | 'introductions' | 'events';
+}
+
+const { title, section } = Astro.props;
+const user = Astro.locals.user;
+const email = user?.email ?? 'Member';
+const name =
+  (typeof user?.user_metadata?.full_name === 'string' && user.user_metadata.full_name) ||
+  email.split('@')[0] ||
+  'Member';
+---
+
+<!doctype html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#f1f2ed" />
+    <meta name="description" content="Commonwork connects competence to real business needs through trusted introductions." />
+    <title>{title} · Commonwork</title>
+  </head>
+  <body>
+    <div class="app-frame">
+      <AppNav active={section} name={name} email={email} />
+      <div class="main-shell">
+        <header class="topbar">
+          <div class="breadcrumb">Commonwork <span aria-hidden="true">/</span> {title}</div>
+          <div class="topbar-actions">
+            {user?.isLocalTestUser && (
+              <form class="dev-session-form" method="post" action="/api/auth/end-test-session">
+                <span class="dev-session-label">Local test session</span>
+                <button class="btn" type="submit">End test session</button>
+              </form>
+            )}
+            <ThemeToggle />
+          </div>
+        </header>
+        <main id="main-content"><slot /></main>
+      </div>
+    </div>
+  </body>
+</html>

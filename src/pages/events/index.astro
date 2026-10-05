@@ -1,0 +1,21 @@
+---
+import AppLayout from '../../layouts/AppLayout.astro';
+import EmptyState from '../../components/app/EmptyState.astro';
+---
+
+<AppLayout title="Events" section="events">
+  <div class="page-head">
+    <div>
+      <div class="eyebrow">Meet around meaningful work</div>
+      <h1>Events</h1>
+      <p class="subtitle">A shared setting for practical conversations and relevant introductions.</p>
+    </div>
+  </div>
+  <section class="panel panel-pad">
+    <EmptyState
+      symbol="◇"
+      title="No events to show"
+      description="Invited events will appear here, with your objectives and relevant people in context."
+    />
+  </section>
+</AppLayout>

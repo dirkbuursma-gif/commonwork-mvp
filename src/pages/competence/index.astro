@@ -1,0 +1,23 @@
+---
+import AppLayout from '../../layouts/AppLayout.astro';
+import EmptyState from '../../components/app/EmptyState.astro';
+---
+
+<AppLayout title="My competence" section="competence">
+  <div class="page-head">
+    <div>
+      <div class="eyebrow">What you can contribute</div>
+      <h1>My competence</h1>
+      <p class="subtitle">Show the work you can stand behind, with evidence that gives it context.</p>
+    </div>
+  </div>
+  <section class="panel panel-pad">
+    <EmptyState
+      symbol="＋"
+      title="Your profile starts with a capability"
+      description="Competence and evidence are the foundation for relevant, well-explained introductions."
+    >
+      <span class="btn" aria-disabled="true">Profile editor in the next build batch</span>
+    </EmptyState>
+  </section>
+</AppLayout>
