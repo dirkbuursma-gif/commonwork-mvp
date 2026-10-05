@@ -549,6 +549,22 @@ main {
   min-width: 0;
 }
 
+.competence-item-actions {
+  display: grid;
+  justify-items: end;
+  gap: 8px;
+}
+
+.discoverability-form {
+  display: grid;
+  justify-items: end;
+  gap: 6px;
+}
+
+.discoverability-form .preference-option {
+  font-size: 0.77rem;
+}
+
 .competence-item h3,
 .competence-item h4 {
   margin: 0 0 4px;
@@ -831,6 +847,12 @@ main {
   .competence-item,
   .evidence-item {
     flex-direction: column;
+  }
+
+  .competence-item-actions,
+  .discoverability-form {
+    width: 100%;
+    justify-items: start;
   }
 
   .focus-panel {

@@ -50,6 +50,7 @@ test('a real member completes competence onboarding and sees the persisted profi
 
     await page.getByLabel('Shared competence').selectOption(canonical!.id);
     await page.getByLabel('How do you apply this?').fill('I define validation rules and help teams resolve inconsistent catalogue attributes.');
+    await page.getByLabel('Show this competence on my member profile').check();
     await page.getByRole('button', { name: 'Add competence' }).click();
     await expect(page.getByRole('heading', { name: 'Product-data quality' })).toBeVisible();
     const { data: savedCompetence } = await member.client

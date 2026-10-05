@@ -41,6 +41,7 @@ const notices: Record<string, string> = {
   'competency-exists-or-save-failed': 'That competence may already be on your profile, or could not be saved.',
   'competency-added': 'Competence added to your profile.',
   'competency-removed': 'Competence removed. Its attached evidence was removed with it.',
+  'visibility-saved': 'Member-profile visibility saved.',
   'evidence-added': 'Evidence added to your profile.',
   'evidence-removed': 'Evidence removed.',
   'suggestion-saved': 'Suggestion saved for vocabulary review.',
@@ -177,11 +178,22 @@ const isReadyForConversations = evidence.length > 0;
                     <p>{item.member_statement}</p>
                     <span class="status-note">{item.evidence_status === 'demonstrated' ? 'Evidence added' : 'Declared'}</span>
                   </div>
-                  <form method="post" action="/api/onboarding">
-                    <input type="hidden" name="action" value="remove-competency" />
-                    <input type="hidden" name="profile_competency_id" value={item.id} />
-                    <button class="btn small" type="submit" aria-label={`Remove ${item.competencies?.name}`}>Remove</button>
-                  </form>
+                  <div class="competence-item-actions">
+                    <form method="post" action="/api/onboarding" class="discoverability-form">
+                      <input type="hidden" name="action" value="set-competence-discoverable" />
+                      <input type="hidden" name="profile_competency_id" value={item.id} />
+                      <label class="preference-option">
+                        <input type="checkbox" name="discoverable" checked={item.discoverable} />
+                        <span>Show on member profile</span>
+                      </label>
+                      <button class="btn small" type="submit">Save visibility</button>
+                    </form>
+                    <form method="post" action="/api/onboarding">
+                      <input type="hidden" name="action" value="remove-competency" />
+                      <input type="hidden" name="profile_competency_id" value={item.id} />
+                      <button class="btn small" type="submit" aria-label={`Remove ${item.competencies?.name}`}>Remove</button>
+                    </form>
+                  </div>
                 </article>
               ))}
             </div>
@@ -211,6 +223,10 @@ const isReadyForConversations = evidence.length > 0;
                 <option value="declared">Declared</option>
                 <option value="demonstrated">Demonstrated by an example I will add</option>
               </select>
+            </label>
+            <label class="preference-option discoverability-choice">
+              <input type="checkbox" name="discoverable" />
+              <span>Show this competence on my member profile</span>
             </label>
             <button class="btn" type="submit">Add competence</button>
           </form>

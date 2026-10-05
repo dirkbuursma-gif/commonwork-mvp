@@ -81,9 +81,23 @@ export const POST: APIRoute = async (context) => {
       competency_id: competency.id,
       member_statement: statement,
       evidence_status: evidenceStatus,
+      discoverable: form.get('discoverable') === 'on',
     });
 
     return failure(context, error ? 'competency-exists-or-save-failed' : 'competency-added', 'competencies');
+  }
+
+  if (action === 'set-competence-discoverable') {
+    const profileCompetencyId = value(form, 'profile_competency_id');
+    if (!profileCompetencyId) return failure(context, 'invalid', 'competencies');
+
+    const { error } = await supabase
+      .from('profile_competencies')
+      .update({ discoverable: form.get('discoverable') === 'on' })
+      .eq('id', profileCompetencyId)
+      .eq('profile_id', user.id);
+
+    return failure(context, error ? 'save-failed' : 'visibility-saved', 'competencies');
   }
 
   if (action === 'remove-competency') {

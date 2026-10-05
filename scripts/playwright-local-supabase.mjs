@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const cwd = process.cwd();
+const cwd = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const start = spawnSync('npx', ['supabase', 'start'], { cwd, stdio: 'ignore' });
 if (start.status !== 0) {
   console.error(`Local Supabase startup failed with exit code ${start.status ?? 'unknown'}.`);
