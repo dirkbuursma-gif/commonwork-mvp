@@ -1,0 +1,1 @@
+Database migrations are added here in the next build batch that introduces persistent competence profiles. Do not apply schema changes until the SQL has been reviewed against `docs/DATA-MODEL.md` and its row-level security requirements.

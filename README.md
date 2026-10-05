@@ -1,43 +1,45 @@
-# Astro Starter Kit: Minimal
+# Commonwork MVP
+
+An invite-only, competence-first professional network. The MVP focuses on the loop from competence offered, to competence needed, to explained match, to trusted introduction.
+
+## Local setup
+
+Requirements: Node.js 22.12 or newer.
 
 ```sh
-npm create astro@latest -- --template minimal
+npm install
+cp .env.example .env
 ```
 
-> 🧑‍🚀 **Seasoned astronaut?** Delete this file. Have fun!
+Set `PUBLIC_SUPABASE_URL` and `PUBLIC_SUPABASE_ANON_KEY` in `.env`. The anon key is intended for browser use with row-level security enabled. Never put a service-role key in client code or a `PUBLIC_` variable.
 
-## 🚀 Project Structure
+Start the local server using the repository convention:
 
-Inside of your Astro project, you'll see the following folders and files:
-
-```text
-/
-├── public/
-├── src/
-│   └── pages/
-│       └── index.astro
-└── package.json
+```sh
+npx astro dev --background
 ```
 
-Astro looks for `.astro` or `.md` files in the `src/pages/` directory. Each page is exposed as a route based on its file name.
+The app is available at <http://localhost:4321>. Stop it with `npx astro dev stop`.
 
-There's nothing special about `src/components/`, but that's where we like to put any Astro/React/Vue/Svelte/Preact components.
+## Validation
 
-Any static assets, like images, can be placed in the `public/` directory.
+```sh
+npm run check
+npm run build
+npx playwright install chromium
+npm test
+```
 
-## 🧞 Commands
+The end-to-end tests start or reuse the local server at `http://127.0.0.1:4321`.
 
-All commands are run from the root of the project, from a terminal:
+## Project map
 
-| Command                   | Action                                           |
-| :------------------------ | :----------------------------------------------- |
-| `npm install`             | Installs dependencies                            |
-| `npm run dev`             | Starts local dev server at `localhost:4321`      |
-| `npm run build`           | Build your production site to `./dist/`          |
-| `npm run preview`         | Preview your build locally, before deploying     |
-| `npm run astro ...`       | Run CLI commands like `astro add`, `astro check` |
-| `npm run astro -- --help` | Get help using the Astro CLI                     |
+- `reference/` contains the unmodified first HTML prototype.
+- `docs/PRODUCT.md` describes the proposition, principles and exclusions.
+- `docs/DATA-MODEL.md` describes entities, matching boundaries and access rules.
+- `docs/BUILD-PLAN.md` defines the implementation batches.
+- `src/lib/supabase/` contains browser and SSR client factories.
+- `src/middleware.ts` protects application routes and redirects signed-out visitors.
+- `tests/foundation.spec.ts` covers the foundation's redirect, theme and mobile layout.
 
-## 👀 Want to learn more?
-
-Feel free to check [our documentation](https://docs.astro.build) or jump into our [Discord server](https://astro.build/chat).
+See [docs/BUILD-PLAN.md](docs/BUILD-PLAN.md) before starting the next implementation batch.

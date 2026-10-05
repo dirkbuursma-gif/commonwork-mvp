@@ -1,0 +1,27 @@
+---
+import ThemeToggle from '../components/app/ThemeToggle.astro';
+import '../styles/tokens.css';
+import '../styles/global.css';
+import '../styles/components.css';
+
+interface Props {
+  title: string;
+}
+
+const { title } = Astro.props;
+---
+
+<!doctype html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#f1f2ed" />
+    <meta name="description" content="A competence-first professional network built on useful work and trusted introductions." />
+    <title>{title} · Commonwork</title>
+  </head>
+  <body>
+    <div class="auth-top-actions"><ThemeToggle /></div>
+    <slot />
+  </body>
+</html>

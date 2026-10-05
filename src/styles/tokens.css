@@ -1,0 +1,43 @@
+@import url('https://api.fontshare.com/v2/css?f[]=satoshi@400,500,600,700&f[]=zodiak@600&display=swap');
+
+:root {
+  color-scheme: light;
+  --bg: #f1f2ed;
+  --panel: #fafbf8;
+  --card: #ffffff;
+  --soft: #e4efe8;
+  --offset: #edf0eb;
+  --line: #d8dfd9;
+  --ink: #1c2924;
+  --muted: #58675f;
+  --faint: #7d8982;
+  --green: #17684d;
+  --green-strong: #10543d;
+  --coral: #b35442;
+  --blue: #426878;
+  --amber: #806127;
+  --white: #ffffff;
+  --body: 'Satoshi', sans-serif;
+  --display: 'Zodiak', Georgia, serif;
+  --shadow: 0 1px 2px #1c302708, 0 8px 28px #1c30270a;
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --bg: #151c19;
+  --panel: #1b2420;
+  --card: #202a25;
+  --soft: #293e34;
+  --offset: #29332e;
+  --line: #37463e;
+  --ink: #ebf1ed;
+  --muted: #b5c0b9;
+  --faint: #91a097;
+  --green: #8ad1ad;
+  --green-strong: #a3e0bf;
+  --coral: #eb9a83;
+  --blue: #9ac1d0;
+  --amber: #e1c184;
+  --white: #151c19;
+  --shadow: 0 8px 28px #0004;
+}

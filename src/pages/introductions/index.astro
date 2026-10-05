@@ -1,0 +1,21 @@
+---
+import AppLayout from '../../layouts/AppLayout.astro';
+import EmptyState from '../../components/app/EmptyState.astro';
+---
+
+<AppLayout title="Introductions" section="introductions">
+  <div class="page-head">
+    <div>
+      <div class="eyebrow">Mutual consent</div>
+      <h1>Introductions</h1>
+      <p class="subtitle">Professional conversations with clear context and consent from both sides.</p>
+    </div>
+  </div>
+  <section class="panel panel-pad">
+    <EmptyState
+      symbol="↔"
+      title="No introductions to follow up"
+      description="When an introduction is proposed, its purpose and consent status will be visible here."
+    />
+  </section>
+</AppLayout>

@@ -1,0 +1,70 @@
+---
+import AppLayout from '../layouts/AppLayout.astro';
+import EmptyState from '../components/app/EmptyState.astro';
+
+const email = Astro.locals.user?.email ?? 'member';
+const displayName =
+  typeof Astro.locals.user?.user_metadata?.full_name === 'string'
+    ? Astro.locals.user.user_metadata.full_name
+    : email.split('@')[0];
+const firstName = displayName.split(/\s+/)[0] || 'there';
+---
+
+<AppLayout title="Today" section="today">
+  <div class="page-head">
+    <div>
+      <div class="eyebrow">Your Commonwork</div>
+      <h1>Good morning, {firstName}.</h1>
+      <p class="subtitle">A little context can turn capability into a useful conversation.</p>
+    </div>
+  </div>
+
+  <div class="dashboard-grid">
+    <div class="stack">
+      <section class="focus-panel">
+        <div>
+          <div class="eyebrow">Your next useful conversation</div>
+          <h2>Start with what you can contribute.</h2>
+          <p>Make your competence clear, then connect it to a real business need.</p>
+        </div>
+        <a class="btn primary" href="/competence">My competence</a>
+      </section>
+
+      <section class="panel panel-pad">
+        <div class="panel-head">
+          <div>
+            <h2>Relevant now</h2>
+            <p>Purposeful matches, with the reasons made clear.</p>
+          </div>
+        </div>
+        <EmptyState
+          symbol="↗"
+          title="Your network is taking shape"
+          description="Add the competence you can stand behind to make relevant conversations possible."
+        >
+          <a class="btn primary" href="/competence">Build your profile</a>
+        </EmptyState>
+      </section>
+    </div>
+
+    <aside class="stack" aria-label="Your activity">
+      <section class="panel panel-pad">
+        <div class="panel-head">
+          <div>
+            <h2>Introductions</h2>
+            <p>Private, purposeful and mutual.</p>
+          </div>
+        </div>
+        <div class="stat-row"><span>Waiting for you</span><strong>None</strong></div>
+        <div class="stat-row"><span>In progress</span><strong>None</strong></div>
+        <a class="btn" href="/introductions">View introductions</a>
+      </section>
+      <section class="panel panel-pad">
+        <div class="eyebrow">A clear next step</div>
+        <h2>What does your work make possible?</h2>
+        <p class="subtitle">Describe the outcome you help create, not a list of titles.</p>
+        <a class="btn" href="/find">Find competence</a>
+      </section>
+    </aside>
+  </div>
+</AppLayout>
