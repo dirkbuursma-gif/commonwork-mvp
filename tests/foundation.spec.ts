@@ -5,7 +5,11 @@ test('unauthenticated members are redirected to invite-only sign-in', async ({ p
 
   await expect(page).toHaveURL(/\/sign-in$/);
   await expect(page.getByRole('heading', { name: 'Sign in to Commonwork' })).toBeVisible();
-  await expect(page.getByText('Supabase is not configured yet.')).toBeVisible();
+  await expect(page.getByLabel('Email address')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Send sign-in link' })).toBeVisible();
+
+  await page.goto('/onboarding');
+  await expect(page).toHaveURL(/\/sign-in$/);
 });
 
 test('an invalid local test-session cookie does not grant access', async ({ page, context }) => {
@@ -57,6 +61,17 @@ test('sign-in page supports dark mode', async ({ page }) => {
 
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
   await expect(page.getByRole('button', { name: 'Switch to light theme' })).toHaveAttribute('aria-pressed', 'true');
+});
+
+test('local preview onboarding is read-only and supports dark mode', async ({ page }) => {
+  await page.goto('/sign-in');
+  await page.getByRole('button', { name: 'Enter local test workspace' }).click();
+  await page.goto('/onboarding');
+
+  await expect(page.getByText('Database features require Supabase sign-in.')).toBeVisible();
+  await expect(page.getByLabel('Name shown on your profile')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Switch to dark theme' }).click();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
 });
 
 test('sign-in layout fits a narrow mobile viewport', async ({ page }) => {

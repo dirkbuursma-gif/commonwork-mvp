@@ -5,7 +5,7 @@ export default defineConfig({
   fullyParallel: true,
   reporter: 'list',
   use: {
-    baseURL: 'http://127.0.0.1:4321',
+    baseURL: 'http://127.0.0.1:4322',
     trace: 'retain-on-failure',
   },
   projects: [
@@ -15,9 +15,9 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: 'npm run dev -- --host 127.0.0.1',
-    url: 'http://127.0.0.1:4321/sign-in',
-    reuseExistingServer: true,
-    timeout: 60_000,
+    command: 'node scripts/playwright-local-supabase.mjs',
+    url: 'http://127.0.0.1:4322/sign-in',
+    reuseExistingServer: false,
+    timeout: 240_000,
   },
 });

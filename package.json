@@ -19,12 +19,16 @@
     "@supabase/supabase-js": "^2.117.2",
     "astro": "^7.3.5"
   },
+  "overrides": {
+    "path-to-regexp": "^6.3.0"
+  },
   "allowScripts": {
     "esbuild": true
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.10",
     "@playwright/test": "^1.63.0",
+    "@types/node": "^26.6.4",
     "supabase": "^2.119.0",
     "typescript": "^6.0.3"
   }

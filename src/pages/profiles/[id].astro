@@ -1,0 +1,174 @@
+---
+import AppLayout from '../../layouts/AppLayout.astro';
+import EmptyState from '../../components/app/EmptyState.astro';
+import { createSupabaseServerClient } from '../../lib/supabase/server';
+import type {
+  CompetenceEvidence,
+  ContactPreferences,
+  DiscoverableContactPreferences,
+  DiscoverableProfile,
+  MemberProfile,
+  ProfileCompetence,
+} from '../../lib/competence-data';
+import {
+  getCompetenceEvidence,
+  getContactPreferences,
+  getDiscoverableContactPreferences,
+  getDiscoverableProfile,
+  getMyProfile,
+  getProfileCompetencies,
+} from '../../lib/competence-data';
+
+const user = Astro.locals.user;
+const localPreview = user?.isLocalTestUser === true;
+const requestedId = Astro.params.id ?? '';
+const isOwner = requestedId === 'me' || requestedId === user?.id;
+const profileId = requestedId === 'me' ? (user?.id ?? '') : requestedId;
+const supabase = localPreview ? null : createSupabaseServerClient(Astro);
+let profile: MemberProfile | DiscoverableProfile | null = null;
+let competencies: ProfileCompetence[] = [];
+let evidence: CompetenceEvidence[] = [];
+let preferences: ContactPreferences | DiscoverableContactPreferences | null = null;
+let loadError = false;
+
+if (!localPreview && supabase && profileId) {
+  try {
+    profile = isOwner
+      ? await getMyProfile(supabase)
+      : await getDiscoverableProfile(supabase, profileId);
+    if (profile) {
+      [competencies, preferences] = await Promise.all([
+        getProfileCompetencies(supabase, profileId),
+        isOwner
+          ? getContactPreferences(supabase, profileId)
+          : getDiscoverableContactPreferences(supabase, profileId),
+      ]);
+      evidence = await getCompetenceEvidence(supabase, competencies.map((item) => item.id));
+    }
+  } catch {
+    loadError = true;
+  }
+}
+
+const preferenceLabels = [
+  ['open_to_peer_exchange', 'Peer exchange'],
+  ['open_to_advisory', 'Advisory conversations'],
+  ['open_to_projects', 'Projects'],
+  ['open_to_partnerships', 'Partnerships'],
+  ['open_to_opportunities', 'Professional opportunities'],
+  ['open_to_event_introductions', 'Event introductions'],
+] as const;
+const categoryLabels = {
+  knowledge: 'Knowledge',
+  practical_capability: 'Practical capabilities',
+  way_of_working: 'Ways of working',
+} as const;
+const groupedCompetencies = Object.entries(categoryLabels).map(([category, label]) => ({
+  category,
+  label,
+  items: competencies.filter((item) => item.competencies?.category === category),
+}));
+const status = Astro.url.searchParams.get('status');
+---
+
+<AppLayout title="Competence profile" section="competence">
+  {localPreview ? (
+    <div class="stack">
+      <div class="form-notice" role="status">Database features require Supabase sign-in. The local preview login is read-only and does not represent a database member.</div>
+      <section class="panel panel-pad"><EmptyState symbol="◇" title="Member profiles are not connected" description="Sign in through Supabase to view a real member profile." /></section>
+    </div>
+  ) : !supabase ? (
+    <p class="form-notice error" role="alert">Supabase is not configured. Profile data cannot be loaded.</p>
+  ) : loadError ? (
+    <p class="form-notice error" role="alert">We could not load this profile. Please try again shortly.</p>
+  ) : !profile ? (
+    <section class="panel panel-pad"><EmptyState symbol="·" title="Profile unavailable" description="This profile may be private, incomplete or no longer available." /></section>
+  ) : (
+    <>
+      {status === 'preferences-saved' && <p class="form-notice" role="status">Conversation preferences saved.</p>}
+      <div class="page-head">
+        <div>
+          <div class="eyebrow">Competence profile</div>
+          <h1>{profile.display_name}</h1>
+          <p class="subtitle">{profile.professional_summary}</p>
+        </div>
+        {isOwner && <a class="btn" href="/onboarding?step=contribution">Edit profile</a>}
+      </div>
+
+      <div class="profile-grid">
+        <div class="stack">
+          <section class="panel panel-pad">
+            <div class="panel-head"><div><h2>What I can contribute</h2></div></div>
+            <p>{profile.what_i_contribute}</p>
+            {profile.what_i_am_exploring && <><div class="eyebrow">What I am exploring</div><p>{profile.what_i_am_exploring}</p></>}
+            {isOwner && 'profile_visibility' in profile && (
+              <p class="profile-privacy-note">Profile visibility: {profile.profile_visibility === 'members' ? 'discoverable to signed-in members' : 'private to you'}</p>
+            )}
+          </section>
+
+          <section class="panel panel-pad">
+            <div class="panel-head"><div><h2>Competencies</h2><p>Knowledge, practical capabilities and ways of working.</p></div></div>
+            {competencies.length === 0 ? (
+              <EmptyState symbol="＋" title="No competencies to show" description={isOwner ? 'Add a competence to begin building your profile.' : 'This member has not added discoverable competencies yet.'}>
+                {isOwner && <a class="btn" href="/onboarding?step=competencies">Add a competence</a>}
+              </EmptyState>
+            ) : (
+              <div class="competence-groups">
+                {groupedCompetencies.filter((group) => group.items.length > 0).map((group) => (
+                  <section class="competence-group" aria-label={group.label}>
+                    <h3>{group.label}</h3>
+                    <div class="competence-list">
+                      {group.items.map((item) => (
+                        <article class="competence-item">
+                          <div class="competence-item-copy">
+                            <h4>{item.competencies?.name}</h4>
+                            <p>{item.member_statement}</p>
+                            {isOwner && <span class="status-note">{item.evidence_status === 'demonstrated' ? 'Demonstrated' : 'Declared'}</span>}
+                            {item.discoverable && <span class="status-note">Discoverable</span>}
+                          </div>
+                          {evidence.filter((entry) => entry.profile_competency_id === item.id).map((entry) => (
+                            <div class="evidence-item">
+                              <div>
+                                <strong>{entry.title}</strong>
+                                <p><span class="evidence-label">Context:</span> {entry.context}</p>
+                                <p><span class="evidence-label">Contribution:</span> {entry.contribution}</p>
+                                <p><span class="evidence-label">Outcome:</span> {entry.outcome}</p>
+                              </div>
+                              {entry.evidence_url && <a class="text-link" href={entry.evidence_url} target="_blank" rel="noreferrer">Open supporting link</a>}
+                            </div>
+                          ))}
+                        </article>
+                      ))}
+                    </div>
+                  </section>
+                ))}
+              </div>
+            )}
+          </section>
+        </div>
+
+        <aside class="stack" aria-label="Conversation preferences">
+          <section class="panel panel-pad">
+            <div class="panel-head"><div><h2>Conversations I welcome</h2><p>Only options explicitly enabled are shown.</p></div></div>
+            {preferences ? (
+              <>
+                {preferenceLabels.filter(([key]) => preferences[key]).map(([, label]) => <div class="stat-row"><span>{label}</span><strong>Open</strong></div>)}
+                {!preferenceLabels.some(([key]) => preferences[key]) && <p class="subtitle">No conversation types selected.</p>}
+                <div class="stat-row"><span>Availability</span><strong>{preferences.availability_status.replaceAll('_', ' ')}</strong></div>
+                <div class="stat-row"><span>Monthly capacity</span><strong>{preferences.conversation_capacity}</strong></div>
+                {isOwner && 'commercial_approaches' in preferences && <div class="stat-row"><span>Commercial approaches</span><strong>{preferences.commercial_approaches ? 'Allowed' : 'Closed'}</strong></div>}
+              </>
+            ) : <p class="subtitle">Conversation preferences are not available.</p>}
+            {isOwner && <a class="btn" href="/onboarding?step=conversations">Edit preferences</a>}
+          </section>
+          {isOwner && (
+            <section class="panel panel-pad">
+              <div class="eyebrow">Private profile settings</div>
+              <p>Your email address and private evidence are not displayed on this member profile.</p>
+            </section>
+          )}
+        </aside>
+      </div>
+    </>
+  )}
+</AppLayout>

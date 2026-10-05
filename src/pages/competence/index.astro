@@ -1,6 +1,46 @@
 ---
 import AppLayout from '../../layouts/AppLayout.astro';
 import EmptyState from '../../components/app/EmptyState.astro';
+import { createSupabaseServerClient } from '../../lib/supabase/server';
+import type { CompetenceEvidence, ContactPreferences, MemberProfile, ProfileCompetence } from '../../lib/competence-data';
+import {
+  getCompetenceEvidence,
+  getContactPreferences,
+  getMyProfile,
+  getProfileCompetencies,
+} from '../../lib/competence-data';
+
+const user = Astro.locals.user;
+const localPreview = user?.isLocalTestUser === true;
+const supabase = localPreview ? null : createSupabaseServerClient(Astro);
+let profile: MemberProfile | null = null;
+let competencies: ProfileCompetence[] = [];
+let evidence: CompetenceEvidence[] = [];
+let preferences: ContactPreferences | null = null;
+let loadError = false;
+
+if (!localPreview && supabase && user) {
+  try {
+    [profile, competencies, preferences] = await Promise.all([
+      getMyProfile(supabase),
+      getProfileCompetencies(supabase, user.id),
+      getContactPreferences(supabase, user.id),
+    ]);
+    evidence = await getCompetenceEvidence(supabase, competencies.map((item) => item.id));
+  } catch {
+    loadError = true;
+  }
+}
+
+const evidenceCompetenceIds = new Set(evidence.map((item) => item.profile_competency_id));
+const preferenceLabels = [
+  ['open_to_peer_exchange', 'Peer exchange'],
+  ['open_to_advisory', 'Advisory conversations'],
+  ['open_to_projects', 'Projects'],
+  ['open_to_partnerships', 'Partnerships'],
+  ['open_to_opportunities', 'Professional opportunities'],
+  ['open_to_event_introductions', 'Event introductions'],
+] as const;
 ---
 
 <AppLayout title="My competence" section="competence">
@@ -8,16 +48,119 @@ import EmptyState from '../../components/app/EmptyState.astro';
     <div>
       <div class="eyebrow">What you can contribute</div>
       <h1>My competence</h1>
-      <p class="subtitle">Show the work you can stand behind, with evidence that gives it context.</p>
+      <p class="subtitle">Show what you know, what you can do and evidence of where you have applied it.</p>
     </div>
+    {!localPreview && profile && <a class="btn primary" href="/onboarding?step=contribution">Edit profile</a>}
   </div>
-  <section class="panel panel-pad">
-    <EmptyState
-      symbol="＋"
-      title="Your profile starts with a capability"
-      description="Competence and evidence are the foundation for relevant, well-explained introductions."
-    >
-      <span class="btn" aria-disabled="true">Profile editor in the next build batch</span>
-    </EmptyState>
-  </section>
+
+  {localPreview ? (
+    <div class="stack">
+      <div class="form-notice" role="status">Database features require Supabase sign-in. The local preview login is read-only and cannot create demo profile data.</div>
+      <section class="panel panel-pad"><EmptyState symbol="◇" title="Your real profile will appear here" description="Sign in with an invited Supabase account to manage your competence and evidence." /></section>
+    </div>
+  ) : !supabase ? (
+    <p class="form-notice error" role="alert">Supabase is not configured. Connect the project before managing profile data.</p>
+  ) : loadError ? (
+    <p class="form-notice error" role="alert">We could not load your profile. Please reload or try again shortly.</p>
+  ) : !profile ? (
+    <section class="panel panel-pad">
+      <EmptyState symbol="＋" title="Start your competence profile" description="Begin with the work you know, then add a competence and an example that shows where you applied it.">
+        <a class="btn primary" href="/onboarding">Start onboarding</a>
+      </EmptyState>
+    </section>
+  ) : (
+    <div class="profile-grid">
+      <div class="stack">
+        {!profile.onboarding_completed && (
+          <section class="focus-panel">
+            <div>
+              <div class="eyebrow">Profile in progress</div>
+              <h2>Complete your competence profile</h2>
+              <p>Add what you know, what you can do and evidence of where you have applied it.</p>
+            </div>
+            <a class="btn primary" href="/onboarding">Continue onboarding</a>
+          </section>
+        )}
+
+        <section class="panel panel-pad">
+          <div class="panel-head">
+            <div>
+              <h2>Professional context</h2>
+              <p>{profile.profile_visibility === 'members' ? 'Discoverable to signed-in members' : 'Private to you'}</p>
+            </div>
+            {profile.onboarding_completed && <a class="text-link" href={`/profiles/${profile.id}`}>View member profile</a>}
+          </div>
+          <h3>{profile.display_name}</h3>
+          <p>{profile.professional_summary}</p>
+          <div class="profile-copy-grid">
+            <div><span class="eyebrow">What I contribute</span><p>{profile.what_i_contribute}</p></div>
+            {profile.what_i_am_exploring && <div><span class="eyebrow">What I am exploring</span><p>{profile.what_i_am_exploring}</p></div>}
+          </div>
+        </section>
+
+        <section class="panel panel-pad">
+          <div class="panel-head">
+            <div><h2>Competencies</h2><p>{competencies.length} documented · {evidenceCompetenceIds.size} with evidence</p></div>
+            <a class="text-link" href="/onboarding?step=competencies">Edit</a>
+          </div>
+          {competencies.length === 0 ? (
+            <EmptyState symbol="＋" title="No competencies added yet" description="Choose a capability and explain how you apply it.">
+              <a class="btn" href="/onboarding?step=competencies">Add a competence</a>
+            </EmptyState>
+          ) : (
+            <div class="competence-list">
+              {competencies.map((item) => (
+                <article class="competence-item">
+                  <div class="competence-item-copy">
+                    <span class="eyebrow">{item.competencies?.category.replaceAll('_', ' ')}</span>
+                    <h3>{item.competencies?.name}</h3>
+                    <p>{item.member_statement}</p>
+                    <span class="status-note">{evidenceCompetenceIds.has(item.id) ? 'Evidence added' : 'Declared'}</span>
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
+          {evidence.length > 0 && (
+            <div class="evidence-list">
+              <h3>Evidence and outcomes</h3>
+              {evidence.map((item) => (
+                <article class="evidence-item">
+                  <div>
+                    <strong>{item.title}</strong>
+                    <p>{item.outcome}</p>
+                    <span class="status-note">{item.visibility.replaceAll('_', ' ')}</span>
+                  </div>
+                  {item.evidence_url && <a class="text-link" href={item.evidence_url} target="_blank" rel="noreferrer">Open supporting link</a>}
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
+      </div>
+
+      <aside class="stack" aria-label="Profile preferences">
+        <section class="panel panel-pad">
+          <div class="panel-head"><div><h2>Conversations I welcome</h2><p>Private settings stay visible only to you.</p></div></div>
+          {preferences ? (
+            <>
+              {preferenceLabels.filter(([key]) => preferences[key]).map(([, label]) => <div class="stat-row"><span>{label}</span><strong>Open</strong></div>)}
+              {!preferenceLabels.some(([key]) => preferences[key]) && <p class="subtitle">No conversation types selected yet.</p>}
+              <div class="stat-row"><span>Availability</span><strong>{preferences.availability_status.replaceAll('_', ' ')}</strong></div>
+              <div class="stat-row"><span>Capacity per month</span><strong>{preferences.conversation_capacity}</strong></div>
+            </>
+          ) : <p class="subtitle">Preferences are not set yet.</p>}
+          <a class="btn" href="/onboarding?step=conversations">Set preferences</a>
+        </section>
+
+        <section class="panel panel-pad">
+          <div class="eyebrow">Profile progress</div>
+          <h2>{profile.onboarding_completed ? 'Profile complete' : 'Still in progress'}</h2>
+          <div class="stat-row"><span>Competencies documented</span><strong>{competencies.length}</strong></div>
+          <div class="stat-row"><span>Competencies with evidence</span><strong>{evidenceCompetenceIds.size}</strong></div>
+          <div class="stat-row"><span>Availability</span><strong>{preferences?.availability_status.replaceAll('_', ' ') ?? 'Not set'}</strong></div>
+        </section>
+      </aside>
+    </div>
+  )}
 </AppLayout>
