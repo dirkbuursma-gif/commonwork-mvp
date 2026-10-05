@@ -1,6 +1,33 @@
 ---
 import AppLayout from '../../layouts/AppLayout.astro';
-import EmptyState from '../../components/app/EmptyState.astro';
+import { createSupabaseServerClient } from '../../lib/supabase/server';
+import { getNetworkNeeds, getOwnedNeeds, type CompetenceNeed } from '../../lib/need-data';
+
+const user = Astro.locals.user;
+const localPreview = user?.isLocalTestUser === true;
+const supabase = localPreview ? null : createSupabaseServerClient(Astro);
+let ownedNeeds: CompetenceNeed[] = [];
+let networkNeeds: CompetenceNeed[] = [];
+let loadError = false;
+
+if (supabase && user) {
+  try {
+    [ownedNeeds, networkNeeds] = await Promise.all([
+      getOwnedNeeds(supabase, user.id),
+      getNetworkNeeds(supabase),
+    ]);
+    const ownedIds = new Set(ownedNeeds.map((need) => need.id));
+    networkNeeds = networkNeeds.filter((need) => !ownedIds.has(need.id));
+  } catch {
+    loadError = true;
+  }
+}
+
+const status = Astro.url.searchParams.get('status');
+const statusMessages: Record<string, string> = {
+  'preview-readonly': 'Local preview is read-only. Sign in with Supabase to save a need.',
+  invalid: 'The need could not be saved because one or more values were invalid.',
+};
 ---
 
 <AppLayout title="Find competence" section="find">
@@ -11,13 +38,42 @@ import EmptyState from '../../components/app/EmptyState.astro';
       <p class="subtitle">Describe the outcome you need and the context behind it.</p>
     </div>
   </div>
-  <section class="panel panel-pad">
-    <EmptyState
-      symbol="⌕"
-      title="No competence needs yet"
-      description="A useful match begins with a clear problem, essential capabilities and relevant context."
-    >
-      <span class="btn" aria-disabled="true">Need builder in a later batch</span>
-    </EmptyState>
-  </section>
+  {status && statusMessages[status] && <p class="form-notice" role="status">{statusMessages[status]}</p>}
+  {localPreview ? (
+    <p class="form-notice" role="status">Local preview session. Need creation and matching require a real Supabase sign-in.</p>
+  ) : loadError ? (
+    <p class="form-notice error" role="alert">We could not load competence needs. Please reload or try again shortly.</p>
+  ) : !supabase ? (
+    <p class="form-notice error" role="alert">Supabase is not configured. Competence needs are unavailable.</p>
+  ) : (
+    <div class="stack">
+      <div class="panel-head"><div><h2>Your needs</h2><p>Keep each brief tied to a specific business outcome.</p></div><a class="btn primary" href="/find/new">Create a need</a></div>
+      {ownedNeeds.length ? (
+        <section class="need-list" aria-label="Your competence needs">
+          {ownedNeeds.map((need) => (
+            <article class="need-list-item">
+              <div><span class={`need-status ${need.status}`}>{need.status.replaceAll('_', ' ')}</span><h3><a href={`/find/${need.id}`}>{need.title || 'Untitled need'}</a></h3><p>{need.business_outcome || 'Add the business outcome you want to achieve.'}</p></div>
+              <a class="btn" href={`/find/${need.id}`}>View need</a>
+            </article>
+          ))}
+        </section>
+      ) : (
+        <section class="panel panel-pad"><div class="empty-state"><h2>No needs yet</h2><p>A useful match starts with a clear problem, essential competence and relevant context.</p><a class="btn primary" href="/find/new">Describe a need</a></div></section>
+      )}
+
+      {networkNeeds.length > 0 && (
+        <section class="stack" aria-labelledby="network-needs-title">
+          <div class="panel-head"><div><h2 id="network-needs-title">Active network needs</h2><p>Briefs their owners chose to share with signed-in members.</p></div></div>
+          <div class="need-list">
+            {networkNeeds.map((need) => (
+              <article class="need-list-item">
+                <div><span class="need-status active">network brief</span><h3><a href={`/find/${need.id}`}>{need.title}</a></h3><p>{need.business_outcome}</p></div>
+                <a class="btn" href={`/find/${need.id}`}>View brief</a>
+              </article>
+            ))}
+          </div>
+        </section>
+      )}
+    </div>
+  )}
 </AppLayout>

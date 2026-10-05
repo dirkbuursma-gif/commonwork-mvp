@@ -1,0 +1,35 @@
+---
+import AppLayout from '../../layouts/AppLayout.astro';
+import NeedForm from '../../components/matching/NeedForm.astro';
+import { getCanonicalCompetencies, type CanonicalCompetence } from '../../lib/competence-data';
+import { createSupabaseServerClient } from '../../lib/supabase/server';
+
+const user = Astro.locals.user;
+const localPreview = user?.isLocalTestUser === true;
+const supabase = localPreview ? null : createSupabaseServerClient(Astro);
+let competencies: CanonicalCompetence[] = [];
+let loadError = false;
+
+if (supabase && !localPreview) {
+  try {
+    competencies = await getCanonicalCompetencies(supabase);
+  } catch {
+    loadError = true;
+  }
+}
+---
+
+<AppLayout title="Describe a need" section="find">
+  <div class="page-head">
+    <div><div class="eyebrow">Find competence</div><h1>Describe a need</h1><p class="subtitle">Define the outcome, essential competence and conditions for a useful conversation.</p></div>
+  </div>
+  {localPreview ? (
+    <p class="form-notice" role="status">Local preview is read-only. Sign in with Supabase to create a need.</p>
+  ) : loadError ? (
+    <p class="form-notice error" role="alert">The competence vocabulary could not be loaded. Please try again shortly.</p>
+  ) : supabase ? (
+    <NeedForm competencies={competencies} />
+  ) : (
+    <p class="form-notice error" role="alert">Supabase is not configured. Need creation is unavailable.</p>
+  )}
+</AppLayout>

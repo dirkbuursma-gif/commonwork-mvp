@@ -44,7 +44,9 @@ npm test
 - `src/middleware.ts` protects application routes and redirects signed-out visitors.
 - `src/pages/onboarding.astro` provides the four-step competence-profile flow.
 - `src/pages/profiles/[id].astro` separates owner and discoverable member-profile views.
-- `supabase/migrations/` defines profile RLS and the controlled competence vocabulary.
-- `tests/` covers foundation, profile CRUD, onboarding, and two-user RLS boundaries.
+- `src/pages/find/` provides guided need creation, editing and requester-only explained match results.
+- `src/lib/need-data.ts` contains explicit-column reads for needs, matches, reasons, profiles and authorized evidence.
+- `supabase/migrations/` defines profile and need RLS, the controlled competence vocabulary, and deterministic transparent matching.
+- `tests/` covers foundation, profile CRUD, onboarding, need lifecycle, matching and two-user RLS boundaries.
 
 See [docs/BUILD-PLAN.md](docs/BUILD-PLAN.md) before starting the next implementation batch.

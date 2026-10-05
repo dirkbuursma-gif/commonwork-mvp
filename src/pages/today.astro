@@ -3,6 +3,8 @@ import AppLayout from '../layouts/AppLayout.astro';
 import { createSupabaseServerClient } from '../lib/supabase/server';
 import type { CompetenceEvidence, ContactPreferences, MemberProfile, ProfileCompetence } from '../lib/competence-data';
 import { getCompetenceEvidence, getContactPreferences, getMyProfile, getProfileCompetencies } from '../lib/competence-data';
+import type { CompetenceNeed } from '../lib/need-data';
+import { getMatchesForNeed, getOwnedNeeds } from '../lib/need-data';
 
 const user = Astro.locals.user;
 const localPreview = user?.isLocalTestUser === true;
@@ -17,16 +19,22 @@ let profile: MemberProfile | null = null;
 let competencies: ProfileCompetence[] = [];
 let evidence: CompetenceEvidence[] = [];
 let preferences: ContactPreferences | null = null;
+let activeNeeds: CompetenceNeed[] = [];
+let openSuggestions = 0;
 let loadError = false;
 
 if (!localPreview && supabase && user) {
   try {
-    [profile, competencies, preferences] = await Promise.all([
+    [profile, competencies, preferences, activeNeeds] = await Promise.all([
       getMyProfile(supabase),
       getProfileCompetencies(supabase, user.id),
       getContactPreferences(supabase, user.id),
+      getOwnedNeeds(supabase, user.id),
     ]);
     evidence = await getCompetenceEvidence(supabase, competencies.map((item) => item.id));
+    activeNeeds = activeNeeds.filter((need) => need.status === 'active' && (!need.expires_at || new Date(need.expires_at) > new Date()));
+    const needMatches = await Promise.all(activeNeeds.map((need) => getMatchesForNeed(supabase, need.id)));
+    openSuggestions = needMatches.flat().filter((match) => match.status !== 'dismissed').length;
   } catch {
     loadError = true;
   }
@@ -87,6 +95,13 @@ const nextImprovement =
           <p class="subtitle">Small, evidence-backed details help other members understand where a conversation may be useful.</p>
           <a class="btn" href={`/onboarding?step=${competencies.length ? 'evidence' : 'competencies'}`}>Improve profile</a>
         </section>
+        <section class="panel panel-pad">
+          <h2>Find competence</h2>
+          <p class="subtitle">Describe a business need and review transparent match suggestions.</p>
+          <div class="stat-row"><span>Active needs</span><strong>{activeNeeds.length}</strong></div>
+          <div class="stat-row"><span>Open suggestions</span><strong>{openSuggestions}</strong></div>
+          <a class="btn" href="/find">Manage needs</a>
+        </section>
       </aside>
     </div>
   ) : (
@@ -114,8 +129,11 @@ const nextImprovement =
           <a class="btn" href={`/onboarding?step=${competenciesWithEvidence < competencies.length ? 'evidence' : 'conversations'}`}>Review profile</a>
         </section>
         <section class="panel panel-pad">
-          <h2>Competence discovery</h2>
-          <p class="subtitle">Match suggestions are not available yet. Your profile will be used when transparent competence matching is built.</p>
+          <h2>Find competence</h2>
+          <p class="subtitle">Describe the result you need and review transparent, evidence-backed suggestions.</p>
+          <div class="stat-row"><span>Active needs</span><strong>{activeNeeds.length}</strong></div>
+          <div class="stat-row"><span>Open suggestions</span><strong>{openSuggestions}</strong></div>
+          <a class="btn" href="/find">Manage needs</a>
         </section>
       </aside>
     </div>
