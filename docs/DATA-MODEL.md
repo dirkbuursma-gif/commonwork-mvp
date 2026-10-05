@@ -12,7 +12,7 @@
 | `competency_suggestions` | Member-submitted vocabulary suggestions pending review |
 | `competence_needs` | Business outcomes and capabilities a requester needs |
 | `need_competencies` | Essential and useful competencies attached to a need |
-| `matches` | Saved, rule-calculated candidates for a need |
+| `matches` | Rule-calculated relevant people for a need; internal scores are not member-readable |
 | `match_reasons` | Strengths, evidence, gaps and human-readable rationale |
 | `introductions` | Proposed professional introductions and their workflow state |
 | `introduction_participants` | Participant consent and role for an introduction |
@@ -34,7 +34,7 @@ Evidence status values:
 - `outcome_verified`
 - `commonwork_demonstrated`
 
-Evidence records can reference projects, outcomes or peer validations. Private evidence is visible only to its owner unless the owner explicitly shares it for a match or introduction.
+Evidence records can reference projects, outcomes or peer validations. Private evidence is visible only to its owner. `matches_only` evidence is returned only in the requesting member's authorized match results; it is not exposed to other members. `members` evidence may appear on a discoverable profile.
 
 ### Batch 2 implementation
 
@@ -55,12 +55,14 @@ Onboarding completion is calculated in PostgreSQL from a non-empty display name,
 - `get_my_profile()` returns profile details only for `auth.uid()`.
 - `discoverable_profiles` returns only `id`, `display_name`, `professional_summary`, `what_i_contribute` and `what_i_am_exploring`, and only for completed profiles marked `members`.
 - `discoverable_contact_preferences` returns explicitly opted-in conversation types, availability and capacity for discoverable profiles; it excludes `commercial_approaches`.
-- Evidence is queried separately under RLS. `private` and `matches_only` are owner-only until a future matching policy exists. `members` evidence is available only with its owner's discoverable profile and discoverable competence.
+- `discoverable_member_competencies` returns only active competencies explicitly marked discoverable on completed member profiles.
+- `member_match_reasons` returns explanation fields only to the requester; `member_match_feedback` returns feedback only to its creator.
+- Evidence is queried separately under RLS. `private` and `matches_only` remain owner-only through direct table reads. A security-definer helper returns only `matches_only` and `members` evidence for the owner of an active, unexpired need and only for an existing matched profile. `members` evidence is also available with its owner's discoverable profile and discoverable competence.
 - Server queries select named columns; member-facing routes never use `select('*')`.
 
 ## Competence needs
 
-A need captures a business outcome, problem to solve, essential and useful competencies, context, what the requester offers, preferred conversation type, visibility and expiry. Visibility values are `private_matches` (default), `selected_group`, `event_members` and `network`.
+A need captures a business outcome, problem to solve, essential and useful competencies, context, what the requester offers, preferred conversation type, visibility and expiry. Visibility values are `private_matches` (default), `selected_network`, `selected_event` and `network`. Only `private_matches` and `network` can be activated in this release; selected scopes stay unavailable until their membership and RLS boundaries exist. A network brief is readable by signed-in members while active and unexpired, but its match results remain requester-only.
 
 ## Matching
 
@@ -71,7 +73,7 @@ Initial internal weighting:
 - Relevant problem or outcome: 15
 - Availability and contact preference: 10
 
-Do not display a precise percentage. Present `Strong relevance`, `Good relevance` or `Possible relevance`, alongside matching competencies, supporting evidence, relevant outcomes, gaps, availability and an introduction route. Titles, follower counts, age, gender and location never increase the score. Location is an optional practical constraint only.
+Do not display a precise percentage. Present `Strong relevance`, `Good relevance` or `Possible relevance`, alongside matching competencies, shareable evidence, relevant context, gaps, availability and unknowns. Batch 3 does not create introductions. Titles, follower counts, age, gender, nationality, education prestige, employer prestige and engagement volume never increase the score; demographic data is not part of the matching query.
 
 ## Introduction states
 
@@ -87,7 +89,7 @@ Contact details remain hidden until the required participants consent. Declines 
 - Members edit only their own profile, competencies, needs and evidence.
 - Discoverable profiles expose only fields explicitly marked discoverable.
 - Private evidence is visible only to its owner.
-- Needs are visible to the owner and explicitly eligible matched members under the need's visibility rules.
+- Private needs and match results are visible only to the requester. An active, unexpired network brief and its selected competence terms are visible to signed-in members.
 - Introduction records are visible only to participants and assigned Connectors.
 - Event objectives are visible only to authorised event members.
 - Administrative roles live in a protected role table, never in user-editable profile flags.

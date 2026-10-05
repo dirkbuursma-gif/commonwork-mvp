@@ -33,7 +33,7 @@ Acceptance: a member can complete a useful profile without demographic data, att
 - Need detail, rule-based matching and explained result cards
 - Save and dismiss actions
 
-Acceptance: members can describe a business need in ordinary language; results explain relevance and gaps; private needs and demographic restrictions are enforced.
+Acceptance: members can save an incomplete private draft, return to activate it, and review relevant people with strengths, shareable evidence, gaps, availability and unknowns. Private needs and all match results are requester-only; network briefs are explicitly shared; internal scores and reason weights are not client-readable; expired needs generate no new matches. Matching is deterministic and excludes demographic and prestige proxies. Batch 3 does not create introductions, events or messaging.
 
 ### 4. Introductions
 

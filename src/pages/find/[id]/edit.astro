@@ -1,0 +1,43 @@
+---
+import AppLayout from '../../../layouts/AppLayout.astro';
+import NeedForm from '../../../components/matching/NeedForm.astro';
+import { getCanonicalCompetencies, type CanonicalCompetence } from '../../../lib/competence-data';
+import { getNeed, getNeedCompetencies, type CompetenceNeed, type NeedCompetence } from '../../../lib/need-data';
+import { createSupabaseServerClient } from '../../../lib/supabase/server';
+
+const user = Astro.locals.user;
+const localPreview = user?.isLocalTestUser === true;
+const supabase = localPreview ? null : createSupabaseServerClient(Astro);
+const needId = Astro.params.id ?? '';
+let need: CompetenceNeed | null = null;
+let needCompetencies: NeedCompetence[] = [];
+let competencies: CanonicalCompetence[] = [];
+let isOwner = false;
+let loadError = false;
+
+if (supabase && !localPreview && needId) {
+  try {
+    need = await getNeed(supabase, needId);
+    const { data: ownerResult, error: ownerError } = await supabase.rpc('is_need_owner', { target_need_id: needId });
+    if (ownerError) throw ownerError;
+    isOwner = ownerResult === true;
+    competencies = await getCanonicalCompetencies(supabase);
+    if (need && isOwner) needCompetencies = await getNeedCompetencies(supabase, needId);
+  } catch {
+    loadError = true;
+  }
+}
+---
+
+{localPreview ? (
+  <AppLayout title="Edit need" section="find"><p class="form-notice" role="status">Local preview is read-only. Sign in with Supabase to edit a need.</p></AppLayout>
+) : loadError ? (
+  <AppLayout title="Edit need" section="find"><p class="form-notice error" role="alert">We could not load the need editor. Please try again shortly.</p></AppLayout>
+) : !need || !isOwner || !supabase || !['draft', 'paused', 'active'].includes(need.status) ? (
+  <AppLayout title="Need unavailable" section="find"><section class="panel panel-pad"><div class="empty-state"><h1>This need cannot be edited</h1><p>Only the owner can edit a draft, paused or active need.</p><a class="btn" href="/find">Back to Find competence</a></div></section></AppLayout>
+) : (
+  <AppLayout title="Edit need" section="find">
+    <div class="page-head"><div><div class="eyebrow">Find competence</div><h1>Edit need</h1><p class="subtitle">Changes to an active need pause it until matching is run again.</p></div></div>
+    <NeedForm competencies={competencies} need={need} needCompetencies={needCompetencies} />
+  </AppLayout>
+)}

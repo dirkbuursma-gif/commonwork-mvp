@@ -33,7 +33,7 @@ Competence gets someone matched. A purposeful introduction starts the relationsh
 ## Explicit exclusions
 
 - Job applications
-- Candidate pipelines
+- Recruitment pipelines
 - CV screening
 - Follower counts
 - Mass messaging

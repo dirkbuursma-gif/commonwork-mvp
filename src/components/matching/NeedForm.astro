@@ -1,0 +1,243 @@
+---
+import type { CanonicalCompetence } from '../../lib/competence-data';
+import type { CompetenceNeed, NeedCompetence } from '../../lib/need-data';
+
+interface Props {
+  competencies: CanonicalCompetence[];
+  need?: CompetenceNeed | null;
+  needCompetencies?: NeedCompetence[];
+}
+
+const { competencies, need = null, needCompetencies = [] } = Astro.props;
+const essential = new Set(needCompetencies.filter((item) => item.importance === 'essential').map((item) => item.competency_id));
+const useful = new Set(needCompetencies.filter((item) => item.importance === 'useful').map((item) => item.competency_id));
+const expiryDate = need?.expires_at ? new Date(need.expires_at) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+const expiresLocal = new Date(expiryDate.getTime() - expiryDate.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
+const categories = [
+  { id: 'knowledge', label: 'Knowledge' },
+  { id: 'practical_capability', label: 'Practical capabilities' },
+  { id: 'way_of_working', label: 'Ways of working' },
+] as const;
+---
+
+<form class="need-form panel panel-pad" method="post" action="/api/needs" data-need-form novalidate>
+  {need && <input type="hidden" name="need_id" value={need.id} />}
+  <input type="hidden" name="action" value="save-draft" data-need-action />
+
+  <nav aria-label="Need setup progress">
+    <ol class="onboarding-steps need-steps">
+      <li class="onboarding-step active" data-step-indicator="0"><a href="#need-outcome" data-goto-step="0"><span class="step-number">1</span><span>Need</span></a></li>
+      <li class="onboarding-step" data-step-indicator="1"><a href="#need-competencies" data-goto-step="1"><span class="step-number">2</span><span>Competence</span></a></li>
+      <li class="onboarding-step" data-step-indicator="2"><a href="#need-context" data-goto-step="2"><span class="step-number">3</span><span>Context</span></a></li>
+      <li class="onboarding-step" data-step-indicator="3"><a href="#need-review" data-goto-step="3"><span class="step-number">4</span><span>Review</span></a></li>
+    </ol>
+  </nav>
+
+  <section class="need-step" data-step-pane="0" id="need-outcome" aria-labelledby="need-outcome-title">
+    <div class="eyebrow">Step 1 of 4</div>
+    <h2 id="need-outcome-title" tabindex="-1">What business outcome do you need?</h2>
+    <p class="subtitle">Describe the result you want, then the problem keeping you from it.</p>
+    <label class="field" for="need-title">Short title<input id="need-title" name="title" required minlength="3" maxlength="180" value={need?.title ?? ''} placeholder="Improve product-data readiness across channels" /></label>
+    <label class="field" for="business-outcome">Desired business outcome<textarea id="business-outcome" name="business_outcome" required minlength="3" maxlength="2000" rows="3" placeholder="What should be measurably better?">{need?.business_outcome ?? ''}</textarea></label>
+    <label class="field" for="problem-statement">Problem to solve<textarea id="problem-statement" name="problem_statement" required minlength="3" maxlength="3000" rows="4" placeholder="What is happening today, and why does it matter?">{need?.problem_statement ?? ''}</textarea></label>
+    <div class="form-actions">
+      <span class="field-help">Start with the business issue, not a product or vendor.</span>
+      <button class="btn" type="submit" data-submit-action="save-draft">Save draft</button>
+      <button class="btn primary" type="button" data-next-step>Continue to competence</button>
+    </div>
+  </section>
+
+  <section class="need-step" data-step-pane="1" id="need-competencies" aria-labelledby="need-competencies-title" hidden>
+    <div class="eyebrow">Step 2 of 4</div>
+    <h2 id="need-competencies-title" tabindex="-1">Which competence matters?</h2>
+    <p class="subtitle">Separate essential requirements from useful supporting experience. Select at least one essential competence to activate matching.</p>
+    <label class="field" for="competence-search">Search competence vocabulary<input id="competence-search" type="search" data-competence-search placeholder="Search by name or description" /></label>
+    <div class="need-competence-groups">
+      {categories.map((category) => {
+        const items = competencies.filter((item) => item.category === category.id);
+        return items.length > 0 && (
+          <section class="need-competence-group">
+            <h3>{category.label}</h3>
+            <div class="need-competence-options">
+              {items.map((item) => (
+                <div class="need-competence-option" data-competence-option data-search-text={`${item.name} ${item.description}`}>
+                  <strong>{item.name}</strong>
+                  {item.description && <span>{item.description}</span>}
+                  <div class="need-importance-controls">
+                    <label><input type="checkbox" name="essential_competencies" value={item.id} checked={essential.has(item.id)} data-importance="essential" /> Essential</label>
+                    <label><input type="checkbox" name="useful_competencies" value={item.id} checked={useful.has(item.id)} data-importance="useful" /> Useful</label>
+                  </div>
+                  <label class="field need-term-context" for={`term-context-${item.id}`}>Why does this competence matter? <span class="field-optional">Optional</span>
+                    <input id={`term-context-${item.id}`} name={`competence_context_${item.id}`} maxlength="1000" value={needCompetencies.find((selected) => selected.competency_id === item.id)?.context ?? ''} />
+                  </label>
+                </div>
+              ))}
+            </div>
+          </section>
+        );
+      })}
+    </div>
+    <div class="form-actions">
+      <button class="btn" type="button" data-previous-step>Back</button>
+      <button class="btn" type="submit" data-submit-action="save-draft">Save draft</button>
+      <button class="btn primary" type="button" data-next-step>Continue to context</button>
+    </div>
+  </section>
+
+  <section class="need-step" data-step-pane="2" id="need-context" aria-labelledby="need-context-title" hidden>
+    <div class="eyebrow">Step 3 of 4</div>
+    <h2 id="need-context-title" tabindex="-1">Add useful context</h2>
+    <p class="subtitle">Give potential matches enough context to understand the situation without exposing private details.</p>
+    <label class="field" for="relevant-context">Relevant context<textarea id="relevant-context" name="relevant_context" maxlength="3000" rows="5" placeholder="Systems, constraints, timing, stakeholders or what has already been tried.">{need?.relevant_context ?? ''}</textarea></label>
+    <label class="field" for="requester-offers">What can you offer in return?<textarea id="requester-offers" name="what_requester_offers" maxlength="2000" rows="3" placeholder="Knowledge exchange, a peer conversation, implementation context, or another contribution.">{need?.what_requester_offers ?? ''}</textarea></label>
+    <label class="field" for="conversation-type">Intended conversation type
+      <select id="conversation-type" name="conversation_type">
+        <option value="peer_exchange" selected={need?.conversation_type === 'peer_exchange' || !need}>Peer exchange</option>
+        <option value="advisory" selected={need?.conversation_type === 'advisory'}>Advisory conversation</option>
+        <option value="project" selected={need?.conversation_type === 'project'}>Project discussion</option>
+        <option value="partnership" selected={need?.conversation_type === 'partnership'}>Partnership</option>
+        <option value="opportunity" selected={need?.conversation_type === 'opportunity'}>Professional opportunity</option>
+      </select>
+    </label>
+    <div class="form-actions">
+      <button class="btn" type="button" data-previous-step>Back</button>
+      <button class="btn" type="submit" data-submit-action="save-draft">Save draft</button>
+      <button class="btn primary" type="button" data-next-step>Review need</button>
+    </div>
+  </section>
+
+  <section class="need-step" data-step-pane="3" id="need-review" aria-labelledby="need-review-title" hidden>
+    <div class="eyebrow">Step 4 of 4</div>
+    <h2 id="need-review-title" tabindex="-1">Set visibility and expiry</h2>
+    <p class="subtitle">Private matches is the default. Network visibility is available when you intentionally want a wider brief.</p>
+    <label class="field" for="need-visibility">Who can see this need?
+      <select id="need-visibility" name="visibility">
+        <option value="private_matches" selected={need?.visibility !== 'network'}>Private matches only</option>
+        <option value="network" selected={need?.visibility === 'network'}>Signed-in network members</option>
+        <option value="selected_network" disabled>Selected group (later release)</option>
+        <option value="selected_event" disabled>Event members (later release)</option>
+      </select>
+    </label>
+    <label class="field" for="need-expiry">Expiry date and time<input id="need-expiry" type="datetime-local" name="expires_at" required value={expiresLocal} /></label>
+    <div class="need-review-note">
+      <h3>Before activation</h3>
+      <p>Activation requires an outcome, problem statement, at least one essential competence and a future expiry. Matching is deterministic and shows explanations, not a percentage.</p>
+    </div>
+    <div class="form-actions need-submit-actions">
+      <button class="btn" type="button" data-previous-step>Back</button>
+      <button class="btn" type="submit" data-submit-action="save-draft">Save draft</button>
+      <button class="btn primary" type="submit" data-submit-action="activate">Activate and find competence</button>
+    </div>
+  </section>
+</form>
+
+<script>
+  const form = document.querySelector<HTMLFormElement>('[data-need-form]');
+  const panes = [...document.querySelectorAll<HTMLElement>('[data-step-pane]')];
+  const indicators = [...document.querySelectorAll<HTMLElement>('[data-step-indicator]')];
+  const search = document.querySelector<HTMLInputElement>('[data-competence-search]');
+  const categories = [...document.querySelectorAll<HTMLElement>('[data-competence-option]')];
+  let currentStep = 0;
+
+  function showStep(step: number) {
+    currentStep = Math.max(0, Math.min(panes.length - 1, step));
+    panes.forEach((pane, index) => {
+      pane.hidden = index !== currentStep;
+      indicators[index]?.classList.toggle('active', index === currentStep);
+      indicators[index]?.classList.toggle('complete', index < currentStep);
+    });
+    panes[currentStep]?.querySelector<HTMLElement>('h2')?.focus({ preventScroll: true });
+    panes[currentStep]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function validateStep(step: number) {
+    const fields = [...(panes[step]?.querySelectorAll<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>('[required]') ?? [])];
+    const invalid = fields.find((field) => !field.checkValidity());
+    if (invalid) {
+      showStep(step);
+      invalid.reportValidity();
+      return false;
+    }
+    return true;
+  }
+
+  document.querySelectorAll<HTMLButtonElement>('[data-next-step]').forEach((button) => {
+    button.addEventListener('click', () => {
+      if (validateStep(currentStep)) showStep(currentStep + 1);
+    });
+  });
+
+  document.querySelectorAll<HTMLButtonElement>('[data-previous-step]').forEach((button) => {
+    button.addEventListener('click', () => showStep(currentStep - 1));
+  });
+
+  document.querySelectorAll<HTMLAnchorElement>('[data-goto-step]').forEach((link) => {
+    link.addEventListener('click', (event) => {
+      event.preventDefault();
+      const target = Number(link.dataset.gotoStep);
+      if (target <= currentStep) {
+        showStep(target);
+        return;
+      }
+      for (let step = currentStep; step < target; step += 1) {
+        if (!validateStep(step)) return;
+      }
+      showStep(target);
+    });
+  });
+
+  search?.addEventListener('input', () => {
+    const query = search.value.trim().toLowerCase();
+    categories.forEach((item) => {
+      item.hidden = query.length > 0 && !item.dataset.searchText?.toLowerCase().includes(query);
+    });
+  });
+
+  document.querySelectorAll<HTMLInputElement>('[data-importance="essential"]').forEach((input) => {
+    input.addEventListener('change', () => {
+      const usefulInput = input.closest('.need-competence-option')?.querySelector<HTMLInputElement>('[data-importance="useful"]');
+      if (input.checked && usefulInput) usefulInput.checked = false;
+    });
+  });
+
+  document.querySelectorAll<HTMLInputElement>('[data-importance="useful"]').forEach((input) => {
+    input.addEventListener('change', () => {
+      const essentialInput = input.closest('.need-competence-option')?.querySelector<HTMLInputElement>('[data-importance="essential"]');
+      if (input.checked && essentialInput) essentialInput.checked = false;
+    });
+  });
+
+  form?.addEventListener('submit', (event) => {
+    const submitter = event.submitter as HTMLButtonElement | null;
+    const requestedAction = submitter?.dataset.submitAction ?? 'save-draft';
+    const action = form.querySelector<HTMLInputElement>('[data-need-action]');
+    if (action) action.value = requestedAction;
+    if (requestedAction !== 'activate') return;
+
+    const essentialSelected = form.querySelectorAll<HTMLInputElement>('[data-importance="essential"]:checked').length > 0;
+    if (!essentialSelected) {
+      event.preventDefault();
+      showStep(1);
+      panes[1]?.querySelector('[data-need-warning]')?.remove();
+      const warning = document.createElement('p');
+      warning.className = 'form-notice error';
+      warning.dataset.needWarning = '';
+      warning.setAttribute('role', 'alert');
+      warning.textContent = 'Select at least one essential competence before activation.';
+      panes[1]?.prepend(warning);
+      return;
+    }
+
+    const requiredFields = [...form.querySelectorAll<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>('[required]')];
+    for (const field of requiredFields) {
+      if (!field.checkValidity()) {
+        event.preventDefault();
+        const pane = field.closest<HTMLElement>('[data-step-pane]');
+        const paneIndex = panes.indexOf(pane as HTMLElement);
+        if (paneIndex >= 0) showStep(paneIndex);
+        field.reportValidity();
+        return;
+      }
+    }
+  });
+</script>

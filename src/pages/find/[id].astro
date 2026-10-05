@@ -1,0 +1,166 @@
+---
+import AppLayout from '../../layouts/AppLayout.astro';
+import { createSupabaseServerClient } from '../../lib/supabase/server';
+import {
+  getMatchEvidence,
+  getMatchReasons,
+  getMatchesForNeed,
+  getMatchMemberProfiles,
+  getNeed,
+  getNeedCompetencies,
+  type CompetenceNeed,
+  type MatchEvidence,
+  type MemberProfileSummary,
+  type MatchReason,
+  type MatchResult,
+  type NeedCompetence,
+} from '../../lib/need-data';
+
+const user = Astro.locals.user;
+const localPreview = user?.isLocalTestUser === true;
+const supabase = localPreview ? null : createSupabaseServerClient(Astro);
+const needId = Astro.params.id ?? '';
+let need: CompetenceNeed | null = null;
+let isOwner = false;
+let needCompetencies: NeedCompetence[] = [];
+let matches: MatchResult[] = [];
+let reasons: MatchReason[] = [];
+let relevantMembers: MemberProfileSummary[] = [];
+let evidence: MatchEvidence[] = [];
+let loadError = false;
+
+if (supabase && !localPreview && needId) {
+  try {
+    need = await getNeed(supabase, needId);
+    const { data: ownerResult, error: ownerError } = await supabase.rpc('is_need_owner', { target_need_id: needId });
+    if (ownerError) throw ownerError;
+    isOwner = ownerResult === true;
+    if (need && isOwner) {
+      needCompetencies = await getNeedCompetencies(supabase, needId);
+      matches = await getMatchesForNeed(supabase, needId);
+      const matchIds = matches.map((match) => match.id);
+      const matchedProfileIds = [...new Set(matches.filter((match) => match.status !== 'dismissed').map((match) => match.matched_profile_id))];
+      [reasons, relevantMembers, evidence] = await Promise.all([
+        getMatchReasons(supabase, matchIds),
+        getMatchMemberProfiles(supabase, matchedProfileIds),
+        getMatchEvidence(supabase, needId),
+      ]);
+    } else if (need) {
+      needCompetencies = await getNeedCompetencies(supabase, needId);
+    }
+  } catch {
+    loadError = true;
+  }
+}
+
+const memberByProfileId = new Map(relevantMembers.map((member) => [member.id, member]));
+const visibleMatches = matches.filter((match) => match.status !== 'dismissed' && memberByProfileId.has(match.matched_profile_id));
+const status = Astro.url.searchParams.get('status');
+const statusMessages: Record<string, string> = {
+  'draft-saved': 'Draft saved.',
+  'need-activated': 'Need activated. Matching is based on the information currently shared by members.',
+  saved: 'Match saved.',
+  dismissed: 'Match dismissed.',
+  'matching-unavailable': 'The need was saved but matching could not finish. Try activating it again.',
+  'save-failed': 'The need could not be saved. Your previous saved version was kept where possible.',
+};
+
+function reasonLabel(reason: MatchReason) {
+  if (reason.reason_type === 'essential_match' || reason.reason_type === 'useful_match' || reason.reason_type === 'relevant_outcome') return 'Relevant experience';
+  if (reason.reason_type === 'evidence_strength') return 'Evidence';
+  if (reason.reason_type === 'availability') return 'Availability';
+  return 'Worth validating';
+}
+
+function reasonText(reason: MatchReason) {
+  if (reason.reason_type === 'competence_gap') {
+    const requestedTerm = reason.explanation.split(': ').at(-1)?.replace(/\.$/, '') ?? 'this competence';
+    return `No discoverable profile information confirms ${requestedTerm}; validate this directly in conversation.`;
+  }
+  return reason.explanation;
+}
+---
+
+{localPreview ? (
+  <AppLayout title="Need details" section="find"><p class="form-notice" role="status">Local preview is read-only. Database-backed needs are unavailable.</p></AppLayout>
+) : loadError ? (
+  <AppLayout title="Need details" section="find"><p class="form-notice error" role="alert">We could not load this need. Please try again shortly.</p></AppLayout>
+) : !need || !supabase ? (
+  <AppLayout title="Need unavailable" section="find"><section class="panel panel-pad"><div class="empty-state"><h1>This need is unavailable</h1><p>It may be private, expired or no longer available.</p><a class="btn" href="/find">Back to Find competence</a></div></section></AppLayout>
+) : (
+  <AppLayout title={need.title || 'Need details'} section="find">
+    <div class="page-head">
+      <div><div class="eyebrow">{need.visibility === 'network' ? 'Network brief' : 'Your competence need'} · {need.status}</div><h1>{need.title || 'Untitled need'}</h1><p class="subtitle">{need.business_outcome}</p></div>
+      {isOwner && ['draft', 'paused', 'active'].includes(need.status) && <a class="btn" href={`/find/${need.id}/edit`}>Edit need</a>}
+    </div>
+    {status && statusMessages[status] && <p class="form-notice" role="status">{statusMessages[status]}</p>}
+    <div class="need-detail-grid">
+      <section class="stack">
+        <article class="panel panel-pad">
+          <h2>Problem to solve</h2><p>{need.problem_statement || 'Not yet described.'}</p>
+          {need.relevant_context && <><h3>Relevant context</h3><p>{need.relevant_context}</p></>}
+          {need.what_requester_offers && <><h3>What the requester offers</h3><p>{need.what_requester_offers}</p></>}
+        </article>
+        <article class="panel panel-pad">
+          <h2>Competence needed</h2>
+          {needCompetencies.length ? (
+            <ul class="need-term-list">{needCompetencies.map((term) => <li><strong>{term.competencies?.name ?? 'Competence'}</strong><span>{term.importance === 'essential' ? 'Essential' : 'Useful'}</span>{term.context && <p>{term.context}</p>}</li>)}</ul>
+          ) : <p>No competence terms have been selected.</p>}
+          <p class="field-help">Conversation: {need.conversation_type.replaceAll('_', ' ')}. Expires {need.expires_at ? new Date(need.expires_at).toLocaleDateString() : 'not set'}.</p>
+        </article>
+      </section>
+
+      {isOwner && ['draft', 'paused'].includes(need.status) ? (
+        <aside class="panel panel-pad">
+          <div class="eyebrow">{need.status === 'draft' ? 'Draft need' : 'Paused need'}</div>
+          <h2>{need.status === 'draft' ? 'Ready when you are' : 'Matching is paused'}</h2>
+          <p class="subtitle">{need.status === 'draft' ? 'Complete the brief and activate it to look for relevant people.' : 'Review your changes and activate the need again to refresh suggestions.'}</p>
+          <a class="btn primary" href={`/find/${need.id}/edit`}>{need.status === 'draft' ? 'Continue editing' : 'Review and activate'}</a>
+        </aside>
+      ) : isOwner ? (
+        <section class="stack" aria-labelledby="matches-title">
+          <div class="panel-head"><div><div class="eyebrow">Transparent suggestions</div><h2 id="matches-title">Relevant people</h2><p>Strong, good and possible describe evidence alignment, not certainty.</p></div></div>
+          {need.status === 'expired' || (need.expires_at && new Date(need.expires_at) <= new Date()) ? (
+            <p class="form-notice">This need has expired. New matches are not generated for expired needs.</p>
+          ) : visibleMatches.length === 0 && matches.some((match) => match.status === 'dismissed') ? (
+            <section class="panel panel-pad"><div class="empty-state"><h3>All suggestions dismissed</h3><p>There are no active suggestions to show for this need.</p></div></section>
+          ) : visibleMatches.length === 0 ? (
+            <section class="panel panel-pad"><div class="empty-state"><h3>No suitable matches yet</h3><p>No discoverable member currently meets at least one essential competence and the conversation preferences for this need.</p></div></section>
+          ) : visibleMatches.map((match) => {
+            const matchedMember = memberByProfileId.get(match.matched_profile_id)!;
+            const matchReasons = reasons.filter((reason) => reason.match_id === match.id);
+            const matchEvidence = evidence.filter((item) => item.profile_id === matchedMember.id);
+            const relevanceLabel = match.relevance_band === 'strong' ? 'Strong relevance' : match.relevance_band === 'good' ? 'Good relevance' : 'Possible relevance';
+            const relevantReasons = matchReasons.filter((reason) => ['essential_match', 'useful_match', 'relevant_outcome'].includes(reason.reason_type));
+            const unknownReasons = matchReasons.filter((reason) => reason.reason_type === 'unknown' || reason.reason_type === 'competence_gap');
+            return (
+              <article class="match-card">
+                <header class="match-card-head">
+                  <div><span class={`relevance-band ${match.relevance_band}`}>{relevanceLabel}</span><h3><a href={`/profiles/${matchedMember.id}`}>{matchedMember.display_name}</a></h3><p>{matchedMember.professional_summary}</p></div>
+                  <div class="match-actions">
+                    {match.status === 'saved' && <span class="need-status saved">Saved</span>}
+                    <form method="post" action={`/api/matches/${match.id}`}><input type="hidden" name="action" value="save" /><button class="btn" type="submit" aria-label={`Save match for ${matchedMember.display_name}`}>Save match</button></form>
+                    <form method="post" action={`/api/matches/${match.id}`}><input type="hidden" name="action" value="dismiss" /><button class="btn" type="submit" aria-label={`Dismiss match for ${matchedMember.display_name}`}>Dismiss</button></form>
+                  </div>
+                </header>
+                {matchedMember.what_i_contribute && <p class="match-contribution">{matchedMember.what_i_contribute}</p>}
+                {relevantReasons.length > 0 && (
+                  <section><h4>Why this may fit</h4><ul class="match-reason-list">{relevantReasons.map((reason) => <li><span>{reasonLabel(reason)}</span>{reasonText(reason)}</li>)}</ul></section>
+                )}
+                {matchEvidence.length > 0 && (
+                  <section><h4>Shareable evidence</h4><ul class="match-evidence-list">{matchEvidence.map((item) => <li><strong>{item.evidence_title}</strong>{item.contribution && <p>{item.contribution}</p>}{item.outcome && <p><span class="field-help">Outcome: </span>{item.outcome}</p>}</li>)}</ul></section>
+                )}
+                {unknownReasons.length > 0 && (
+                  <section><h4>Worth validating</h4><ul class="match-reason-list">{unknownReasons.map((reason) => <li>{reasonText(reason)}</li>)}</ul></section>
+                )}
+                {matchReasons.filter((reason) => reason.reason_type === 'availability').map((reason) => <p class="field-help">{reasonText(reason)}</p>)}
+              </article>
+            );
+          })}
+        </section>
+      ) : (
+        <aside class="panel panel-pad"><div class="eyebrow">Shared with the network</div><h2>Need owner’s match results are private</h2><p class="subtitle">This brief does not reveal individual match suggestions.</p></aside>
+      )}
+    </div>
+  </AppLayout>
+)}
