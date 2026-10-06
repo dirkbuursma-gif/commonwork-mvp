@@ -1,6 +1,49 @@
 ---
 import AppLayout from '../../layouts/AppLayout.astro';
 import EmptyState from '../../components/app/EmptyState.astro';
+import {
+  getMyIntroductionInbox,
+  getMyIntroductionNotifications,
+  type IntroductionInboxItem,
+  type IntroductionNotification,
+} from '../../lib/introduction-data';
+import { createSupabaseServerClient } from '../../lib/supabase/server';
+
+const user = Astro.locals.user;
+const localPreview = user?.isLocalTestUser === true;
+const supabase = localPreview ? null : createSupabaseServerClient(Astro);
+let introductions: IntroductionInboxItem[] = [];
+let notifications: IntroductionNotification[] = [];
+let loadError = false;
+
+if (supabase && !localPreview) {
+  try {
+    [introductions, notifications] = await Promise.all([
+      getMyIntroductionInbox(supabase),
+      getMyIntroductionNotifications(supabase),
+    ]);
+  } catch {
+    loadError = true;
+  }
+}
+
+const incoming = introductions.filter((item) => item.my_role === 'recipient' && !['introduced', 'completed'].includes(item.status));
+const outgoing = introductions.filter((item) => item.my_role === 'requester' && !['introduced', 'completed'].includes(item.status));
+const assigned = introductions.filter((item) => ['introducer', 'connector'].includes(item.my_role) && !['introduced', 'completed'].includes(item.status));
+const completed = introductions.filter((item) => ['introduced', 'completed'].includes(item.status));
+const status = Astro.url.searchParams.get('status');
+const statusMessages: Record<string, string> = {
+  'action-saved': 'Introduction update saved.',
+  'action-unavailable': 'That introduction action is no longer available.',
+  'preview-readonly': 'Local preview is read-only. Introduction workflows require a signed-in Supabase member.',
+  'notification-read': 'Notification marked as read.',
+};
+
+function introLabel(item: (typeof introductions)[number]) {
+  if (item.my_role === 'requester') return item.recipient_display_name;
+  if (item.my_role === 'recipient') return item.requester_display_name;
+  return item.requester_display_name;
+}
 ---
 
 <AppLayout title="Introductions" section="introductions">
@@ -11,11 +54,39 @@ import EmptyState from '../../components/app/EmptyState.astro';
       <p class="subtitle">Professional conversations with clear context and consent from both sides.</p>
     </div>
   </div>
-  <section class="panel panel-pad">
-    <EmptyState
-      symbol="↔"
-      title="No introductions to follow up"
-      description="When an introduction is proposed, its purpose and consent status will be visible here."
-    />
-  </section>
+  {status && statusMessages[status] && <p class="form-notice" role="status">{statusMessages[status]}</p>}
+  {localPreview ? (
+    <section class="panel panel-pad"><EmptyState symbol="↔" title="Introduction inbox unavailable" description="The local preview identity is read-only and does not represent a database member." /></section>
+  ) : loadError ? (
+    <p class="form-notice error" role="alert">We could not load introductions. Please try again shortly.</p>
+  ) : !supabase ? (
+    <p class="form-notice error" role="alert">Supabase is not configured. Introduction data is unavailable.</p>
+  ) : (
+    <div class="introduction-inbox stack">
+      {notifications.filter((notification) => !notification.read_at).length > 0 && (
+        <section class="panel panel-pad" aria-labelledby="notifications-title">
+          <div class="panel-head"><div><h2 id="notifications-title">Updates</h2><p>Private, in-app introduction notifications.</p></div></div>
+          <ul class="introduction-notifications">
+            {notifications.filter((notification) => !notification.read_at).map((notification) => (
+              <li><div><strong>{notification.title}</strong><p>{notification.body}</p></div><div class="notification-actions">{notification.introduction_id && <a class="btn" href={`/introductions/${notification.introduction_id}`}>Open</a>}<form method="post" action={`/api/notifications/${notification.id}`}><button class="btn" type="submit">Mark read</button></form></div></li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      <section class="stack" aria-labelledby="incoming-title">
+        <div class="panel-head"><div><h2 id="incoming-title">Incoming</h2><p>Requests addressed to you.</p></div></div>
+        {incoming.length ? <div class="introduction-list">{incoming.map((item) => <article class="introduction-list-item"><div><span class={`need-status ${item.status}`}>{item.status.replaceAll('_', ' ')}</span><h3><a href={`/introductions/${item.introduction_id}`}>{introLabel(item)}</a></h3><p>{item.proposed_conversation}</p></div><a class="btn" href={`/introductions/${item.introduction_id}`}>Review</a></article>)}</div> : <section class="panel panel-pad"><EmptyState title="No incoming requests" description="A contextual introduction request will appear here for a private decision." /></section>}
+      </section>
+
+      {assigned.length > 0 && <section class="stack" aria-labelledby="assigned-title"><div class="panel-head"><div><h2 id="assigned-title">For you to facilitate</h2><p>Only introductions assigned to you.</p></div></div><div class="introduction-list">{assigned.map((item) => <article class="introduction-list-item"><div><span class="need-status active">{item.assignment_type === 'suggested_introducer' ? 'suggested introducer' : 'trusted connector'}</span><h3><a href={`/introductions/${item.introduction_id}`}>{item.requester_display_name} and {item.recipient_display_name}</a></h3><p>{item.proposed_conversation}</p></div><a class="btn" href={`/introductions/${item.introduction_id}`}>Review</a></article>)}</div></section>}
+
+      <section class="stack" aria-labelledby="outgoing-title">
+        <div class="panel-head"><div><h2 id="outgoing-title">Outgoing</h2><p>Requests you started, including terminal outcomes.</p></div></div>
+        {outgoing.length ? <div class="introduction-list">{outgoing.map((item) => <article class="introduction-list-item"><div><span class={`need-status ${item.status}`}>{item.status.replaceAll('_', ' ')}</span><h3><a href={`/introductions/${item.introduction_id}`}>{introLabel(item)}</a></h3><p>{item.proposed_conversation}</p></div><a class="btn" href={`/introductions/${item.introduction_id}`}>View</a></article>)}</div> : <section class="panel panel-pad"><EmptyState title="No outgoing requests" description="Start from an explained match when you are ready to propose a conversation." /></section>}
+      </section>
+
+      {completed.length > 0 && <section class="stack" aria-labelledby="completed-title"><div class="panel-head"><div><h2 id="completed-title">Introduced and completed</h2><p>Follow up after a contextual introduction.</p></div></div><div class="introduction-list">{completed.map((item) => <article class="introduction-list-item"><div><span class={`need-status ${item.status}`}>{item.status.replaceAll('_', ' ')}</span><h3><a href={`/introductions/${item.introduction_id}`}>{introLabel(item)}</a></h3><p>{item.proposed_conversation}</p></div><a class="btn" href={`/introductions/${item.introduction_id}`}>Follow up</a></article>)}</div></section>}
+    </div>
+  )}
 </AppLayout>

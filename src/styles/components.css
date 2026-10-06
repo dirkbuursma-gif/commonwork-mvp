@@ -879,6 +879,190 @@ main {
   border-top: 1px solid var(--line);
 }
 
+.contact-method-list,
+.introduction-list,
+.introduction-notifications {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.contact-method-list > li,
+.introduction-list-item,
+.introduction-notifications > li {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px 0;
+  border-top: 1px solid var(--line);
+}
+
+.contact-method-list p,
+.introduction-notifications p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 0.84rem;
+  overflow-wrap: anywhere;
+}
+
+.contact-method-list .need-status {
+  margin-left: 8px;
+}
+
+.contact-method-form,
+.introduction-feedback-form {
+  display: grid;
+  gap: 2px;
+  margin-top: 18px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.introduction-request-layout,
+.introduction-detail-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(280px, 0.75fr);
+  align-items: start;
+  gap: 20px;
+}
+
+.introduction-route-options {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+
+.introduction-route-options legend {
+  padding-inline: 5px;
+  color: var(--green);
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
+.introduction-route-options label {
+  display: flex;
+  min-height: 52px;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 0;
+}
+
+.introduction-route-options input,
+.preference-option input {
+  width: 17px;
+  height: 17px;
+  flex: 0 0 17px;
+  accent-color: var(--green);
+}
+
+.introduction-route-options label > span {
+  display: grid;
+  gap: 3px;
+}
+
+.introduction-route-options small {
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 400;
+}
+
+.route-field[hidden] {
+  display: none;
+}
+
+.introduction-request-layout aside > .btn.primary {
+  width: 100%;
+}
+
+.introduction-context h3 {
+  margin: 16px 0 5px;
+  font: 600 0.96rem/1.3 var(--display);
+}
+
+.introduction-context p,
+.introduction-context li {
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.introduction-context ul {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding-left: 19px;
+}
+
+.introduction-decline-actions,
+.notification-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.introduction-decline-actions form,
+.notification-actions form {
+  display: grid;
+  gap: 3px;
+}
+
+.released-contact-list {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.released-contact-list li {
+  display: grid;
+  gap: 3px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.released-contact-list span {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.released-contact-list a {
+  overflow-wrap: anywhere;
+}
+
+.introduction-list-item h3 {
+  margin: 7px 0 4px;
+  font: 600 1.02rem/1.25 var(--display);
+}
+
+.introduction-list-item p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.introduction-list-item > div {
+  min-width: 0;
+}
+
+.introduction-notifications > li {
+  align-items: flex-start;
+}
+
+.introduction-notifications > li > div:first-child {
+  min-width: 0;
+}
+
+.introduction-notifications p {
+  overflow-wrap: anywhere;
+}
+
 .auth-page {
   display: grid;
   min-height: 100vh;
@@ -1043,6 +1227,11 @@ main {
   .need-detail-grid {
     grid-template-columns: minmax(0, 1fr);
   }
+
+  .introduction-request-layout,
+  .introduction-detail-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 @media (max-width: 767px) {
@@ -1138,6 +1327,28 @@ main {
     align-items: flex-start;
     flex-direction: column;
     gap: 2px;
+  }
+
+  .contact-method-list > li,
+  .introduction-list-item,
+  .introduction-notifications > li {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .contact-method-list > li > form,
+  .contact-method-list > li > form .btn,
+  .introduction-list-item > .btn,
+  .notification-actions,
+  .notification-actions > form,
+  .notification-actions .btn {
+    width: 100%;
+  }
+
+  .introduction-decline-actions,
+  .introduction-decline-actions > form,
+  .introduction-decline-actions .btn {
+    width: 100%;
   }
 
   .focus-panel .btn {

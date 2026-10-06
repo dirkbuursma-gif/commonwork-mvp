@@ -1,0 +1,127 @@
+---
+import AppLayout from '../../../layouts/AppLayout.astro';
+import { getMyContactMethods, getAvailableConnectors, getIntroductionMatch, getPotentialIntroducers } from '../../../lib/introduction-data';
+import type { ContactMethod, AvailableConnector, IntroductionMatchContext } from '../../../lib/introduction-data';
+import { createSupabaseServerClient } from '../../../lib/supabase/server';
+
+const user = Astro.locals.user;
+const localPreview = user?.isLocalTestUser === true;
+const supabase = localPreview ? null : createSupabaseServerClient(Astro);
+const matchId = Astro.params.matchId ?? '';
+let matchContext: IntroductionMatchContext | null = null;
+let contactMethods: ContactMethod[] = [];
+let introducers: Array<{ id: string; display_name: string }> = [];
+let connectors: AvailableConnector[] = [];
+let loadError = false;
+
+if (supabase && user) {
+  try {
+    [matchContext, contactMethods, connectors] = await Promise.all([
+      getIntroductionMatch(supabase, matchId, user.id),
+      getMyContactMethods(supabase),
+      getAvailableConnectors(supabase),
+    ]);
+    introducers = await getPotentialIntroducers(supabase, [user.id, matchContext?.matchedMember.id ?? '']);
+  } catch {
+    loadError = true;
+  }
+}
+
+const status = Astro.url.searchParams.get('status');
+const errorMessage = status === 'request-unavailable' ? 'This match is no longer available for an introduction.' : null;
+---
+
+{localPreview ? (
+  <AppLayout title="Request introduction" section="introductions"><p class="form-notice" role="status">Local preview is read-only. Introduction requests require a signed-in Supabase member.</p></AppLayout>
+) : loadError ? (
+  <AppLayout title="Request introduction" section="introductions"><p class="form-notice error" role="alert">We could not load this match. Please try again shortly.</p></AppLayout>
+) : !supabase || !matchContext ? (
+  <AppLayout title="Match unavailable" section="introductions"><section class="panel panel-pad"><div class="empty-state"><h1>This match is unavailable</h1><p>It may have expired, been dismissed or no longer be relevant.</p><a class="btn" href="/find">Back to Find competence</a></div></section></AppLayout>
+) : (
+  <AppLayout title="Request introduction" section="introductions">
+    <div class="page-head">
+      <div><div class="eyebrow">From an explained match</div><h1>Request an introduction</h1><p class="subtitle">A personal, contextual conversation begins with a clear reason and a choice for everyone involved.</p></div>
+      <a class="btn" href={`/find/${matchContext.need.id}`}>Back to relevant people</a>
+    </div>
+    {errorMessage && <p class="form-notice error" role="alert">{errorMessage}</p>}
+    {contactMethods.length === 0 ? (
+      <div class="form-notice" role="status">Add a contact method you explicitly want to share before requesting an introduction. Your sign-in email is not copied automatically. <a href="/profiles/me">Manage private contact methods</a>.</div>
+    ) : (
+      <form class="introduction-request-layout" method="post" action="/api/introductions" data-introduction-request>
+        <input type="hidden" name="match_id" value={matchContext.match.id} />
+        <section class="stack">
+          <article class="panel panel-pad">
+            <div class="eyebrow">Relevant person</div><h2>{matchContext.matchedMember.display_name}</h2>
+            <p>{matchContext.matchedMember.professional_summary}</p>
+            <p>{matchContext.matchedMember.what_i_contribute}</p>
+            <div class="relevance-band {matchContext.match.relevance_band}">{matchContext.match.relevance_band === 'strong' ? 'Strong relevance' : matchContext.match.relevance_band === 'good' ? 'Good relevance' : 'Possible relevance'}</div>
+            <h3>Why the work may overlap</h3>
+            <ul class="match-reason-list">{matchContext.reasons.filter((reason) => ['essential_match', 'useful_match', 'relevant_outcome', 'competence_gap', 'unknown'].includes(reason.reason_type)).map((reason) => <li>{reason.explanation}</li>)}</ul>
+            {matchContext.evidence.length > 0 && <><h3>Shareable evidence</h3><ul class="match-evidence-list">{matchContext.evidence.map((item) => <li><strong>{item.evidence_title}</strong><p>{item.contribution}</p><p><span class="field-help">Outcome: </span>{item.outcome}</p></li>)}</ul></>}
+          </article>
+          <article class="panel panel-pad">
+            <div class="eyebrow">Your introduction request</div>
+            <label class="field">Why this person?<textarea name="why_this_person" required minlength="3" maxlength="1200" rows="3" placeholder="What specific experience makes a conversation with this person relevant?"></textarea></label>
+            <label class="field">Why now?<textarea name="why_now" required minlength="3" maxlength="1200" rows="3" placeholder="What makes this useful to explore at this point?"></textarea></label>
+            <label class="field">What conversation do you propose?<textarea name="proposed_conversation" required minlength="3" maxlength="1600" rows="4" placeholder="What would you like to compare, understand or work through together?">{matchContext.need.business_outcome}</textarea></label>
+            <label class="field">What can you contribute in return?<textarea name="requester_offer" required minlength="3" maxlength="1200" rows="3" placeholder="What useful context, knowledge or effort can you offer?">{matchContext.need.what_requester_offers}</textarea></label>
+          </article>
+          <article class="panel panel-pad">
+            <h2>Choose an introduction route</h2>
+            <fieldset class="introduction-route-options">
+              <legend>How should Commonwork facilitate?</legend>
+              <label><input type="radio" name="route" value="direct" checked /> <span><strong>Direct introduction</strong><small>Commonwork asks both people privately, then shares the approved introduction if both consent.</small></span></label>
+              <label><input type="radio" name="route" value="suggested_introducer" /> <span><strong>Suggested introducer</strong><small>Nominate someone you know who may know both people. They must confirm that before Commonwork presents them as an introducer.</small></span></label>
+              <label><input type="radio" name="route" value="trusted_connector" /> <span><strong>Trusted Connector</strong><small>A vetted Commonwork Connector facilitates after both people consent.</small></span></label>
+            </fieldset>
+            <label class="field route-field" data-route-field="suggested_introducer" hidden>Person you are nominating
+              <select name="suggested_introducer_id"><option value="">Choose a member</option>{introducers.map((person) => <option value={person.id}>{person.display_name}</option>)}</select>
+            </label>
+            <label class="field route-field" data-route-field="trusted_connector" hidden>Trusted Connector
+              <select name="trusted_connector_id"><option value="">Choose an available Connector</option>{connectors.map((connector) => <option value={connector.profile_id}>{connector.display_name}</option>)}</select>
+            </label>
+            <label class="field route-field" data-route-field="intermediary" hidden>Why are you asking them?<textarea name="intermediary_note" maxlength="800" rows="2" placeholder="What context makes this person suitable to facilitate?"></textarea></label>
+          </article>
+        </section>
+        <aside class="stack">
+          <section class="panel panel-pad">
+            <h2>What the recipient will receive</h2>
+            <p><strong>Need:</strong> {matchContext.need.title}</p>
+            <p><strong>Business context:</strong> {matchContext.need.business_outcome}</p>
+            <p><strong>Requested competence:</strong> {matchContext.competencies.map((item) => `${item.competencies?.name ?? 'Competence'} (${item.importance})`).join(', ')}</p>
+            <p><strong>Your reason:</strong> added above</p>
+            <p><strong>Proposed conversation:</strong> added above</p>
+            <p><strong>Your offer:</strong> added above</p>
+            <p><strong>Route:</strong> the one selected above</p>
+            <p><strong>Expiry:</strong> 14 days after sending</p>
+            <p class="field-help">Your chosen contact value stays hidden until everyone required has consented and the introduction is issued. The recipient sees its type and label before choosing.</p>
+          </section>
+          <section class="panel panel-pad">
+            <h2>Contact method to share</h2>
+            <p class="subtitle">Choose explicitly. This is never your sign-in email unless you added it here.</p>
+            <label class="field">Your selected contact method<select name="contact_method_id" required>{contactMethods.map((method) => <option value={method.id} data-method-label={method.label || (method.method_type === 'email' ? 'Email address' : 'Calendar link')}>{method.label || (method.method_type === 'email' ? 'Email address' : 'Calendar link')} · {method.value}{method.is_primary ? ' · Primary' : ''}</option>)}</select></label>
+            <a href="/profiles/me">Manage private contact methods</a>
+          </section>
+          <button class="btn primary" type="submit">Preview and send request</button>
+        </aside>
+      </form>
+    )}
+  </AppLayout>
+)}
+
+<script>
+  const routeInputs = [...document.querySelectorAll<HTMLInputElement>('[name="route"]')];
+  const suggestedField = document.querySelector<HTMLElement>('[data-route-field="suggested_introducer"]');
+  const connectorField = document.querySelector<HTMLElement>('[data-route-field="trusted_connector"]');
+  const intermediaryNote = document.querySelector<HTMLElement>('[data-route-field="intermediary"]');
+
+  function updateRouteFields() {
+    const route = routeInputs.find((input) => input.checked)?.value;
+    if (suggestedField) suggestedField.hidden = route !== 'suggested_introducer';
+    if (connectorField) connectorField.hidden = route !== 'trusted_connector';
+    if (intermediaryNote) intermediaryNote.hidden = route === 'direct';
+  }
+
+  routeInputs.forEach((input) => input.addEventListener('change', updateRouteFields));
+  updateRouteFields();
+</script>

@@ -1,0 +1,172 @@
+---
+import AppLayout from '../../layouts/AppLayout.astro';
+import {
+  getMyContactMethods,
+  getMyIntroductionFeedback,
+  getMyIntroductionInbox,
+  getPotentialIntroducers,
+  releaseIntroductionContacts,
+  type ContactMethod,
+  type IntroductionInboxItem,
+  type ReleasedContactMethod,
+} from '../../lib/introduction-data';
+import { createSupabaseServerClient } from '../../lib/supabase/server';
+
+const user = Astro.locals.user;
+const localPreview = user?.isLocalTestUser === true;
+const supabase = localPreview ? null : createSupabaseServerClient(Astro);
+const introductionId = Astro.params.id ?? '';
+let introduction: IntroductionInboxItem | null = null;
+let contactMethods: ContactMethod[] = [];
+let releasedContacts: ReleasedContactMethod[] = [];
+let suggestedMembers: Array<{ id: string; display_name: string }> = [];
+let feedback: Awaited<ReturnType<typeof getMyIntroductionFeedback>> = null;
+let loadError = false;
+
+if (supabase && user) {
+  try {
+    const [inbox, methods] = await Promise.all([
+      getMyIntroductionInbox(supabase),
+      getMyContactMethods(supabase),
+    ]);
+    introduction = inbox.find((item) => item.introduction_id === introductionId) ?? null;
+    contactMethods = methods;
+    if (introduction && ['introduced', 'completed'].includes(introduction.status)
+      && ['requester', 'recipient'].includes(introduction.my_role)) {
+      [releasedContacts, feedback] = await Promise.all([
+        releaseIntroductionContacts(supabase, introductionId),
+        getMyIntroductionFeedback(supabase, introductionId),
+      ]);
+    }
+    if (introduction?.suggested_profile_id && introduction.my_role === 'requester') {
+      const people = await getPotentialIntroducers(supabase, []);
+      suggestedMembers = people.filter((person) => person.id === introduction?.suggested_profile_id);
+    }
+    if (introduction?.my_role === 'introducer' || introduction?.my_role === 'connector') {
+      const excluded = [user.id, introduction.requester_profile_id, introduction.recipient_profile_id];
+      suggestedMembers = await getPotentialIntroducers(supabase, excluded);
+    }
+  } catch {
+    loadError = true;
+  }
+}
+
+const snapshot = introduction?.approved_context_snapshot ?? {};
+const contextSummary = typeof snapshot.business_problem_summary === 'string' ? snapshot.business_problem_summary : '';
+const evidenceSummaries = Array.isArray(snapshot.approved_evidence_summaries) ? snapshot.approved_evidence_summaries as Array<{ explanation?: string }> : [];
+const matchingCompetencies = Array.isArray(snapshot.matching_competencies) ? snapshot.matching_competencies as Array<{ explanation?: string }> : [];
+const competenceGaps = Array.isArray(snapshot.known_competence_gaps) ? snapshot.known_competence_gaps as Array<{ explanation?: string }> : [];
+const status = Astro.url.searchParams.get('status');
+const isParticipant = introduction && ['requester', 'recipient'].includes(introduction.my_role);
+const otherPersonName = introduction?.my_role === 'requester' ? introduction.recipient_display_name : introduction?.requester_display_name;
+const statusMessages: Record<string, string> = {
+  'request-sent': 'Your introduction request was sent privately.',
+  'action-saved': 'Introduction update saved.',
+  'action-unavailable': 'That action is unavailable. The request may have changed or expired.',
+};
+---
+
+{localPreview ? (
+  <AppLayout title="Introduction" section="introductions"><p class="form-notice" role="status">Local preview is read-only and does not represent a database member.</p></AppLayout>
+) : loadError ? (
+  <AppLayout title="Introduction" section="introductions"><p class="form-notice error" role="alert">We could not load this introduction. Please try again shortly.</p></AppLayout>
+) : !supabase || !introduction ? (
+  <AppLayout title="Introduction unavailable" section="introductions"><section class="panel panel-pad"><div class="empty-state"><h1>This introduction is unavailable</h1><p>It may not exist, may have expired, or you may not be involved.</p><a class="btn" href="/introductions">Back to introductions</a></div></section></AppLayout>
+) : (
+  <AppLayout title="Introduction details" section="introductions">
+    <div class="page-head">
+      <div><div class="eyebrow">{introduction.route.replaceAll('_', ' ')} · {introduction.status.replaceAll('_', ' ')}</div><h1>{isParticipant ? `Introduction with ${otherPersonName}` : `Facilitating for ${introduction.requester_display_name} and ${introduction.recipient_display_name}`}</h1><p class="subtitle">A contextual professional conversation, with each person's consent.</p></div>
+      <a class="btn" href="/introductions">Back to inbox</a>
+    </div>
+    {status && statusMessages[status] && <p class="form-notice" role="status">{statusMessages[status]}</p>}
+
+    <div class="introduction-detail-grid">
+      <section class="stack">
+        <article class="panel panel-pad introduction-context">
+          <div class="eyebrow">Request context</div>
+          <h2>{String(snapshot.need_title ?? 'Professional introduction')}</h2>
+          {contextSummary && <><h3>Business context</h3><p>{contextSummary}</p></>}
+          <h3>Why this person?</h3><p>{introduction.why_this_person}</p>
+          <h3>Why now?</h3><p>{introduction.why_now}</p>
+          <h3>Proposed conversation</h3><p>{introduction.proposed_conversation}</p>
+          <h3>What the requester offers</h3><p>{introduction.requester_offer}</p>
+          {matchingCompetencies.length > 0 && <><h3>Relevant competence</h3><ul>{matchingCompetencies.map((reason) => <li>{reason.explanation}</li>)}</ul></>}
+          {evidenceSummaries.length > 0 && <><h3>Approved evidence summary</h3><ul>{evidenceSummaries.map((reason) => <li>{reason.explanation}</li>)}</ul></>}
+          {competenceGaps.length > 0 && <><h3>Known gaps and unknowns</h3><ul>{competenceGaps.map((reason) => <li>{reason.explanation}</li>)}</ul></>}
+          {introduction.clarification_question && <><h3>Clarification requested</h3><p>{introduction.clarification_question}</p></>}
+          {introduction.clarification_response && <><h3>Requester response</h3><p>{introduction.clarification_response}</p></>}
+          <p class="field-help">Expires {new Date(introduction.expires_at).toLocaleDateString()} · This introduction snapshot does not change when the original need or profile changes.</p>
+        </article>
+
+        {isParticipant && ['introduced', 'completed'].includes(introduction.status) && (
+          <article class="panel panel-pad">
+            <div class="eyebrow">Consent completed</div><h2>Contact methods selected for this introduction</h2>
+            {releasedContacts.length ? <ul class="released-contact-list">{releasedContacts.map((contact) => <li><strong>{contact.display_name}</strong><span>{contact.label || contact.method_type.replaceAll('_', ' ')}</span><a href={contact.method_type === 'email' ? `mailto:${contact.value}` : contact.value} target={contact.method_type === 'calendar_url' ? '_blank' : undefined} rel={contact.method_type === 'calendar_url' ? 'noreferrer' : undefined}>{contact.value}</a></li>)}</ul> : <p class="subtitle">No contact method was selected for release.</p>}
+          </article>
+        )}
+
+        {isParticipant && ['introduced', 'completed'].includes(introduction.status) && (
+          <article class="panel panel-pad">
+            <h2>Conversation follow-up</h2>
+            <p class="subtitle">Your feedback is private to you and is not shown to the other person.</p>
+            <form method="post" action={`/api/introductions/${introductionId}`} class="introduction-feedback-form">
+              <input type="hidden" name="action" value="feedback" />
+              <label class="preference-option"><input type="checkbox" name="conversation_occurred" checked={feedback?.conversation_occurred === true} /><span>A conversation took place</span></label>
+              <label class="field">Was the match relevant?<select name="match_relevant"><option value="">Choose</option><option value="true" selected={feedback?.match_relevant === true}>Yes</option><option value="false" selected={feedback?.match_relevant === false}>No</option></select></label>
+              <label class="field">Were the competencies relevant?<select name="competencies_relevant"><option value="">Choose</option><option value="true" selected={feedback?.competencies_relevant === true}>Yes</option><option value="false" selected={feedback?.competencies_relevant === false}>No</option></select></label>
+              <label class="field">Would you welcome future introductions?<select name="would_welcome_future_introductions"><option value="">Choose</option><option value="true" selected={feedback?.would_welcome_future_introductions === true}>Yes</option><option value="false" selected={feedback?.would_welcome_future_introductions === false}>No</option></select></label>
+              <label class="field">Private feedback<textarea name="private_feedback" maxlength="2000" rows="3">{feedback?.private_feedback ?? ''}</textarea></label>
+              <button class="btn primary" type="submit">Save private follow-up</button>
+            </form>
+          </article>
+        )}
+      </section>
+
+      <aside class="stack">
+        {introduction.my_role === 'recipient' && introduction.status === 'awaiting_recipient' && (
+          <section class="panel panel-pad">
+            <div class="eyebrow">Your decision</div><h2>Review before you consent</h2>
+            {introduction.other_contact_method_type && <p>The requester chose to share a {introduction.other_contact_method_label || introduction.other_contact_method_type.replaceAll('_', ' ')} after the introduction is issued. Its value stays hidden until then.</p>}
+            {contactMethods.length ? (
+              <form method="post" action={`/api/introductions/${introductionId}`}>
+                <input type="hidden" name="action" value="accept" />
+                <label class="field">Contact method to share if the introduction proceeds<select name="contact_method_id" required>{contactMethods.map((method) => <option value={method.id}>{method.label || method.method_type.replaceAll('_', ' ')} · {method.value}</option>)}</select></label>
+                <p class="field-help">The chosen value is snapshotted now but released only after the introduction is issued.</p>
+                <button class="btn primary" type="submit">Accept introduction</button>
+              </form>
+            ) : <p class="form-notice">Add a contact method before accepting. <a href="/profiles/me">Manage private contact methods</a>.</p>}
+            {introduction.clarification_round === 0 && <form method="post" action={`/api/introductions/${introductionId}`} class="inline-form-section"><input type="hidden" name="action" value="ask_context" /><label class="field">Ask for more context<textarea name="context_question" required minlength="3" maxlength="1200" rows="3"></textarea></label><button class="btn" type="submit">Ask for context</button></form>}
+            <div class="introduction-decline-actions">
+              {['decline_not_relevant', 'decline_not_now', 'decline_no_capacity'].map((reason) => <form method="post" action={`/api/introductions/${introductionId}`}><input type="hidden" name="action" value={reason} />{reason === 'decline_not_now' && <label class="field">Optional retry after<input type="date" name="retry_after" min={new Date(Date.now() + 86400000).toISOString().slice(0, 10)} /></label>}<button class="btn" type="submit">{reason === 'decline_not_relevant' ? 'Decline: not relevant' : reason === 'decline_not_now' ? 'Not now' : 'Decline: no capacity'}</button></form>)}
+            </div>
+          </section>
+        )}
+
+        {introduction.my_role === 'requester' && introduction.status === 'awaiting_requester_context' && (
+          <section class="panel panel-pad"><div class="eyebrow">One clarification round</div><h2>Respond to the question</h2><form method="post" action={`/api/introductions/${introductionId}`}><input type="hidden" name="action" value="supply_context" /><label class="field">Your response<textarea name="context_response" required minlength="3" maxlength="1600" rows="4"></textarea></label><button class="btn primary" type="submit">Send context</button></form></section>
+        )}
+
+        {introduction.my_role === 'requester' && introduction.status === 'awaiting_connector' && introduction.assignment_status === 'suggested_another_member' && (
+          <section class="panel panel-pad"><div class="eyebrow">Intermediary suggestion</div><h2>Review another person</h2><p>{suggestedMembers.find((person) => person.id === introduction?.suggested_profile_id)?.display_name ?? 'A different person'} was suggested to facilitate. The introduction will not proceed unless you approve this change.</p><form method="post" action={`/api/introductions/${introductionId}`}><input type="hidden" name="action" value="accept_suggestion" /><button class="btn primary" type="submit">Approve suggested person</button></form><form method="post" action={`/api/introductions/${introductionId}`}><input type="hidden" name="action" value="reject_suggestion" /><button class="btn" type="submit">Cancel this request</button></form></section>
+        )}
+
+        {introduction.my_role === 'requester' && ['awaiting_recipient', 'awaiting_requester_context', 'awaiting_connector', 'accepted'].includes(introduction.status) && (
+          <form method="post" action={`/api/introductions/${introductionId}`}><input type="hidden" name="action" value="cancel" /><button class="btn" type="submit">Withdraw request</button></form>
+        )}
+
+        {['introducer', 'connector'].includes(introduction.my_role) && introduction.status === 'awaiting_connector' && introduction.assignment_status === 'pending' && (
+          <section class="panel panel-pad">
+            <div class="eyebrow">Assigned facilitation</div><h2>{introduction.my_role === 'introducer' ? 'Confirm before introducing' : 'Facilitate this introduction'}</h2>
+            {introduction.assignment_reason && <p>{introduction.assignment_reason}</p>}
+            {introduction.my_role === 'introducer' ? <form method="post" action={`/api/introductions/${introductionId}`}><input type="hidden" name="action" value="confirm_mutual" /><label class="preference-option"><input type="checkbox" required /><span>I know both people well enough to make this introduction.</span></label><button class="btn primary" type="submit">Confirm and introduce</button></form> : <form method="post" action={`/api/introductions/${introductionId}`}><input type="hidden" name="action" value="make_introduction" /><button class="btn primary" type="submit">Make the introduction</button></form>}
+            {introduction.clarification_round === 0 && <form method="post" action={`/api/introductions/${introductionId}`} class="inline-form-section"><input type="hidden" name="action" value="ask_connector_context" /><label class="field">Ask the requester for more context<textarea name="context_question" required minlength="3" maxlength="1200" rows="3"></textarea></label><button class="btn" type="submit">Ask for context</button></form>}
+            <details class="inline-form-section"><summary>Suggest another person</summary><form method="post" action={`/api/introductions/${introductionId}`}><input type="hidden" name="action" value="suggest_another_member" /><label class="field">Person to suggest<select name="suggested_profile_id" required><option value="">Choose a member</option>{suggestedMembers.map((person) => <option value={person.id}>{person.display_name}</option>)}</select></label><button class="btn" type="submit">Send suggestion to requester</button></form></details>
+            <div class="introduction-decline-actions"><form method="post" action={`/api/introductions/${introductionId}`}><input type="hidden" name="action" value="insufficient_relevance" /><button class="btn" type="submit">Mark as insufficiently relevant</button></form><form method="post" action={`/api/introductions/${introductionId}`}><input type="hidden" name="action" value="decline_facilitation" /><button class="btn" type="submit">Decline facilitation</button></form></div>
+          </section>
+        )}
+
+        {isParticipant && ['introduced', 'completed'].includes(introduction.status) && <section class="panel panel-pad"><div class="eyebrow">Introduction issued</div><h2>{introduction.status === 'completed' ? 'Conversation followed up' : 'You are introduced'}</h2><p>The selected contact methods are now available to you. Commonwork will not mediate an ongoing conversation.</p></section>}
+      </aside>
+    </div>
+  </AppLayout>
+)}

@@ -139,6 +139,7 @@ function reasonText(reason: MatchReason) {
                   <div><span class={`relevance-band ${match.relevance_band}`}>{relevanceLabel}</span><h3><a href={`/profiles/${matchedMember.id}`}>{matchedMember.display_name}</a></h3><p>{matchedMember.professional_summary}</p></div>
                   <div class="match-actions">
                     {match.status === 'saved' && <span class="need-status saved">Saved</span>}
+                    {need.status === 'active' && (!need.expires_at || new Date(need.expires_at) > new Date()) && <a class="btn primary" href={`/introductions/request/${match.id}`}>Request introduction</a>}
                     <form method="post" action={`/api/matches/${match.id}`}><input type="hidden" name="action" value="save" /><button class="btn" type="submit" aria-label={`Save match for ${matchedMember.display_name}`}>Save match</button></form>
                     <form method="post" action={`/api/matches/${match.id}`}><input type="hidden" name="action" value="dismiss" /><button class="btn" type="submit" aria-label={`Dismiss match for ${matchedMember.display_name}`}>Dismiss</button></form>
                   </div>

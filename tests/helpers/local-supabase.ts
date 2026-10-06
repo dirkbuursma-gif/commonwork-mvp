@@ -24,6 +24,10 @@ export interface LocalMember {
   email: string;
   client: SupabaseClient<any, 'public', any, any, any>;
   cookies: SessionCookie[];
+  provisionConnector: (capacity?: number) => Promise<void>;
+  connectorCapacity: () => Promise<number | null>;
+  expireIntroduction: (introductionId: string) => Promise<void>;
+  setIntroductionRetryAfter: (introductionId: string, recipientProfileId: string, retryAfter: string) => Promise<void>;
   remove: () => Promise<void>;
 }
 
@@ -112,6 +116,39 @@ export async function createLocalMember(displayName: string): Promise<LocalMembe
     email,
     client: memberClient,
     cookies,
+    provisionConnector: async (capacity = 2) => {
+      const { error: connectorError } = await admin.from('connectors').insert({
+        profile_id: data.user.id,
+        status: 'active',
+        introduction_capacity: capacity,
+        approved_at: new Date().toISOString(),
+      });
+      if (connectorError) throw connectorError;
+    },
+    connectorCapacity: async () => {
+      const { data: connector, error: connectorError } = await admin
+        .from('connectors')
+        .select('introduction_capacity')
+        .eq('profile_id', data.user.id)
+        .maybeSingle();
+      if (connectorError) throw connectorError;
+      return connector?.introduction_capacity ?? null;
+    },
+    expireIntroduction: async (introductionId) => {
+      const { error: expiryError } = await admin
+        .from('introductions')
+        .update({ expires_at: new Date(Date.now() - 60_000).toISOString() })
+        .eq('id', introductionId);
+      if (expiryError) throw expiryError;
+    },
+    setIntroductionRetryAfter: async (introductionId, recipientProfileId, retryAfter) => {
+      const { error: retryError } = await admin
+        .from('introduction_participants')
+        .update({ retry_after: retryAfter })
+        .eq('introduction_id', introductionId)
+        .eq('profile_id', recipientProfileId);
+      if (retryError) throw retryError;
+    },
     remove: async () => {
       await admin.auth.admin.deleteUser(data.user.id);
     },
