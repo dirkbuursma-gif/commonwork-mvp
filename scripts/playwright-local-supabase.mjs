@@ -36,6 +36,9 @@ for (const key of Object.keys(serverEnv)) {
 }
 serverEnv.PUBLIC_SUPABASE_URL = values.API_URL;
 serverEnv.PUBLIC_SUPABASE_ANON_KEY = values.ANON_KEY;
+serverEnv.CRON_SECRET = 'local-test-cron-secret';
+serverEnv.RESEND_API_KEY = 're_local_test_only';
+serverEnv.RESEND_WEBHOOK_SECRET = 'whsec_bG9jYWwtdGVzdC13ZWJob29rLXNlY3JldA==';
 
 const server = spawn('npx', ['astro', 'dev', '--ignore-lock', '--host', '127.0.0.1', '--port', '4322'], {
   cwd,

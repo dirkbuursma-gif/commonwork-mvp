@@ -7,6 +7,8 @@ const publicPaths = new Set([
   '/api/auth/sign-in',
   '/api/auth/test-session',
   '/api/auth/end-test-session',
+  '/api/internal/notifications/dispatch',
+  '/api/webhooks/resend',
 ]);
 
 const localTestUser: App.User = {

@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { createLocalMember } from './helpers/local-supabase';
+import { renderTransactionalEmail, type EmailPurpose } from '../src/lib/notifications/templates';
 
 async function createProfile(member: Awaited<ReturnType<typeof createLocalMember>>, name: string, discoverable = false) {
   const { error } = await member.client.from('profiles').insert({
@@ -77,6 +78,39 @@ async function addContactMethod(member: Awaited<ReturnType<typeof createLocalMem
   return String(data);
 }
 
+test('transactional email templates cover every purpose with safe links and minimal context', () => {
+  const purposes: EmailPurpose[] = [
+    'recipient_consent_required', 'connector_action_required', 'requester_updated',
+    'introduction_ready', 'introduction_declined', 'introduction_expired', 'followup_requested',
+    'connector_replaced', 'conversation_completed', 'privacy_request_received',
+    'privacy_request_status_updated', 'report_received',
+  ];
+
+  for (const purpose of purposes) {
+    const email = renderTransactionalEmail({
+      purpose,
+      appBaseUrl: 'https://preview.commonwork.test',
+      introductionId: '00000000-0000-4000-8000-000000000001',
+      privacyRequestId: '00000000-0000-4000-8000-000000000002',
+      reportId: '00000000-0000-4000-8000-000000000003',
+    });
+    expect(email.subject.length).toBeGreaterThan(0);
+    expect(email.text).toContain('https://preview.commonwork.test/');
+    expect(email.html).toContain('https://preview.commonwork.test/');
+    expect(email.html).not.toContain('javascript:');
+    expect(email.text).not.toContain('Private evidence sentinel');
+    expect(email.html).toContain('does not include request notes, evidence, or contact information');
+  }
+
+  expect(() => renderTransactionalEmail({
+    purpose: 'introduction_ready',
+    appBaseUrl: 'http://not-secure.example.com',
+    introductionId: null,
+    privacyRequestId: null,
+    reportId: null,
+  })).toThrow(/HTTPS/);
+});
+
 test('Connector administration CLI is allowlisted, audited and guarded for production', async () => {
   const administrator = await createLocalMember('Pilot Administrator');
   const target = await createLocalMember('Pilot Connector');
@@ -116,6 +150,128 @@ test('Connector administration CLI is allowlisted, audited and guarded for produ
     await target.remove();
     await ordinaryMember.remove();
   }
+});
+
+test('transactional outbox maps, suppresses demo mail and deduplicates Resend events', async () => {
+  const member = await createLocalMember('Outbox Test Member');
+  let senderCalls = 0;
+  try {
+    await createProfile(member, 'Outbox Test Member');
+    const notificationId = await member.enqueueTestNotification('introduction_requested');
+    const queued = await member.getTestEmailDelivery(notificationId);
+    expect(queued).toMatchObject({
+      notification_type: 'introduction_requested',
+      email_purpose: 'recipient_consent_required',
+      recipient_profile_id: member.id,
+      status: 'queued',
+    });
+    const { error: deliveryReadError } = await member.client.from('email_deliveries').select('id').limit(1);
+    const { error: eventReadError } = await member.client.from('email_events').select('id').limit(1);
+    expect(deliveryReadError).toBeTruthy();
+    expect(eventReadError).toBeTruthy();
+
+    const dispatch = await member.dispatchTestEmailBatch(async () => {
+      senderCalls += 1;
+      return { id: 'must-not-send', error: null };
+    }, { SEED_EMAIL_MODE: 'suppress' });
+    expect(dispatch).toMatchObject({ claimed: 1, sent: 0, suppressed: 1, failed: 0 });
+    expect(senderCalls).toBe(0);
+    const suppressed = await member.getTestEmailDelivery(notificationId);
+    expect(suppressed).toMatchObject({ status: 'suppressed', provider_message_id: null, sent_at: null, delivered_at: null });
+
+    const environmentSuppressedNotificationId = await member.enqueueTestNotification('introduction_declined');
+    const environmentSuppressed = await member.dispatchTestEmailBatch(async () => {
+      senderCalls += 1;
+      return { id: 'must-not-send', error: null };
+    }, { SEED_EMAIL_MODE: 'suppress' }, async () => 'human@pilot.invalid');
+    expect(environmentSuppressed).toMatchObject({ claimed: 1, sent: 0, suppressed: 1, failed: 0 });
+    expect(senderCalls).toBe(0);
+    expect(await member.getTestEmailDelivery(environmentSuppressedNotificationId)).toMatchObject({
+      status: 'suppressed', failure_code: 'seed_email_mode', provider_message_id: null,
+    });
+
+    const suppressedMessageId = `suppressed-${member.id}`;
+    await member.setTestDeliveryProviderMessageId(notificationId, suppressedMessageId, 'suppressed');
+    const suppressedWebhook = await member.recordTestProviderEvent(`suppressed-event-${member.id}`, suppressedMessageId, 'email.delivered');
+    expect(suppressedWebhook).toBe(false);
+    expect(await member.getTestEmailEventCount(suppressedMessageId)).toBe(0);
+
+    const secondNotificationId = await member.enqueueTestNotification('privacy_request_received');
+    const secondDelivery = await member.getTestEmailDelivery(secondNotificationId);
+    expect(secondDelivery).toMatchObject({
+      notification_type: 'privacy_request_received',
+      email_purpose: 'privacy_request_received',
+      status: 'queued',
+    });
+    const deliveredMessageId = `delivered-${member.id}`;
+    const deliveredEventId = `delivered-event-${member.id}`;
+    await member.setTestDeliveryProviderMessageId(secondNotificationId, deliveredMessageId, 'sent');
+    expect(await member.recordTestProviderEvent(deliveredEventId, deliveredMessageId, 'email.delivered')).toBe(true);
+    expect(await member.recordTestProviderEvent(deliveredEventId, deliveredMessageId, 'email.delivered')).toBe(false);
+    expect(await member.getTestEmailEventCount(deliveredMessageId)).toBe(1);
+    expect(await member.getTestEmailDelivery(secondNotificationId)).toMatchObject({ status: 'delivered' });
+
+    const pendingNotificationId = await member.enqueueTestNotification('introduction_requested');
+    await member.deleteTestProfile();
+    expect(await member.getTestEmailDeliveryByIdempotencyKey(`notification:${pendingNotificationId}`))
+      .toMatchObject({ status: 'suppressed', recipient_profile_id: null, failure_code: 'recipient_profile_deleted' });
+  } finally {
+    await member.remove();
+  }
+});
+
+test('transactional outbox retries transient provider failures with the same idempotency key', async () => {
+  const member = await createLocalMember('Retry Outbox Member');
+  const idempotencyKeys: string[] = [];
+  const environment = {
+    APP_BASE_URL: 'http://127.0.0.1:4322',
+    EMAIL_FROM_ADDRESS: 'sign-in@auth.example.test',
+    RESEND_API_KEY: 're_local_test_only',
+  };
+
+  try {
+    await createProfile(member, 'Retry Outbox Member');
+    const notificationId = await member.enqueueTestNotification('introduction_requested');
+    const recipientResolver = async () => 'recipient@fixture.invalid';
+
+    const firstAttempt = await member.dispatchTestEmailBatch(async (email) => {
+      idempotencyKeys.push(email.idempotencyKey);
+      return { id: null, error: { statusCode: 503 } };
+    }, environment, recipientResolver);
+    expect(firstAttempt).toMatchObject({ claimed: 1, sent: 0, suppressed: 0, failed: 1 });
+    expect(await member.getTestEmailDelivery(notificationId)).toMatchObject({
+      status: 'queued', attempt_count: 1, failure_code: 'provider_unavailable',
+    });
+
+    await member.makeTestEmailRetryDue(notificationId);
+    const secondAttempt = await member.dispatchTestEmailBatch(async (email) => {
+      idempotencyKeys.push(email.idempotencyKey);
+      return { id: `resend-message-${member.id}`, error: null };
+    }, environment, recipientResolver);
+    expect(secondAttempt).toMatchObject({ claimed: 1, sent: 1, suppressed: 0, failed: 0 });
+    expect(idempotencyKeys).toHaveLength(2);
+    expect(idempotencyKeys[0]).toBe(idempotencyKeys[1]);
+    expect(await member.getTestEmailDelivery(notificationId)).toMatchObject({
+      status: 'sent', attempt_count: 2, failure_code: null,
+    });
+  } finally {
+    await member.remove();
+  }
+});
+
+test('notification dispatch endpoint requires the cron bearer secret', async ({ request }) => {
+  const missingAuthorization = await request.get('/api/internal/notifications/dispatch');
+  expect(missingAuthorization.status()).toBe(401);
+
+  const invalidAuthorization = await request.get('/api/internal/notifications/dispatch', {
+    headers: { authorization: 'Bearer incorrect-test-secret' },
+  });
+  expect(invalidAuthorization.status()).toBe(401);
+
+  const unsignedWebhook = await request.post('/api/webhooks/resend', {
+    data: '{}',
+  });
+  expect(unsignedWebhook.status()).toBe(400);
 });
 
 test('pilot report and privacy operations are admin-gated and status-audited', async () => {
@@ -160,12 +316,24 @@ test('pilot report and privacy operations are admin-gated and status-audited', a
       target_details: 'The introduction included unexpected contact.',
     });
     expect(reportError).toBeNull();
+    expect(await recipient.getTestEmailDeliveriesForEntity('report_id', reportId!)).toMatchObject([{
+      notification_type: 'introduction_report_received',
+      email_purpose: 'report_received',
+      recipient_profile_id: recipient.id,
+      status: 'queued',
+    }]);
 
     const { data: privacyRequestId, error: privacyRequestError } = await requester.client.rpc('request_member_privacy_action', {
       target_request_type: 'account_deletion',
       target_note: 'Please review my account deletion request.',
     });
     expect(privacyRequestError).toBeNull();
+    expect(await requester.getTestEmailDeliveriesForEntity('privacy_request_id', privacyRequestId!)).toMatchObject([{
+      notification_type: 'privacy_request_received',
+      email_purpose: 'privacy_request_received',
+      recipient_profile_id: requester.id,
+      status: 'queued',
+    }]);
 
     const reportList = administrator.runPilotOperationsCli(['report:list', '--yes']);
     expect(reportList).toContain(reportId);
@@ -186,6 +354,13 @@ test('pilot report and privacy operations are admin-gated and status-audited', a
     const resolvedPrivacyRequest = JSON.parse(administrator.runPilotOperationsCli(['privacy:view', privacyRequestId!, '--yes']));
     expect(resolvedPrivacyRequest.request.status).toBe('fulfilled');
     expect(resolvedPrivacyRequest.audit.map((entry: { status_after: string }) => entry.status_after)).toEqual(['in_review', 'fulfilled']);
+    const privacyDeliveries = await requester.getTestEmailDeliveriesForEntity('privacy_request_id', privacyRequestId!);
+    expect(privacyDeliveries).toHaveLength(3);
+    expect(privacyDeliveries).toEqual(expect.arrayContaining([
+      expect.objectContaining({ email_purpose: 'privacy_request_received', status: 'queued' }),
+      expect.objectContaining({ notification_type: 'privacy_request_status_updated', email_purpose: 'privacy_request_status_updated', status: 'queued' }),
+      expect.objectContaining({ notification_type: 'privacy_request_status_updated', email_purpose: 'privacy_request_status_updated', status: 'queued' }),
+    ]));
 
     expect(() => ordinaryMember.runPilotOperationsCli(['report:list', '--yes']))
       .toThrow(/not an active Commonwork administrator/);
