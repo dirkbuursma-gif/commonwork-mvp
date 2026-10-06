@@ -98,7 +98,7 @@ test('Connector administration CLI is allowlisted, audited and guarded for produ
     expect(() => ordinaryMember.runConnectorAdminCli(['add', target.email, '--capacity', '3', '--yes']))
       .toThrow(/not an active Commonwork administrator/);
     expect(() => administrator.runConnectorAdminCli(['add', target.email, '--capacity', '3'], 'production'))
-      .toThrow(/Refusing a production Connector change/);
+      .toThrow(/Refusing a production action/);
 
     const assignedOutput = administrator.runConnectorAdminCli(['add', target.email, '--capacity', '3', '--yes']);
     expect(assignedOutput).toContain('Assigned Connector Pilot Connector');
@@ -114,6 +114,88 @@ test('Connector administration CLI is allowlisted, audited and guarded for produ
   } finally {
     await administrator.remove();
     await target.remove();
+    await ordinaryMember.remove();
+  }
+});
+
+test('pilot report and privacy operations are admin-gated and status-audited', async () => {
+  const requester = await createLocalMember('Operations Requester');
+  const recipient = await createLocalMember('Operations Recipient');
+  const administrator = await createLocalMember('Operations Administrator');
+  const ordinaryMember = await createLocalMember('Ordinary Operator');
+
+  try {
+    await createProfile(administrator, 'Operations Administrator');
+    await administrator.provisionAdministrator();
+    const competencyId = await productDataCompetencyId(requester);
+    await makeMatchReady(requester, 'Operations Requester', competencyId);
+    await makeMatchReady(recipient, 'Operations Recipient', competencyId);
+
+    const needId = await insertDraftNeed(requester, competencyId, 'Operator workflow test');
+    const { error: activateError } = await requester.client.from('competence_needs')
+      .update({ status: 'active' }).eq('id', needId);
+    expect(activateError).toBeNull();
+    const { error: matchError } = await requester.client.rpc('generate_matches_for_need', { target_need_id: needId });
+    expect(matchError).toBeNull();
+    const { data: match, error: matchReadError } = await requester.client.from('matches')
+      .select('id').eq('need_id', needId).eq('matched_profile_id', recipient.id).single();
+    expect(matchReadError).toBeNull();
+    const contactMethodId = await addContactMethod(requester);
+    const { data: introductionId, error: introductionError } = await requester.client.rpc('request_introduction', {
+      target_match_id: match!.id,
+      target_route: 'direct',
+      target_suggested_introducer_id: null,
+      target_trusted_connector_id: null,
+      target_why_this_person: 'Their competence is relevant to this work.',
+      target_why_now: 'We are reviewing the work this week.',
+      target_proposed_conversation: 'Compare practical validation methods.',
+      target_requester_offer: 'I can share our current approach.',
+      target_contact_method_id: contactMethodId,
+      target_intermediary_note: '',
+    });
+    expect(introductionError).toBeNull();
+    const { data: reportId, error: reportError } = await recipient.client.rpc('report_introduction', {
+      target_introduction_id: introductionId,
+      target_category: 'privacy_concern',
+      target_details: 'The introduction included unexpected contact.',
+    });
+    expect(reportError).toBeNull();
+
+    const { data: privacyRequestId, error: privacyRequestError } = await requester.client.rpc('request_member_privacy_action', {
+      target_request_type: 'account_deletion',
+      target_note: 'Please review my account deletion request.',
+    });
+    expect(privacyRequestError).toBeNull();
+
+    const reportList = administrator.runPilotOperationsCli(['report:list', '--yes']);
+    expect(reportList).toContain(reportId);
+    const reportView = JSON.parse(administrator.runPilotOperationsCli(['report:view', reportId!, '--yes']));
+    expect(reportView.report.details).toBe('The introduction included unexpected contact.');
+    administrator.runPilotOperationsCli(['report:review', reportId!, '--note', 'Review started by the pilot operator.', '--yes']);
+    administrator.runPilotOperationsCli(['report:resolve', reportId!, '--note', 'The concern was reviewed and addressed.', '--yes']);
+    const resolvedReport = JSON.parse(administrator.runPilotOperationsCli(['report:view', reportId!, '--yes']));
+    expect(resolvedReport.report.status).toBe('resolved');
+    expect(resolvedReport.audit.map((entry: { status_after: string }) => entry.status_after)).toEqual(['in_review', 'resolved']);
+
+    const privacyList = administrator.runPilotOperationsCli(['privacy:list', '--yes']);
+    expect(privacyList).toContain(privacyRequestId);
+    const privacyView = JSON.parse(administrator.runPilotOperationsCli(['privacy:view', privacyRequestId!, '--yes']));
+    expect(privacyView.request.member_note).toBe('Please review my account deletion request.');
+    administrator.runPilotOperationsCli(['privacy:review', privacyRequestId!, '--note', 'Identity verification is in progress.', '--yes']);
+    administrator.runPilotOperationsCli(['privacy:resolve', privacyRequestId!, '--note', 'Deletion was completed under the approved retention process.', '--yes']);
+    const resolvedPrivacyRequest = JSON.parse(administrator.runPilotOperationsCli(['privacy:view', privacyRequestId!, '--yes']));
+    expect(resolvedPrivacyRequest.request.status).toBe('fulfilled');
+    expect(resolvedPrivacyRequest.audit.map((entry: { status_after: string }) => entry.status_after)).toEqual(['in_review', 'fulfilled']);
+
+    expect(() => ordinaryMember.runPilotOperationsCli(['report:list', '--yes']))
+      .toThrow(/not an active Commonwork administrator/);
+    expect(() => administrator.runPilotOperationsCli([
+      'report:dismiss', reportId!, '--note', 'A production dismissal must be confirmed.', '--yes',
+    ], 'production')).toThrow(/Refusing a production action/);
+  } finally {
+    await requester.remove();
+    await recipient.remove();
+    await administrator.remove();
     await ordinaryMember.remove();
   }
 });

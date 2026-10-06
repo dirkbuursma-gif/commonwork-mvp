@@ -6,6 +6,8 @@ Pilot Hardening adds local member sign-out, Connector administration, privacy co
 
 This release does not add partner networks, events, newsletters, working groups, public discussions, email automation or other member-facing product areas.
 
+Supabase Auth handles sign-in links, but application notifications are currently in-app only. There is no transactional email provider, delivery outbox, retry/idempotency handling or delivery-failure record for introduction, Connector, privacy-request or report notifications. Configure Auth email delivery separately; do not treat it as completion of transactional introduction email.
+
 ## Local verification
 
 Use Node.js 22.12 or newer. Run the local database reset before the application checks so the full migration chain is exercised:
@@ -74,12 +76,30 @@ npm run connector:remove -- member@example.com
 
 Review Connector assignments and audit records after changes. Reassignment is limited to two changes per introduction. The CLI is the only supported Connector administration interface in this release.
 
+The same operator credentials and environment rules apply to report and privacy commands. List commands show summaries; use `view` only when case details are needed. Status changes require a 3-2,000 character `--note`, are executed through active-administrator-only database functions, and are written to `commonwork_pilot_audit` in the same transaction.
+
+```sh
+npm run report:list
+npm run report:view -- <report-id>
+npm run report:review -- <report-id> --note "Identity and context reviewed"
+npm run report:resolve -- <report-id> --note "Concern reviewed and addressed"
+npm run report:dismiss -- <report-id> --note "Report reviewed; no action required"
+
+npm run privacy:list
+npm run privacy:view -- <request-id>
+npm run privacy:review -- <request-id> --note "Identity verification is in progress"
+npm run privacy:resolve -- <request-id> --note "Deletion completed under the approved retention process"
+npm run privacy:reject -- <request-id> --note "Request could not be verified"
+```
+
+For any hosted target, set `COMMONWORK_ENV=staging` or `COMMONWORK_ENV=production`; the scripts refuse an unlabelled remote project. Production changes additionally require the displayed typed confirmation. Keep the service-role key on the operator workstation, not in Vercel.
+
 ## Privacy and support operations
 
 - Members can download their own JSON export. A recorded export request is a separate, idempotent support request.
 - Profile deactivation makes the profile private, removes competence discoverability and sets availability to unavailable. It does not delete the Auth account or erase records.
-- Account deletion is a request, not automatic erasure. An authorized operator must verify the requester, review applicable retention obligations, complete the approved deletion process, and record the resolution. The repository has no privacy-request administration UI or automated deletion job.
-- Requester and recipient members can submit an introduction report from the introduction page; the RPC restricts reports to those participants and RLS limits report reads to the author. Operator list/view/resolve/dismiss tooling and audited report-status changes are not implemented. Establish an authorized, out-of-band review process before accepting reports from pilot members.
+- Account deletion is a request, not automatic erasure. An authorized operator must verify the requester, review applicable retention obligations, complete the approved deletion process, and only then mark the request fulfilled with `privacy:resolve`. The CLI records status and audit history but does not delete or anonymize the Auth account. There is no automated deletion job.
+- Requester and recipient members can submit an introduction report from the introduction page. The RPC restricts reports to those participants and RLS limits report reads to the author. Authorized operators can list, view, review, resolve or dismiss reports with the report CLI; each status change and operator note is audited. Assign a staffed review target before inviting pilot members.
 - Members may block another member from future introductions. Existing consented introductions and contact snapshots are not retroactively withdrawn by this control.
 
 Assign an accountable operator and response target for privacy requests and safety concerns before inviting pilot members. Do not promise a deletion timeline or support channel that has not been staffed and tested.
@@ -96,7 +116,8 @@ Choose a backup and retention policy appropriate to the Supabase plan and applic
 
 Before production approval, complete and record all of the following:
 
-- Staging and production Supabase/Vercel projects are distinct; hosted Auth redirects, invite-only access and email delivery are verified.
+- Staging and production Supabase/Vercel projects are distinct; hosted Auth redirects, invite-only access and Supabase Auth sign-in/invite email delivery are verified.
+- Transactional application emails have a configured provider, safe minimal templates, idempotent delivery, failure recording and verified links for each required notification. This integration is currently missing and blocks pilot readiness.
 - All migrations are applied to staging; the full Playwright suite passes against the local Supabase stack; a separate hosted staging smoke pass covers two independently invited member accounts. Never point the local Playwright helper at hosted Supabase.
 - Sign-out, profile visibility/deactivation, export, privacy request handling, block behavior, Connector assignment/revocation and quota boundaries are manually checked in the hosted environment.
 - RLS, logs, administrator access, backup retention and a restore drill are reviewed by the responsible operators.
