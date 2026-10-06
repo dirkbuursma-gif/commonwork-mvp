@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro';
 import { createSupabaseServerClient } from '../../../lib/supabase/server';
+import { logPilotFailure } from '../../../lib/observability';
 
 export const POST: APIRoute = async (context) => {
   const formData = await context.request.formData();
@@ -23,6 +24,7 @@ export const POST: APIRoute = async (context) => {
     },
   });
 
+  if (error) logPilotFailure('magic_link_send_failed', error, { action: 'magic_link' });
   return context.redirect(
     error ? '/sign-in?status=unavailable' : '/sign-in?status=sent',
     303,

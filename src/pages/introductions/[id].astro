@@ -154,6 +154,18 @@ const statusMessages: Record<string, string> = {
           <form method="post" action={`/api/introductions/${introductionId}`}><input type="hidden" name="action" value="cancel" /><button class="btn" type="submit">Withdraw request</button></form>
         )}
 
+        {isParticipant && !['declined', 'expired', 'cancelled'].includes(introduction.status) && (
+          <details class="panel panel-pad">
+            <summary>Report an inappropriate introduction</summary>
+            <form method="post" action={`/api/introductions/${introductionId}`} class="privacy-action-form">
+              <input type="hidden" name="action" value="report" />
+              <label class="field">Concern<select name="report_category"><option value="inappropriate_contact">Inappropriate contact</option><option value="privacy_concern">Privacy concern</option><option value="misrepresentation">Misrepresentation</option><option value="other">Other</option></select></label>
+              <label class="field">What happened?<textarea name="report_details" required minlength="3" maxlength="3000" rows="3"></textarea></label>
+              <button class="btn" type="submit">Send private report</button>
+            </form>
+          </details>
+        )}
+
         {['introducer', 'connector'].includes(introduction.my_role) && introduction.status === 'awaiting_connector' && introduction.assignment_status === 'pending' && (
           <section class="panel panel-pad">
             <div class="eyebrow">Assigned facilitation</div><h2>{introduction.my_role === 'introducer' ? 'Confirm before introducing' : 'Facilitate this introduction'}</h2>

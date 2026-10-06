@@ -10,7 +10,7 @@ import type {
   MemberProfile,
   ProfileCompetence,
 } from '../../lib/competence-data';
-import type { ContactMethod } from '../../lib/introduction-data';
+import type { BlockedIntroductionMember, ContactMethod, PrivacyRequest } from '../../lib/introduction-data';
 import {
   getCompetenceEvidence,
   getContactPreferences,
@@ -19,7 +19,7 @@ import {
   getMyProfile,
   getProfileCompetencies,
 } from '../../lib/competence-data';
-import { getMyContactMethods } from '../../lib/introduction-data';
+import { getMyContactMethods, getMyIntroductionBlocks, getMyPrivacyRequests } from '../../lib/introduction-data';
 
 const user = Astro.locals.user;
 const localPreview = user?.isLocalTestUser === true;
@@ -32,6 +32,8 @@ let competencies: ProfileCompetence[] = [];
 let evidence: CompetenceEvidence[] = [];
 let preferences: ContactPreferences | DiscoverableContactPreferences | null = null;
 let contactMethods: ContactMethod[] = [];
+let privacyRequests: PrivacyRequest[] = [];
+let blockedMembers: BlockedIntroductionMember[] = [];
 let loadError = false;
 
 if (!localPreview && supabase && profileId) {
@@ -46,7 +48,15 @@ if (!localPreview && supabase && profileId) {
           ? getContactPreferences(supabase, profileId)
           : getDiscoverableContactPreferences(supabase, profileId),
       ]);
-      if (isOwner) contactMethods = await getMyContactMethods(supabase);
+      if (isOwner) {
+        [contactMethods, privacyRequests, blockedMembers] = await Promise.all([
+          getMyContactMethods(supabase),
+          getMyPrivacyRequests(supabase),
+          getMyIntroductionBlocks(supabase),
+        ]);
+      } else {
+        blockedMembers = await getMyIntroductionBlocks(supabase);
+      }
       evidence = await getCompetenceEvidence(supabase, competencies.map((item) => item.id));
     }
   } catch {
@@ -79,7 +89,17 @@ const contactStatusMessages: Record<string, string> = {
   'contact-method-invalid': 'Check the contact method details and try again.',
   'contact-method-failed': 'The contact method could not be saved.',
   'preview-readonly': 'Local preview is read-only; contact methods require a signed-in Supabase member.',
+  'profile-deactivated': 'Your profile is private, competencies are hidden, and availability is withdrawn.',
+  'deletion-requested': 'Your account deletion request is recorded for administrator review.',
+  'export-requested': 'Your data export request is recorded.',
+  'privacy-request-cancelled': 'Privacy request cancelled.',
+  'privacy-action-failed': 'The privacy action could not be completed.',
+  'export-failed': 'Your data export could not be created.',
+  'member-blocked': 'This member cannot request an introduction to you.',
+  'member-unblocked': 'This member may request an introduction if otherwise eligible.',
+  'block-action-failed': 'The block preference could not be saved.',
 };
+const isBlockedByMe = blockedMembers.some((entry) => entry.blocked_profile_id === profileId);
 ---
 
 <AppLayout title="Competence profile" section="competence">
@@ -197,6 +217,23 @@ const contactStatusMessages: Record<string, string> = {
                 <label class="preference-option"><input type="checkbox" name="is_primary" /><span>Set as primary</span></label>
                 <button class="btn primary" type="submit">Save contact method</button>
               </form>
+            </section>
+          )}
+          {isOwner && (
+            <section class="panel panel-pad" aria-labelledby="privacy-operations-title">
+              <div class="panel-head"><div><h2 id="privacy-operations-title">Privacy and account controls</h2><p>Manage your discoverability and request data operations.</p></div></div>
+              <a class="btn" href="/api/privacy">Download my data</a>
+              <form method="post" action="/api/privacy" class="privacy-action-form"><input type="hidden" name="action" value="deactivate" /><button class="btn" type="submit">Deactivate profile and withdraw availability</button></form>
+              <form method="post" action="/api/privacy" class="privacy-action-form"><input type="hidden" name="action" value="request-deletion" /><label class="field">Optional note for the administrator<textarea name="member_note" maxlength="2000" rows="2"></textarea></label><button class="btn" type="submit">Request account deletion</button></form>
+              {privacyRequests.length > 0 && <div class="privacy-request-list"><h3>Your privacy requests</h3>{privacyRequests.map((request) => <div class="privacy-request-item"><span>{request.request_type.replaceAll('_', ' ')} · {request.status.replaceAll('_', ' ')}</span>{request.status === 'pending' && <form method="post" action="/api/privacy"><input type="hidden" name="action" value="cancel-request" /><input type="hidden" name="request_id" value={request.id} /><button class="btn" type="submit">Cancel request</button></form>}</div>)}</div>}
+              {blockedMembers.length > 0 && <div class="privacy-request-list"><h3>Blocked future introductions</h3>{blockedMembers.map((blocked) => <div class="privacy-request-item"><span>{blocked.blocked_display_name}</span><form method="post" action={`/api/members/${blocked.blocked_profile_id}/block`}><input type="hidden" name="action" value="unblock" /><button class="btn" type="submit">Allow future introductions</button></form></div>)}</div>}
+            </section>
+          )}
+          {!isOwner && (
+            <section class="panel panel-pad" aria-label="Introduction boundary">
+              <div class="eyebrow">Introduction preferences</div>
+              <p class="subtitle">Blocking prevents new introductions between you and this member. It does not affect an existing introduction.</p>
+              <form method="post" action={`/api/members/${profileId}/block`}><input type="hidden" name="action" value={isBlockedByMe ? 'unblock' : 'block'} /><button class="btn" type="submit">{isBlockedByMe ? 'Allow future introductions' : 'Block future introductions'}</button></form>
             </section>
           )}
         </aside>

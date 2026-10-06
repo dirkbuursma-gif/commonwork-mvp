@@ -685,14 +685,15 @@ test('four-role browser acceptance keeps intermediary and contact data private o
 });
 
 test('active requests are idempotent, retry rules are private and expiry allows a later request', async () => {
-  const owner = await createLocalMember('Retry Requester');
+  let owner = await createLocalMember('Retry Requester');
+  const owners = [owner];
   const recipient = await createLocalMember('Retry Recipient');
   let preparedRecipient: PreparedMember;
 
   try {
     await createProfile(owner, 'Retry Requester', false);
     preparedRecipient = await prepareMember(recipient, 'Retry Recipient');
-    const ownerMethodId = await addContactMethod(owner, 'email', 'retry.requester@example.test', 'Work email');
+    let ownerMethodId = await addContactMethod(owner, 'email', 'retry.requester@example.test', 'Work email');
     const recipientMethodId = await getPrimaryContactMethodId(recipient);
 
     const firstNeed = await createNeedWithMatches(owner, preparedRecipient, 'Retry policy one');
@@ -749,6 +750,10 @@ test('active requests are idempotent, retry rules are private and expiry allows 
     const retryAfterDateId = await requestIntroduction(owner, secondNeed.matchId, ownerMethodId, 'direct');
     expect(retryAfterDateId).not.toBe(secondId);
 
+    owner = await createLocalMember('Retry Requester Two');
+    owners.push(owner);
+    await createProfile(owner, 'Retry Requester Two', false);
+    ownerMethodId = await addContactMethod(owner, 'email', 'retry.requester.two@example.test', 'Work email');
     const thirdNeed = await createNeedWithMatches(owner, preparedRecipient, 'Retry policy three');
     const thirdId = await requestIntroduction(owner, thirdNeed.matchId, ownerMethodId, 'direct');
     const { error: capacityDeclineError } = await recipient.client.rpc('recipient_introduction_response', {
@@ -804,7 +809,7 @@ test('active requests are idempotent, retry rules are private and expiry allows 
     expect(recipientContactMethods).toEqual([]);
     expect(recipientMethodId).toBeTruthy();
   } finally {
-    await owner.remove();
+    for (const requester of owners) await requester.remove();
     await recipient.remove();
   }
 });

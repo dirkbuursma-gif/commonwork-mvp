@@ -7,6 +7,7 @@ const configured = Boolean(
 const status = Astro.url.searchParams.get('status');
 const notices: Record<string, { text: string; error: boolean }> = {
   sent: { text: 'If this address belongs to an invited member, a sign-in link is on its way.', error: false },
+  'signed-out': { text: 'You have signed out.', error: false },
   invalid: { text: 'Enter a valid email address and try again.', error: true },
   unavailable: { text: 'We could not send a sign-in link just now. Please try again shortly.', error: true },
   'invalid-link': { text: 'That sign-in link is invalid or has expired. Request another one.', error: true },

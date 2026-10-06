@@ -25,6 +25,8 @@ export interface LocalMember {
   client: SupabaseClient<any, 'public', any, any, any>;
   cookies: SessionCookie[];
   provisionConnector: (capacity?: number) => Promise<void>;
+  provisionAdministrator: () => Promise<void>;
+  runConnectorAdminCli: (arguments_: string[], environment?: string) => string;
   connectorCapacity: () => Promise<number | null>;
   expireIntroduction: (introductionId: string) => Promise<void>;
   setIntroductionRetryAfter: (introductionId: string, recipientProfileId: string, retryAfter: string) => Promise<void>;
@@ -125,6 +127,24 @@ export async function createLocalMember(displayName: string): Promise<LocalMembe
       });
       if (connectorError) throw connectorError;
     },
+    provisionAdministrator: async () => {
+      const { error: adminError } = await admin.from('commonwork_administrators').insert({
+        profile_id: data.user.id,
+        status: 'active',
+      });
+      if (adminError) throw adminError;
+    },
+    runConnectorAdminCli: (arguments_, environment = 'local') => execFileSync(process.execPath, ['scripts/connectors.mjs', ...arguments_], {
+      cwd: process.cwd(),
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        SUPABASE_URL: config.apiUrl,
+        SUPABASE_SERVICE_ROLE_KEY: config.serviceRoleKey,
+        COMMONWORK_ADMIN_PROFILE_ID: data.user.id,
+        COMMONWORK_ENV: environment,
+      },
+    }),
     connectorCapacity: async () => {
       const { data: connector, error: connectorError } = await admin
         .from('connectors')

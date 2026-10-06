@@ -11,7 +11,10 @@
     "preview": "astro preview",
     "astro": "astro",
     "check": "astro check",
-    "test": "playwright test"
+    "test": "playwright test",
+    "connector:add": "node scripts/connectors.mjs add",
+    "connector:list": "node scripts/connectors.mjs list",
+    "connector:remove": "node scripts/connectors.mjs remove"
   },
   "dependencies": {
     "@astrojs/vercel": "^11.0.11",

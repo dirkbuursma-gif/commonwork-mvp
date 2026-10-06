@@ -863,6 +863,7 @@ declare
   assignment_row public.connector_assignments%rowtype;
   suggested_profile public.profiles%rowtype;
   question_text text := btrim(coalesce(target_context_question, ''));
+  reassignments integer;
 begin
   if actor_id is null then
     raise exception 'Authentication is required.' using errcode = '42501';
@@ -895,6 +896,13 @@ begin
   end if;
 
   if target_action = 'suggest_another_member' then
+    select count(*) into reassignments
+    from public.connector_assignments
+    where introduction_id = target_introduction_id and status = 'suggested_another_member';
+    if reassignments >= 2 then
+      raise exception 'This introduction has reached its intermediary reassignment limit.' using errcode = 'P0001';
+    end if;
+    perform public.consume_pilot_rate_limit('connector_reassignment', target_introduction_id);
     if target_suggested_profile_id is null
       or target_suggested_profile_id in (actor_id, intro_row.requester_profile_id, intro_row.recipient_profile_id) then
       raise exception 'Choose another suitable member.' using errcode = '22023';

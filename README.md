@@ -40,6 +40,7 @@ npm test
 - `docs/PRODUCT.md` describes the proposition, principles and exclusions.
 - `docs/DATA-MODEL.md` describes entities, matching boundaries and access rules.
 - `docs/BUILD-PLAN.md` defines the implementation batches.
+- `docs/PILOT-OPERATIONS.md` records hosted setup, operator responsibilities and pilot acceptance gates.
 - `src/lib/supabase/` contains browser and SSR client factories.
 - `src/middleware.ts` protects application routes and redirects signed-out visitors.
 - `src/pages/onboarding.astro` provides the four-step competence-profile flow.

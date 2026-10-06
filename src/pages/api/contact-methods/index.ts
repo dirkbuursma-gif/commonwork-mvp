@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro';
 import { createSupabaseServerClient } from '../../../lib/supabase/server';
+import { logPilotFailure } from '../../../lib/observability';
 
 function value(form: FormData, key: string): string {
   return String(form.get(key) ?? '').trim();
@@ -28,6 +29,7 @@ export const POST: APIRoute = async (context) => {
     const methodId = value(form, 'method_id');
     if (!methodId) return redirect(context, 'contact-method-invalid');
     const { error } = await supabase.rpc('delete_profile_contact_method', { target_method_id: methodId });
+    if (error) logPilotFailure('contact_method_delete_failed', error, { actor_profile_id: user.id, action: 'contact_method_delete' });
     return redirect(context, error ? 'contact-method-failed' : 'contact-method-removed');
   }
 
@@ -61,5 +63,6 @@ export const POST: APIRoute = async (context) => {
     target_label: label,
     make_primary: makePrimary,
   });
+  if (error) logPilotFailure('contact_method_save_failed', error, { actor_profile_id: user.id, action: 'contact_method_save' });
   return redirect(context, error ? 'contact-method-failed' : 'contact-method-saved');
 };
