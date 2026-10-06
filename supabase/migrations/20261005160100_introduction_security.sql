@@ -1009,6 +1009,12 @@ begin
     return 'cancelled';
   end if;
 
+  update public.notifications
+  set read_at = coalesce(read_at, now())
+  where profile_id = suggestion_row.assigned_profile_id
+    and introduction_id = target_introduction_id
+    and type = 'connector_action_required';
+
   if intro_row.route = 'trusted_connector' then
     perform 1 from public.connectors
     where profile_id = suggestion_row.suggested_profile_id and status = 'active' and introduction_capacity > 0
