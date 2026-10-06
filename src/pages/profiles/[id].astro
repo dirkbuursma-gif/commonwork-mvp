@@ -10,6 +10,7 @@ import type {
   MemberProfile,
   ProfileCompetence,
 } from '../../lib/competence-data';
+import type { ContactMethod } from '../../lib/introduction-data';
 import {
   getCompetenceEvidence,
   getContactPreferences,
@@ -18,6 +19,7 @@ import {
   getMyProfile,
   getProfileCompetencies,
 } from '../../lib/competence-data';
+import { getMyContactMethods } from '../../lib/introduction-data';
 
 const user = Astro.locals.user;
 const localPreview = user?.isLocalTestUser === true;
@@ -29,6 +31,7 @@ let profile: MemberProfile | DiscoverableProfile | null = null;
 let competencies: ProfileCompetence[] = [];
 let evidence: CompetenceEvidence[] = [];
 let preferences: ContactPreferences | DiscoverableContactPreferences | null = null;
+let contactMethods: ContactMethod[] = [];
 let loadError = false;
 
 if (!localPreview && supabase && profileId) {
@@ -43,6 +46,7 @@ if (!localPreview && supabase && profileId) {
           ? getContactPreferences(supabase, profileId)
           : getDiscoverableContactPreferences(supabase, profileId),
       ]);
+      if (isOwner) contactMethods = await getMyContactMethods(supabase);
       evidence = await getCompetenceEvidence(supabase, competencies.map((item) => item.id));
     }
   } catch {
@@ -69,6 +73,13 @@ const groupedCompetencies = Object.entries(categoryLabels).map(([category, label
   items: competencies.filter((item) => item.competencies?.category === category),
 }));
 const status = Astro.url.searchParams.get('status');
+const contactStatusMessages: Record<string, string> = {
+  'contact-method-saved': 'Contact method saved privately.',
+  'contact-method-removed': 'Contact method removed.',
+  'contact-method-invalid': 'Check the contact method details and try again.',
+  'contact-method-failed': 'The contact method could not be saved.',
+  'preview-readonly': 'Local preview is read-only; contact methods require a signed-in Supabase member.',
+};
 ---
 
 <AppLayout title="Competence profile" section="competence">
@@ -86,6 +97,7 @@ const status = Astro.url.searchParams.get('status');
   ) : (
     <>
       {status === 'preferences-saved' && <p class="form-notice" role="status">Conversation preferences saved.</p>}
+      {status && contactStatusMessages[status] && <p class="form-notice" role={status === 'contact-method-failed' || status === 'contact-method-invalid' ? 'alert' : 'status'}>{contactStatusMessages[status]}</p>}
       <div class="page-head">
         <div>
           <div class="eyebrow">Competence profile</div>
@@ -165,6 +177,26 @@ const status = Astro.url.searchParams.get('status');
             <section class="panel panel-pad">
               <div class="eyebrow">Private profile settings</div>
               <p>Your email address and private evidence are not displayed on this member profile.</p>
+            </section>
+          )}
+          {isOwner && (
+            <section class="panel panel-pad" aria-labelledby="contact-methods-title">
+              <div class="panel-head"><div><h2 id="contact-methods-title">Contact methods for introductions</h2><p>These stay private until you consent to a completed introduction. Your sign-in email is never copied here automatically.</p></div></div>
+              {contactMethods.length > 0 ? (
+                <ul class="contact-method-list">
+                  {contactMethods.map((method) => (
+                    <li><div><strong>{method.label || (method.method_type === 'email' ? 'Email address' : 'Calendar link')}</strong>{method.is_primary && <span class="need-status saved">Primary</span>}<p>{method.method_type === 'email' ? 'Email' : 'Calendar link'} · {method.value}</p></div><form method="post" action="/api/contact-methods"><input type="hidden" name="action" value="delete" /><input type="hidden" name="method_id" value={method.id} /><button class="btn" type="submit" aria-label={`Remove ${method.label || method.method_type}`}>Remove</button></form></li>
+                  ))}
+                </ul>
+              ) : <p class="subtitle">No contact method is configured yet.</p>}
+              <form method="post" action="/api/contact-methods" class="contact-method-form">
+                <input type="hidden" name="action" value="save" />
+                <label class="field">Type<select name="method_type"><option value="email">Email I choose to share</option><option value="calendar_url">Calendar URL</option></select></label>
+                <label class="field">Contact value<input name="value" required maxlength="2048" autocomplete="off" placeholder="Email address or https:// calendar link" /></label>
+                <label class="field">Label<input name="label" maxlength="120" placeholder="For example, Work email" /></label>
+                <label class="preference-option"><input type="checkbox" name="is_primary" /><span>Set as primary</span></label>
+                <button class="btn primary" type="submit">Save contact method</button>
+              </form>
             </section>
           )}
         </aside>

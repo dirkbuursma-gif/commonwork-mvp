@@ -37,11 +37,13 @@ Acceptance: members can save an incomplete private draft, return to activate it,
 
 ### 4. Introductions
 
-- Introduction request and double opt-in
-- Mutual-contact and trusted-Connector routes
-- Consent, decline, expiry, completion and follow-up
+- Contextual introduction request from an existing eligible match
+- Direct double opt-in, suggested introducer and trusted Connector routes
+- Owner-managed private contact methods with post-consent release
+- Private consent, decline, one clarification, expiry, cancellation, completion and feedback
+- Recipient-only in-app notifications and an introduction inbox
 
-Acceptance: contact information stays hidden until consent; the recipient sees why and why now; declining is private and easy.
+Acceptance: the recipient sees exactly what the requester will share and may privately accept, ask one clarification, decline or choose not now. Suggested introducers confirm they know both people before introduction; Connectors are provisioned outside member controls and see only assigned work. Contact values remain hidden until required consent. State transitions are transactional and tested for concurrency, expiry, retries and unrelated-user privacy. No general messaging, events, recruitment or email automation.
 
 ### 5. Events
 

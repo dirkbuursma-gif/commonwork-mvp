@@ -45,7 +45,10 @@ npm test
 - `src/pages/onboarding.astro` provides the four-step competence-profile flow.
 - `src/pages/profiles/[id].astro` separates owner and discoverable member-profile views.
 - `src/pages/find/` provides guided need creation, editing and requester-only explained match results.
+- `src/pages/introductions/` provides contextual requests, private consent decisions, assigned facilitation and conversation follow-up.
+- `src/pages/profiles/` stores owner-only contact methods, which are released only through an issued introduction.
 - `src/lib/need-data.ts` contains explicit-column reads for needs, matches, reasons, profiles and authorized evidence.
+- `src/lib/introduction-data.ts` contains actor-scoped introduction inbox, contact and consent-release reads.
 - `supabase/migrations/` defines profile and need RLS, the controlled competence vocabulary, and deterministic transparent matching.
 - `tests/` covers foundation, profile CRUD, onboarding, need lifecycle, matching and two-user RLS boundaries.
 

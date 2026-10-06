@@ -5,6 +5,8 @@ import type { CompetenceEvidence, ContactPreferences, MemberProfile, ProfileComp
 import { getCompetenceEvidence, getContactPreferences, getMyProfile, getProfileCompetencies } from '../lib/competence-data';
 import type { CompetenceNeed } from '../lib/need-data';
 import { getMatchesForNeed, getOwnedNeeds } from '../lib/need-data';
+import type { IntroductionInboxItem } from '../lib/introduction-data';
+import { getMyIntroductionInbox } from '../lib/introduction-data';
 
 const user = Astro.locals.user;
 const localPreview = user?.isLocalTestUser === true;
@@ -20,6 +22,7 @@ let competencies: ProfileCompetence[] = [];
 let evidence: CompetenceEvidence[] = [];
 let preferences: ContactPreferences | null = null;
 let activeNeeds: CompetenceNeed[] = [];
+let introductions: IntroductionInboxItem[] = [];
 let openSuggestions = 0;
 let loadError = false;
 
@@ -32,6 +35,7 @@ if (!localPreview && supabase && user) {
       getOwnedNeeds(supabase, user.id),
     ]);
     evidence = await getCompetenceEvidence(supabase, competencies.map((item) => item.id));
+    introductions = await getMyIntroductionInbox(supabase);
     activeNeeds = activeNeeds.filter((need) => need.status === 'active' && (!need.expires_at || new Date(need.expires_at) > new Date()));
     const needMatches = await Promise.all(activeNeeds.map((need) => getMatchesForNeed(supabase, need.id)));
     openSuggestions = needMatches.flat().filter((match) => match.status !== 'dismissed').length;
@@ -41,6 +45,10 @@ if (!localPreview && supabase && user) {
 }
 
 const competenciesWithEvidence = new Set(evidence.map((item) => item.profile_competency_id)).size;
+const incomingIntroductions = introductions.filter((item) => item.my_role === 'recipient' && ['awaiting_recipient', 'awaiting_requester_context'].includes(item.status)).length;
+const outgoingIntroductions = introductions.filter((item) => item.my_role === 'requester' && !['introduced', 'completed', 'declined', 'expired', 'cancelled'].includes(item.status)).length;
+const introductionsToFacilitate = introductions.filter((item) => ['introducer', 'connector'].includes(item.my_role) && item.status === 'awaiting_connector').length;
+const introductionFollowUps = introductions.filter((item) => item.my_role === 'requester' || item.my_role === 'recipient').filter((item) => item.status === 'introduced').length;
 const nextImprovement =
   competencies.length === 0
     ? 'Add your first competence.'
@@ -102,6 +110,15 @@ const nextImprovement =
           <div class="stat-row"><span>Open suggestions</span><strong>{openSuggestions}</strong></div>
           <a class="btn" href="/find">Manage needs</a>
         </section>
+        <section class="panel panel-pad">
+          <h2>Introductions</h2>
+          <p class="subtitle">Private consent decisions and conversation follow-up.</p>
+          <div class="stat-row"><span>Incoming decisions</span><strong>{incomingIntroductions}</strong></div>
+          <div class="stat-row"><span>Outgoing requests</span><strong>{outgoingIntroductions}</strong></div>
+          <div class="stat-row"><span>To facilitate</span><strong>{introductionsToFacilitate}</strong></div>
+          <div class="stat-row"><span>Conversation follow-ups</span><strong>{introductionFollowUps}</strong></div>
+          <a class="btn" href="/introductions">Open introductions</a>
+        </section>
       </aside>
     </div>
   ) : (
@@ -134,6 +151,15 @@ const nextImprovement =
           <div class="stat-row"><span>Active needs</span><strong>{activeNeeds.length}</strong></div>
           <div class="stat-row"><span>Open suggestions</span><strong>{openSuggestions}</strong></div>
           <a class="btn" href="/find">Manage needs</a>
+        </section>
+        <section class="panel panel-pad">
+          <h2>Introductions</h2>
+          <p class="subtitle">Private consent decisions and conversation follow-up.</p>
+          <div class="stat-row"><span>Incoming decisions</span><strong>{incomingIntroductions}</strong></div>
+          <div class="stat-row"><span>Outgoing requests</span><strong>{outgoingIntroductions}</strong></div>
+          <div class="stat-row"><span>To facilitate</span><strong>{introductionsToFacilitate}</strong></div>
+          <div class="stat-row"><span>Conversation follow-ups</span><strong>{introductionFollowUps}</strong></div>
+          <a class="btn" href="/introductions">Open introductions</a>
         </section>
       </aside>
     </div>
