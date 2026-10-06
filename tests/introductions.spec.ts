@@ -541,6 +541,13 @@ test('suggested introducers confirm familiarity and Connectors act only on assig
       expect(approvalError).toBeNull();
       expect(approvedReplacement).toBe('awaiting_connector');
       expect(await replacementConnector.connectorCapacity()).toBe(1);
+      const { data: revokedConnectorNotices } = await connector.client
+        .from('notifications')
+        .select('read_at')
+        .eq('introduction_id', trustedIntroductionId)
+        .eq('type', 'connector_action_required');
+      expect(revokedConnectorNotices?.length).toBeGreaterThan(0);
+      expect(revokedConnectorNotices?.every((notice) => notice.read_at !== null)).toBe(true);
       const { data: formerConnectorInbox } = await connector.client.rpc('get_my_introduction_inbox');
       expect(formerConnectorInbox?.some((item: { introduction_id: string }) => item.introduction_id === trustedIntroductionId)).toBe(false);
       const { data: replacementConnectorInbox } = await replacementConnector.client.rpc('get_my_introduction_inbox');
@@ -567,6 +574,113 @@ test('suggested introducers confirm familiarity and Connectors act only on assig
     await connector.remove();
     await replacementConnector.remove();
     await outsider.remove();
+  }
+});
+
+test('four-role browser acceptance keeps intermediary and contact data private on mobile', async ({ browser }) => {
+  test.setTimeout(90_000);
+  const requester = await createLocalMember('Four Role Requester');
+  const recipient = await createLocalMember('Four Role Recipient');
+  const connectorA = await createLocalMember('Connector A');
+  const connectorB = await createLocalMember('Connector B');
+  const requesterContext = await browser.newContext({ viewport: { width: 375, height: 812 } });
+  const recipientContext = await browser.newContext({ viewport: { width: 375, height: 812 } });
+  const connectorAContext = await browser.newContext({ viewport: { width: 375, height: 812 } });
+  const connectorBContext = await browser.newContext({ viewport: { width: 375, height: 812 } });
+
+  try {
+    await createProfile(requester, 'Four Role Requester', false);
+    const preparedRecipient = await prepareMember(recipient, 'Four Role Recipient');
+    await prepareMember(connectorA, 'Connector A');
+    await prepareMember(connectorB, 'Connector B');
+    await connectorA.provisionConnector(2);
+    await connectorB.provisionConnector(2);
+    const requesterContactId = await addContactMethod(requester, 'email', 'requester.pilot@example.test', 'Pilot email');
+    const { needId, matchId } = await createNeedWithMatches(requester, preparedRecipient, 'A contextual pilot conversation');
+    const introductionId = await requestIntroduction(requester, matchId, requesterContactId, 'trusted_connector', null, connectorA.id);
+
+    const requesterPage = await requesterContext.newPage();
+    const recipientPage = await recipientContext.newPage();
+    const connectorAPage = await connectorAContext.newPage();
+    const connectorBPage = await connectorBContext.newPage();
+    await Promise.all([
+      addSession(requesterPage, requester),
+      addSession(recipientPage, recipient),
+      addSession(connectorAPage, connectorA),
+      addSession(connectorBPage, connectorB),
+    ]);
+
+    await requesterPage.goto(`/introductions/${introductionId}`);
+    await expect(requesterPage.getByRole('heading', { name: 'Introduction with Four Role Recipient' })).toBeVisible();
+    await expect(requesterPage.getByText('awaiting recipient')).toBeVisible();
+    expect(await requesterPage.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375);
+
+    await recipientPage.goto(`/introductions/${introductionId}`);
+    await expect(recipientPage.getByRole('heading', { name: 'Introduction with Four Role Requester' })).toBeVisible();
+    await expect(recipientPage.getByText('Improve product-data readiness')).toBeVisible();
+    await expect(recipientPage.getByRole('button', { name: 'Accept introduction' })).toBeVisible();
+    await expect(recipientPage.locator('body')).not.toContainText('Connector A');
+    await expect(recipientPage.locator('body')).not.toContainText('Connector B');
+    await expect(recipientPage.locator('body')).not.toContainText('requester.pilot@example.test');
+    expect(await recipientPage.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375);
+
+    await connectorAPage.goto('/introductions');
+    await expect(connectorAPage.getByRole('heading', { name: 'For you to facilitate' })).toHaveCount(0);
+    await expect(connectorAPage.locator('body')).not.toContainText('Four Role Recipient');
+    await connectorBPage.goto('/introductions');
+    await expect(connectorBPage.getByRole('heading', { name: 'For you to facilitate' })).toHaveCount(0);
+
+    await recipientPage.getByLabel('Contact method to share if the introduction proceeds').selectOption(await getPrimaryContactMethodId(recipient));
+    await recipientPage.getByRole('button', { name: 'Accept introduction' }).click();
+    await expect(recipientPage.locator('body')).toContainText('awaiting connector');
+    await connectorAPage.reload();
+    await expect(connectorAPage.getByRole('heading', { name: 'For you to facilitate' })).toBeVisible();
+    await expect(connectorAPage.getByRole('link', { name: 'Four Role Requester and Four Role Recipient' })).toBeVisible();
+    await connectorAPage.getByRole('link', { name: 'Four Role Requester and Four Role Recipient' }).click();
+    await expect(connectorAPage.getByRole('heading', { name: 'Facilitate this introduction' })).toBeVisible();
+    await expect(connectorAPage.getByText('They understand this work context and may help us connect.')).toBeVisible();
+    await expect(connectorAPage.locator('body')).not.toContainText('four.role.recipient@example.test');
+    expect(await connectorAPage.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375);
+
+    await connectorAPage.getByLabel('Person to suggest').selectOption(connectorB.id);
+    await connectorAPage.getByRole('button', { name: 'Send suggestion to requester' }).click();
+    await expect(connectorAPage.getByRole('heading', { name: 'This introduction is unavailable' })).toBeVisible();
+    await expect(connectorAPage.locator('body')).not.toContainText('Four Role Recipient');
+
+    await requesterPage.reload();
+    await expect(requesterPage.getByRole('heading', { name: 'Review another person' })).toBeVisible();
+    await expect(requesterPage.locator('body')).toContainText('Connector B');
+    await requesterPage.getByRole('button', { name: 'Approve suggested person' }).click();
+    await expect(requesterPage.getByText('Introduction update saved.')).toBeVisible();
+
+    await connectorAPage.reload();
+    await expect(connectorAPage.getByRole('heading', { name: 'This introduction is unavailable' })).toBeVisible();
+    await expect(connectorAPage.locator('body')).not.toContainText('Four Role Recipient');
+
+    await connectorBPage.reload();
+    await expect(connectorBPage.getByRole('heading', { name: 'For you to facilitate' })).toBeVisible();
+    await connectorBPage.getByRole('link', { name: 'Four Role Requester and Four Role Recipient' }).click();
+    await expect(connectorBPage.getByRole('button', { name: 'Make the introduction' })).toBeVisible();
+    await connectorBPage.getByRole('button', { name: 'Make the introduction' }).click();
+    await expect(connectorBPage.getByText('Introduction update saved.')).toBeVisible();
+
+    await requesterPage.reload();
+    await expect(requesterPage.getByRole('heading', { name: 'You are introduced' })).toBeVisible();
+    await expect(requesterPage.getByText('four.role.recipient@work.example')).toBeVisible();
+    await expect(requesterPage.locator('body')).not.toContainText(recipient.email);
+    expect(await requesterPage.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375);
+
+    const { error: needCleanupError } = await requester.client.from('competence_needs').update({ status: 'archived' }).eq('id', needId);
+    expect(needCleanupError).toBeNull();
+  } finally {
+    await requesterContext.close();
+    await recipientContext.close();
+    await connectorAContext.close();
+    await connectorBContext.close();
+    await requester.remove();
+    await recipient.remove();
+    await connectorA.remove();
+    await connectorB.remove();
   }
 });
 
