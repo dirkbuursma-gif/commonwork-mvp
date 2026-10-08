@@ -28,6 +28,7 @@ values
   ('kibo', 'Kibo', 'https://kibocommerce.com', 'Composable commerce and order-management products.', 'cp-provider-export-2026-09-02', 'kibo-commerce', 'https://kibocommerce.com', '2026-10-07T00:00:00Z', '2026-10-07T00:00:00Z', 'Commerce Partners public catalogue review', true, 'commonwork-intelligence-v1'),
   ('salesforce', 'Salesforce', 'https://www.salesforce.com', 'Commerce, personalization, order-management and customer-service products.', 'cp-provider-export-2026-09-02', 'salesforce', 'https://www.salesforce.com', '2026-10-07T00:00:00Z', '2026-10-07T00:00:00Z', 'Commerce Partners public catalogue review', true, 'commonwork-intelligence-v1'),
   ('rierino', 'Rierino', 'https://www.rierino.com', 'Commerce orchestration and product-information capabilities.', 'cp-provider-export-2026-09-02', 'rierino', 'https://www.rierino.com', '2026-10-07T00:00:00Z', '2026-10-07T00:00:00Z', 'Commerce Partners public catalogue review', true, 'commonwork-intelligence-v1'),
+  ('vtex', 'VTEX', 'https://vtex.com', 'Connected commerce suite spanning digital commerce, B2B, marketplace, order management and headless storefront options.', 'cp-provider-export-2026-09-02', 'vtex', 'https://vtex.com', '2026-10-07T00:00:00Z', '2026-10-07T00:00:00Z', 'Commerce Partners public catalogue review', true, 'commonwork-intelligence-v1'),
   ('informatica', 'Informatica', 'https://www.informatica.com', 'Enterprise data-management and product-information capabilities.', 'cp-provider-export-2026-09-02', 'informatica', 'https://www.informatica.com', '2026-10-07T00:00:00Z', '2026-10-07T00:00:00Z', 'Commerce Partners public catalogue review', true, 'commonwork-intelligence-v1'),
   ('catsy', 'Catsy', 'https://www.catsy.com', 'Product information and digital-asset management capabilities.', 'cp-provider-export-2026-09-02', 'catsy', 'https://www.catsy.com', '2026-10-07T00:00:00Z', '2026-10-07T00:00:00Z', 'Commerce Partners public catalogue review', true, 'commonwork-intelligence-v1'),
   ('telus-international', 'TELUS International', 'https://www.telusinternational.com', 'Customer experience and service operations.', 'cp-provider-export-2026-09-02', 'telus-international', 'https://www.telusinternational.com', '2026-10-07T00:00:00Z', '2026-10-07T00:00:00Z', 'Commerce Partners public catalogue review', true, 'commonwork-intelligence-v1'),
@@ -86,6 +87,7 @@ from (values
   ('adobe', 'adobe-commerce', 'Adobe Commerce', 'Commerce platform for catalogue, checkout, promotions, APIs and extensible workflows.', 'Commerce platform', 'Cross-stack orchestration layer', 'Documented', array['Enterprise and complex B2B/B2C commerce'], 'Qualify licensing, deployment, integrations, implementation capacity and operating cost.', array['Which extensions are essential?', 'How are upgrades and customizations governed?'], 'Extensible commerce platform', 'Cloud / self-managed options', 'B2B, B2C, catalogue, checkout and APIs', 'plat-8g0v6t0dk', 'https://business.adobe.com/products/commerce/magento.html'),
   ('adobe', 'adobe-experience-manager-assets', 'Adobe Experience Manager Assets', 'Digital asset management for rights, workflows, metadata and asset delivery.', 'Digital asset management', 'Commercial-meaning foundation', 'Documented', array['Large multi-brand organizations with governed asset workflows'], 'Distinct from product information management; validate rights and delivery integrations.', array['How are asset rights represented?', 'Which channels receive approved renditions?'], 'Digital asset management', 'Enterprise SaaS', 'Asset lifecycle, metadata, rights and dynamic delivery', 'plat-adobe-experience-manager-assets', 'https://business.adobe.com/products/experience-manager/assets/aem-assets.html'),
   ('kibo', 'kibo-commerce', 'Kibo Commerce', 'Composable commerce platform for catalogue, checkout, orders and multi-market operations.', 'Commerce platform', 'Cross-stack orchestration layer', 'Documented', array['Mid-market teams seeking modular commerce'], 'Validate North American operating fit, implementation scope and integration ownership.', array['Which commerce functions remain outside the platform?', 'What is the operating model for extensions?'], 'Composable commerce platform', 'SaaS', 'Catalogue, checkout, orders and integrations', 'plat-zsc42vx3o', 'https://kibocommerce.com'),
+  ('vtex', 'vtex-commerce-platform', 'VTEX Commerce Platform', 'Connected commerce suite for digital commerce, B2B, marketplace and seller management, order management, headless storefronts and APIs.', 'Commerce platform', 'Integrated commerce suite with modular extension', 'Documented', array['Enterprise brands and retailers needing B2C, B2B and marketplace functionality in one capability set'], 'Validate operating geography and local ecosystem, B2B depth, marketplace governance, integration limits and the GMV-based cost model at scale.', array['Which marketplace, seller and B2B requirements does the suite cover natively?', 'Where are the integration and API limits, and who owns extensions?', 'How does cost develop as GMV grows?'], 'Cloud SaaS; connected commerce with pragmatic composability', 'Cloud SaaS', 'Digital commerce, B2B, marketplace and seller management, OMS, headless storefront options, APIs and omnichannel capability', 'plat-czu1ajo74', 'https://vtex.com/en-us/vtex-io/'),
   ('kibo', 'kibo-order-management', 'Kibo Order Management', 'Order management capabilities connecting inventory, sourcing and fulfilment decisions.', 'Order management', 'Operational-truth foundation', 'Claimed', array['Retailers coordinating inventory and fulfilment across channels'], 'Validate dependency on commerce, ERP, inventory and carrier systems.', array['How are inventory sources reconciled?', 'How are exception and split-order decisions controlled?'], 'Order management system', 'SaaS', 'Order orchestration and fulfilment workflows', 'plat-kibo-order-management', 'https://kibocommerce.com'),
   ('salesforce', 'salesforce-commerce-cloud', 'Salesforce Commerce Cloud', 'Enterprise commerce suite for catalogue, checkout and multi-channel transactions.', 'Commerce platform', 'Cross-stack orchestration layer', 'Documented', array['Enterprise teams using Salesforce commerce and customer systems'], 'Qualify licensing, integration boundaries, extensibility and implementation complexity.', array['Which customer and product data is authoritative?', 'How are extensions and releases governed?'], 'Enterprise commerce platform', 'SaaS', 'B2B/B2C commerce, catalogue, checkout and APIs', 'plat-6ukswb758', 'https://www.salesforce.com/commerce/'),
   ('salesforce', 'salesforce-personalization', 'Salesforce Personalization', 'Real-time customer personalization across Salesforce commerce and marketing touchpoints.', 'Personalization', 'Discovery foundation', 'Documented', array['Teams with consented customer data and measurable journeys'], 'Fit depends on identity, consent, source data and the Salesforce operating environment.', array['Which consent state governs activation?', 'How are audience rules audited?'], 'Customer data and personalization', 'Cloud service', 'Segmentation, personalization and journey activation', 'plat-salesforce-personalization', 'https://www.salesforce.com/marketing/personalization/'),
@@ -257,6 +259,7 @@ from (values
   ('salesforce-commerce-cloud', 'commerce-platforms', 'Enterprise commerce in a broader Salesforce operating environment.', 4),
   ('salesforce-order-management', 'commerce-platforms', 'Order and inventory coordination across regions and systems.', 5),
   ('rierino-commerce-platform', 'commerce-platforms', 'Cross-stack commerce orchestration; clarify system and operating ownership.', 6),
+  ('vtex-commerce-platform', 'commerce-platforms', 'Integrated enterprise suite with marketplace, B2B and order management; qualify geography, governance and cost model.', 7),
   ('adobe-experience-manager-assets', 'product-data-enrichment', 'Digital assets and rights; complementary to, not synonymous with, PIM.', 1),
   ('rierino', 'product-data-enrichment', 'Product information capabilities within a broader commerce platform.', 2),
   ('geoffy', 'product-data-enrichment', 'Restructures existing product data for machine-readable discovery; depends on source catalogue quality.', 5),
@@ -292,6 +295,7 @@ from (values
   ('salesforce-service-cloud', 'https://www.salesforce.com/products/service-cloud/'),
   ('rierino-commerce-platform', 'https://www.rierino.com'),
   ('rierino', 'https://www.rierino.com'),
+  ('vtex-commerce-platform', 'https://vtex.com/en-us/vtex-io/'),
   ('informatica-product-360', 'https://www.informatica.com'),
   ('catsy-pim-dam', 'https://www.catsy.com'),
   ('telus-international', 'https://www.telusinternational.com'),
@@ -337,12 +341,12 @@ on conflict (category_id, competency_id) do update set
 
 insert into public.provider_publication_status (provider_id, status, public_disclosure_note, published_at)
 select p.id,
-  case when p.slug in ('plumbed', 'staffcloud', 'geoffy') then 'draft' else 'published' end,
-  case when p.slug in ('plumbed', 'staffcloud', 'geoffy')
+  case when p.slug in ('plumbed', 'staffcloud', 'geoffy', 'vtex') then 'draft' else 'published' end,
+  case when p.slug in ('plumbed', 'staffcloud', 'geoffy', 'vtex')
     then 'Draft: pending Commonwork review before public release.'
     else 'Local demo copy of a public Commerce Partners catalogue profile. Not a certification or endorsement.'
   end,
-  case when p.slug in ('plumbed', 'staffcloud', 'geoffy') then null else '2026-10-07T00:00:00Z'::timestamptz end
+  case when p.slug in ('plumbed', 'staffcloud', 'geoffy', 'vtex') then null else '2026-10-07T00:00:00Z'::timestamptz end
 from public.providers p
 where p.is_seed_data and p.seed_batch = 'commonwork-intelligence-v1'
 on conflict (provider_id) where provider_id is not null do update set
@@ -355,15 +359,15 @@ on conflict (provider_id) where provider_id is not null do update set
 insert into public.provider_publication_status (provider_product_id, status, public_disclosure_note, published_at, retired_at)
 select pp.id,
   case when pp.slug in ('begen', 'benext-ai') then 'retired'
-    when pp.slug in ('plumbed-integration-platform', 'staffcloud-managed-ecommerce-support', 'geoffy') then 'draft'
+    when pp.slug in ('plumbed-integration-platform', 'staffcloud-managed-ecommerce-support', 'geoffy', 'vtex-commerce-platform') then 'draft'
     else 'published' end,
   case when pp.slug in ('begen', 'benext-ai')
     then 'Retired: Begen is represented by AdMultify and Benext by Be.cited.'
-    when pp.slug in ('plumbed-integration-platform', 'staffcloud-managed-ecommerce-support', 'geoffy')
+    when pp.slug in ('plumbed-integration-platform', 'staffcloud-managed-ecommerce-support', 'geoffy', 'vtex-commerce-platform')
     then 'Draft: pending Commonwork review before public release.'
     else 'Local demo copy of a public Commerce Partners catalogue profile. Confirm current fit, evidence and dependencies before relying on it.'
   end,
-  case when pp.slug in ('plumbed-integration-platform', 'staffcloud-managed-ecommerce-support', 'geoffy') then null else '2026-10-07T00:00:00Z'::timestamptz end,
+  case when pp.slug in ('plumbed-integration-platform', 'staffcloud-managed-ecommerce-support', 'geoffy', 'vtex-commerce-platform') then null else '2026-10-07T00:00:00Z'::timestamptz end,
   case when pp.slug in ('begen', 'benext-ai') then now() end
 from public.provider_products pp
 where pp.is_seed_data and pp.seed_batch = 'commonwork-intelligence-v1'
@@ -393,6 +397,9 @@ from (values
   ('salesforce-order-management', 'systems-integration', 'related', 'Order data flows across commerce and service systems.'),
   ('rierino-commerce-platform', 'composable-commerce', 'expertise', 'Composable, API-led commerce capability.'),
   ('rierino-commerce-platform', 'commerce-architecture', 'related', 'Architecture and integration pattern fit.'),
+  ('vtex-commerce-platform', 'commerce-platforms', 'expertise', 'Integrated enterprise commerce platform capability.'),
+  ('vtex-commerce-platform', 'composable-commerce', 'related', 'Connected suite with modular, headless and API extension options.'),
+  ('vtex-commerce-platform', 'platform-assessment', 'related', 'Qualify geography, marketplace governance, integration limits and cost model.'),
   ('informatica-product-360', 'product-information-management', 'expertise', 'Product information governance and mastering.'),
   ('informatica-product-360', 'product-data-quality', 'common_need', 'Data completeness and consistency controls.'),
   ('catsy-pim-dam', 'product-information-management', 'expertise', 'PIM and DAM for product content.'),
