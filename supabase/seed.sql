@@ -123,6 +123,30 @@ on conflict (source_system, source_record_id) do update set
   is_seed_data = excluded.is_seed_data,
   seed_batch = excluded.seed_batch;
 
+-- Geoffy comes from its own partner intake (self-submitted, 2026-09-14), not the catalogue export.
+insert into public.providers (
+  slug, name, website_url, summary, source_system, source_record_id, source_url,
+  imported_at, reviewed_at, reviewed_by, is_seed_data, seed_batch
+)
+values (
+  'geoffy', 'Geoffy', 'https://geoffy.ai',
+  'Provider of a GEO (generative engine optimisation) platform that makes e-commerce product data readable and citable by AI shopping assistants.',
+  'cp-partner-intake-2026-09-14', 'geoffy', 'https://geoffy.ai',
+  '2026-09-14T00:00:00Z', '2026-10-08T00:00:00Z', 'Commerce Partners partner intake review',
+  true, 'commonwork-intelligence-v1'
+)
+on conflict (source_system, source_record_id) do update set
+  slug = excluded.slug,
+  name = excluded.name,
+  website_url = excluded.website_url,
+  summary = excluded.summary,
+  source_url = excluded.source_url,
+  imported_at = excluded.imported_at,
+  reviewed_at = excluded.reviewed_at,
+  reviewed_by = excluded.reviewed_by,
+  is_seed_data = excluded.is_seed_data,
+  seed_batch = excluded.seed_batch;
+
 -- Plumbed and Staffcloud: copy comes from the Commerce Partners partner pages (plumbed.md, staffcloud.md).
 -- Provider-published performance metrics are deliberately not reproduced.
 insert into public.provider_products (
@@ -165,6 +189,49 @@ on conflict (source_system, source_record_id) do update set
   is_seed_data = excluded.is_seed_data,
   seed_batch = excluded.seed_batch;
 
+-- Geoffy product.
+insert into public.provider_products (
+  provider_id, slug, name, summary, operating_layer, contribution_role, evidence_maturity,
+  merchant_fit, boundary_and_dependencies, buyer_validation_questions, architecture,
+  deployment_model, capabilities_summary, source_system, source_record_id, source_url,
+  imported_at, reviewed_at, reviewed_by, is_seed_data, seed_batch
+)
+select
+  p.id, 'geoffy', 'Geoffy',
+  'GEO platform for e-commerce that restructures product data so AI assistants such as ChatGPT, Perplexity, Gemini and Google AI Overviews can find, understand and cite products, then measures the result.',
+  'AI product discoverability', 'Machine-readable product-data layer', 'Claimed',
+  array['Merchants with medium to large product catalogues'],
+  'Sits alongside the existing SEO stack, agency and CMS; it does not replace them. Improves the odds of being cited but cannot guarantee placement in AI answers. Needs admin access to a Shopify or WordPress store and reasonably complete product data.',
+  array['How is AI-referred traffic measured today, and which baseline will the trial use?', 'Which product attributes and comparison context does Geoffy generate, and who approves them?', 'How does it coexist with the current schema, SEO and feed tooling?'],
+  'Point solution on top of the storefront and catalogue',
+  'Shopify app, WooCommerce plugin and headless package (Next.js, Astro)',
+  'AI visibility audit, product-data structuring for answer engines, and monitoring of citations and AI-referred traffic.',
+  'cp-partner-intake-2026-09-14', 'geoffy', 'https://geoffy.ai',
+  '2026-09-14T00:00:00Z', '2026-10-08T00:00:00Z', 'Commerce Partners partner intake review',
+  true, 'commonwork-intelligence-v1'
+from public.providers p
+where p.slug = 'geoffy'
+on conflict (source_system, source_record_id) do update set
+  provider_id = excluded.provider_id,
+  slug = excluded.slug,
+  name = excluded.name,
+  summary = excluded.summary,
+  operating_layer = excluded.operating_layer,
+  contribution_role = excluded.contribution_role,
+  evidence_maturity = excluded.evidence_maturity,
+  merchant_fit = excluded.merchant_fit,
+  boundary_and_dependencies = excluded.boundary_and_dependencies,
+  buyer_validation_questions = excluded.buyer_validation_questions,
+  architecture = excluded.architecture,
+  deployment_model = excluded.deployment_model,
+  capabilities_summary = excluded.capabilities_summary,
+  source_url = excluded.source_url,
+  imported_at = excluded.imported_at,
+  reviewed_at = excluded.reviewed_at,
+  reviewed_by = excluded.reviewed_by,
+  is_seed_data = excluded.is_seed_data,
+  seed_batch = excluded.seed_batch;
+
 delete from public.provider_links l
 using public.provider_products pp
 where l.provider_product_id = pp.id
@@ -181,6 +248,7 @@ select pp.id, pc.id, s.fit_summary, s.sort_order
 from (values
   ('admultify', 'agentic-commerce', 'Creative automation; review rights, brand controls and channel approval.', 2),
   ('be-cited', 'agentic-commerce', 'Generative-search visibility; treat monitoring as evidence, not a ranking guarantee.', 4),
+  ('geoffy', 'agentic-commerce', 'Makes product data legible to AI shopping assistants; treat it as improving the odds, not guaranteeing placement.', 3),
   ('bloomreach-discovery', 'agentic-commerce', 'Discovery capabilities that depend on governed catalogues and ranking controls.', 5),
   ('salesforce-personalization', 'agentic-commerce', 'Personalized experiences depend on consented identity and source data.', 6),
   ('adobe-commerce', 'commerce-platforms', 'Enterprise commerce suite; qualify complexity, licensing and extension model.', 1),
@@ -191,6 +259,7 @@ from (values
   ('rierino-commerce-platform', 'commerce-platforms', 'Cross-stack commerce orchestration; clarify system and operating ownership.', 6),
   ('adobe-experience-manager-assets', 'product-data-enrichment', 'Digital assets and rights; complementary to, not synonymous with, PIM.', 1),
   ('rierino', 'product-data-enrichment', 'Product information capabilities within a broader commerce platform.', 2),
+  ('geoffy', 'product-data-enrichment', 'Restructures existing product data for machine-readable discovery; depends on source catalogue quality.', 5),
   ('informatica-product-360', 'product-data-enrichment', 'Enterprise PIM/MDM; assess stewardship and integration capacity.', 3),
   ('catsy-pim-dam', 'product-data-enrichment', 'Product content and media management with publishing workflows.', 4),
   ('salesforce-service-cloud', 'contact-centre-service-automation', 'Service workflows; validate automation permissions and escalation.', 1),
@@ -211,6 +280,7 @@ select pp.id, 'official', 'Official product information', s.url, 1
 from (values
   ('admultify', 'https://www.begen.ai'),
   ('be-cited', 'https://www.benext.com'),
+  ('geoffy', 'https://geoffy.ai'),
   ('bloomreach-discovery', 'https://www.bloomreach.com/en/products/discovery'),
   ('adobe-commerce', 'https://business.adobe.com/products/commerce/magento.html'),
   ('adobe-experience-manager-assets', 'https://business.adobe.com/products/experience-manager/assets/aem-assets.html'),
@@ -267,12 +337,12 @@ on conflict (category_id, competency_id) do update set
 
 insert into public.provider_publication_status (provider_id, status, public_disclosure_note, published_at)
 select p.id,
-  case when p.slug in ('plumbed', 'staffcloud') then 'draft' else 'published' end,
-  case when p.slug in ('plumbed', 'staffcloud')
+  case when p.slug in ('plumbed', 'staffcloud', 'geoffy') then 'draft' else 'published' end,
+  case when p.slug in ('plumbed', 'staffcloud', 'geoffy')
     then 'Draft: pending Commonwork review before public release.'
     else 'Local demo copy of a public Commerce Partners catalogue profile. Not a certification or endorsement.'
   end,
-  case when p.slug in ('plumbed', 'staffcloud') then null else '2026-10-07T00:00:00Z'::timestamptz end
+  case when p.slug in ('plumbed', 'staffcloud', 'geoffy') then null else '2026-10-07T00:00:00Z'::timestamptz end
 from public.providers p
 where p.is_seed_data and p.seed_batch = 'commonwork-intelligence-v1'
 on conflict (provider_id) where provider_id is not null do update set
@@ -285,15 +355,15 @@ on conflict (provider_id) where provider_id is not null do update set
 insert into public.provider_publication_status (provider_product_id, status, public_disclosure_note, published_at, retired_at)
 select pp.id,
   case when pp.slug in ('begen', 'benext-ai') then 'retired'
-    when pp.slug in ('plumbed-integration-platform', 'staffcloud-managed-ecommerce-support') then 'draft'
+    when pp.slug in ('plumbed-integration-platform', 'staffcloud-managed-ecommerce-support', 'geoffy') then 'draft'
     else 'published' end,
   case when pp.slug in ('begen', 'benext-ai')
     then 'Retired: Begen is represented by AdMultify and Benext by Be.cited.'
-    when pp.slug in ('plumbed-integration-platform', 'staffcloud-managed-ecommerce-support')
+    when pp.slug in ('plumbed-integration-platform', 'staffcloud-managed-ecommerce-support', 'geoffy')
     then 'Draft: pending Commonwork review before public release.'
     else 'Local demo copy of a public Commerce Partners catalogue profile. Confirm current fit, evidence and dependencies before relying on it.'
   end,
-  case when pp.slug in ('plumbed-integration-platform', 'staffcloud-managed-ecommerce-support') then null else '2026-10-07T00:00:00Z'::timestamptz end,
+  case when pp.slug in ('plumbed-integration-platform', 'staffcloud-managed-ecommerce-support', 'geoffy') then null else '2026-10-07T00:00:00Z'::timestamptz end,
   case when pp.slug in ('begen', 'benext-ai') then now() end
 from public.provider_products pp
 where pp.is_seed_data and pp.seed_batch = 'commonwork-intelligence-v1'
@@ -330,6 +400,9 @@ from (values
   ('adobe-experience-manager-assets', 'product-data-enrichment', 'related', 'Asset management supports product content enrichment.'),
   ('admultify', 'agentic-commerce', 'related', 'Creative automation; validate rights, brand controls and approval.'),
   ('be-cited', 'agentic-commerce', 'related', 'Generative-search visibility; validate sources and evidence.'),
+  ('geoffy', 'agentic-commerce', 'related', 'Product data prepared for AI shopping assistants; validate sources and measurement.'),
+  ('geoffy', 'product-data-enrichment', 'expertise', 'Structures and enriches product data for answer engines.'),
+  ('geoffy', 'product-data-quality', 'common_need', 'Needs a reasonably complete catalogue as input.'),
   ('bloomreach-discovery', 'product-discovery-optimization', 'expertise', 'Search and discovery capability.'),
   ('salesforce-personalization', 'customer-experience', 'related', 'Personalization depends on consented identity data.'),
   ('genesys-cloud', 'customer-experience', 'expertise', 'Contact-centre journeys and routing.'),
