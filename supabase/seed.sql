@@ -19,8 +19,8 @@ insert into public.providers (
   imported_at, reviewed_at, reviewed_by, is_seed_data, seed_batch
 )
 values
-  ('begen', 'Begen', 'https://www.begen.ai', 'Provider of AdMultify creative automation and Begen AI capabilities.', 'cp-provider-export-2026-09-02', 'begen', 'https://www.begen.ai', '2026-10-07T00:00:00Z', '2026-10-07T00:00:00Z', 'Commerce Partners public catalogue review', true, 'commonwork-intelligence-v1'),
-  ('benext', 'Benext', 'https://www.benext.com', 'Provider of Benext AI services and Be.cited generative-search visibility capabilities.', 'cp-provider-export-2026-09-02', 'benext', 'https://www.benext.com', '2026-10-07T00:00:00Z', '2026-10-07T00:00:00Z', 'Commerce Partners public catalogue review', true, 'commonwork-intelligence-v1'),
+  ('begen', 'Begen', 'https://www.begen.ai', 'Provider of AdMultify creative automation.', 'cp-provider-export-2026-09-02', 'begen', 'https://www.begen.ai', '2026-10-07T00:00:00Z', '2026-10-07T00:00:00Z', 'Commerce Partners public catalogue review', true, 'commonwork-intelligence-v1'),
+  ('benext', 'Benext', 'https://www.benext.com', 'Provider of Be.cited generative-search visibility capabilities.', 'cp-provider-export-2026-09-02', 'benext', 'https://www.benext.com', '2026-10-07T00:00:00Z', '2026-10-07T00:00:00Z', 'Commerce Partners public catalogue review', true, 'commonwork-intelligence-v1'),
   ('bloomreach', 'Bloomreach', 'https://www.bloomreach.com', 'Commerce experience, discovery and engagement products.', 'cp-provider-export-2026-09-02', 'bloomreach-discovery', 'https://www.bloomreach.com', '2026-10-07T00:00:00Z', '2026-10-07T00:00:00Z', 'Commerce Partners public catalogue review', true, 'commonwork-intelligence-v1'),
   ('adobe', 'Adobe', 'https://www.adobe.com', 'Commerce and digital-asset capabilities within the Adobe product ecosystem.', 'cp-provider-export-2026-09-02', 'adobe-commerce-magento', 'https://www.adobe.com', '2026-10-07T00:00:00Z', '2026-10-07T00:00:00Z', 'Commerce Partners public catalogue review', true, 'commonwork-intelligence-v1'),
   ('kibo', 'Kibo', 'https://kibocommerce.com', 'Composable commerce and order-management products.', 'cp-provider-export-2026-09-02', 'kibo-commerce', 'https://kibocommerce.com', '2026-10-07T00:00:00Z', '2026-10-07T00:00:00Z', 'Commerce Partners public catalogue review', true, 'commonwork-intelligence-v1'),
@@ -107,12 +107,15 @@ where l.provider_product_id = pp.id
   and pp.is_seed_data
   and pp.seed_batch = 'commonwork-intelligence-v1';
 
+delete from public.provider_category_memberships m
+using public.provider_products pp
+where m.provider_product_id = pp.id
+  and pp.slug in ('begen', 'benext-ai');
+
 insert into public.provider_category_memberships (provider_product_id, category_id, fit_summary, sort_order)
 select pp.id, pc.id, s.fit_summary, s.sort_order
 from (values
-  ('begen', 'agentic-commerce', 'AI agent development; validate permissions, escalation and operational control.', 1),
   ('admultify', 'agentic-commerce', 'Creative automation; review rights, brand controls and channel approval.', 2),
-  ('benext-ai', 'agentic-commerce', 'Conversational and agent services; validate hand-off and system permissions.', 3),
   ('be-cited', 'agentic-commerce', 'Generative-search visibility; treat monitoring as evidence, not a ranking guarantee.', 4),
   ('bloomreach-discovery', 'agentic-commerce', 'Discovery capabilities that depend on governed catalogues and ranking controls.', 5),
   ('salesforce-personalization', 'agentic-commerce', 'Personalized experiences depend on consented identity and source data.', 6),
@@ -140,9 +143,7 @@ on conflict (provider_product_id, category_id) do update set
 insert into public.provider_links (provider_product_id, link_type, label, url, sort_order)
 select pp.id, 'official', 'Official product information', s.url, 1
 from (values
-  ('begen', 'https://www.begen.ai'),
   ('admultify', 'https://www.begen.ai'),
-  ('benext-ai', 'https://www.benext.com'),
   ('be-cited', 'https://www.benext.com'),
   ('bloomreach-discovery', 'https://www.bloomreach.com/en/products/discovery'),
   ('adobe-commerce', 'https://business.adobe.com/products/commerce/magento.html'),
@@ -201,15 +202,22 @@ on conflict (provider_id) where provider_id is not null do update set
   retired_at = null,
   retired_by = null;
 
-insert into public.provider_publication_status (provider_product_id, status, public_disclosure_note, published_at)
-select pp.id, 'published', 'Local demo copy of a public Commerce Partners catalogue profile. Confirm current fit, evidence and dependencies before relying on it.', '2026-10-07T00:00:00Z'
+insert into public.provider_publication_status (provider_product_id, status, public_disclosure_note, published_at, retired_at)
+select pp.id,
+  case when pp.slug in ('begen', 'benext-ai') then 'retired' else 'published' end,
+  case when pp.slug in ('begen', 'benext-ai')
+    then 'Retired: Begen is represented by AdMultify and Benext by Be.cited.'
+    else 'Local demo copy of a public Commerce Partners catalogue profile. Confirm current fit, evidence and dependencies before relying on it.'
+  end,
+  '2026-10-07T00:00:00Z',
+  case when pp.slug in ('begen', 'benext-ai') then now() end
 from public.provider_products pp
 where pp.is_seed_data and pp.seed_batch = 'commonwork-intelligence-v1'
 on conflict (provider_product_id) where provider_product_id is not null do update set
   status = excluded.status,
   public_disclosure_note = excluded.public_disclosure_note,
   published_at = excluded.published_at,
-  retired_at = null,
+  retired_at = excluded.retired_at,
   retired_by = null;
 
 commit;
@@ -236,10 +244,8 @@ from (values
   ('catsy-pim-dam', 'product-information-management', 'expertise', 'PIM and DAM for product content.'),
   ('catsy-pim-dam', 'product-data-enrichment', 'expertise', 'Enrichment and channel distribution.'),
   ('adobe-experience-manager-assets', 'product-data-enrichment', 'related', 'Asset management supports product content enrichment.'),
-  ('begen', 'agentic-commerce', 'expertise', 'AI agent development for commerce workflows.'),
-  ('begen', 'ai-agent-governance', 'related', 'Permissions and escalation need validation.'),
-  ('benext-ai', 'agentic-commerce', 'related', 'Conversational and agent services.'),
-  ('benext-ai', 'ai-agent-governance', 'related', 'Hand-off and system permission controls.'),
+  ('admultify', 'agentic-commerce', 'related', 'Creative automation; validate rights, brand controls and approval.'),
+  ('be-cited', 'agentic-commerce', 'related', 'Generative-search visibility; validate sources and evidence.'),
   ('bloomreach-discovery', 'product-discovery-optimization', 'expertise', 'Search and discovery capability.'),
   ('salesforce-personalization', 'customer-experience', 'related', 'Personalization depends on consented identity data.'),
   ('genesys-cloud', 'customer-experience', 'expertise', 'Contact-centre journeys and routing.'),
