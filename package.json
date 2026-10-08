@@ -12,6 +12,8 @@
     "astro": "astro",
     "check": "astro check",
     "test": "playwright test",
+    "pilot:seed": "node scripts/pilot-seed.mjs seed",
+    "pilot:clear": "node scripts/pilot-seed.mjs clear",
     "connector:add": "node scripts/connectors.mjs add",
     "connector:list": "node scripts/connectors.mjs list",
     "connector:remove": "node scripts/connectors.mjs remove",

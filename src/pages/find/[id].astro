@@ -8,11 +8,18 @@ import {
   getMatchMemberProfiles,
   getNeed,
   getNeedCompetencies,
+  getNeedPartnerSuggestions,
+  getNeedProductSuggestions,
+  getProfileAffiliations,
+  organisationTypeLabel,
   type CompetenceNeed,
   type MatchEvidence,
   type MemberProfileSummary,
   type MatchReason,
   type MatchResult,
+  type PartnerSuggestion,
+  type ProductSuggestion,
+  type ProfileAffiliation,
   type NeedCompetence,
 } from '../../lib/need-data';
 
@@ -27,6 +34,9 @@ let matches: MatchResult[] = [];
 let reasons: MatchReason[] = [];
 let relevantMembers: MemberProfileSummary[] = [];
 let evidence: MatchEvidence[] = [];
+let productSuggestions: ProductSuggestion[] = [];
+let partnerSuggestions: PartnerSuggestion[] = [];
+let affiliations: ProfileAffiliation[] = [];
 let loadError = false;
 
 if (supabase && !localPreview && needId) {
@@ -40,10 +50,13 @@ if (supabase && !localPreview && needId) {
       matches = await getMatchesForNeed(supabase, needId);
       const matchIds = matches.map((match) => match.id);
       const matchedProfileIds = [...new Set(matches.filter((match) => match.status !== 'dismissed').map((match) => match.matched_profile_id))];
-      [reasons, relevantMembers, evidence] = await Promise.all([
+      [reasons, relevantMembers, evidence, affiliations, productSuggestions, partnerSuggestions] = await Promise.all([
         getMatchReasons(supabase, matchIds),
         getMatchMemberProfiles(supabase, matchedProfileIds),
         getMatchEvidence(supabase, needId),
+        getProfileAffiliations(supabase, matchedProfileIds),
+        getNeedProductSuggestions(supabase, needId),
+        getNeedPartnerSuggestions(supabase, needId),
       ]);
     } else if (need) {
       needCompetencies = await getNeedCompetencies(supabase, needId);
@@ -53,6 +66,7 @@ if (supabase && !localPreview && needId) {
   }
 }
 
+const affiliationByProfileId = new Map(affiliations.filter((item) => item.organisations).map((item) => [item.profile_id, item]));
 const memberByProfileId = new Map(relevantMembers.map((member) => [member.id, member]));
 const visibleMatches = matches.filter((match) => match.status !== 'dismissed' && memberByProfileId.has(match.matched_profile_id));
 const status = Astro.url.searchParams.get('status');
@@ -108,6 +122,31 @@ function reasonText(reason: MatchReason) {
           ) : <p>No competence terms have been selected.</p>}
           <p class="field-help">Conversation: {need.conversation_type.replaceAll('_', ' ')}. Expires {need.expires_at ? new Date(need.expires_at).toLocaleDateString() : 'not set'}.</p>
         </article>
+        {isOwner && (need.retailer_segment || need.current_stack_note || need.project_context) && (
+          <article class="panel panel-pad">
+            <h2>Retailer context</h2>
+            {need.retailer_segment && <p><strong>Segment:</strong> {need.retailer_segment}</p>}
+            {need.current_stack_note && <><h3>Current stack</h3><p>{need.current_stack_note}</p></>}
+            {need.project_context && <><h3>Project context</h3><p>{need.project_context}</p></>}
+          </article>
+        )}
+        {isOwner && need.status === 'active' && (productSuggestions.length > 0 || partnerSuggestions.length > 0) && (
+          <article class="panel panel-pad" aria-labelledby="ecosystem-title">
+            <div class="eyebrow">From the intelligence catalogue</div>
+            <h2 id="ecosystem-title">Products and partners to consider</h2>
+            <p class="field-help">Suggested from the capabilities you selected. These are starting points to validate, not endorsements or rankings.</p>
+            {productSuggestions.length > 0 && (
+              <><h3>Products</h3><ul class="need-term-list">{productSuggestions.map((item) => (
+                <li><strong><a href={`/intelligence/product/${item.product_slug}`}>{item.product_name}</a></strong><span>{item.provider_name}{item.evidence_maturity ? ` · ${item.evidence_maturity}` : ''}</span><p>Relates to {item.matched_competencies.join(', ')}.</p></li>
+              ))}</ul></>
+            )}
+            {partnerSuggestions.length > 0 && (
+              <><h3>Implementation and GTM partners</h3><ul class="need-term-list">{partnerSuggestions.map((item) => (
+                <li><strong>{item.organisation_name}</strong>{item.matched_competencies.length > 0 && <p>Capabilities: {item.matched_competencies.join(', ')}.</p>}{item.implements_products.length > 0 && <p>Delivers on: {item.implements_products.join(', ')}.</p>}</li>
+              ))}</ul></>
+            )}
+          </article>
+        )}
       </section>
 
       {isOwner && ['draft', 'paused'].includes(need.status) ? (
@@ -136,7 +175,7 @@ function reasonText(reason: MatchReason) {
             return (
               <article class="match-card">
                 <header class="match-card-head">
-                  <div><span class={`relevance-band ${match.relevance_band}`}>{relevanceLabel}</span><h3><a href={`/profiles/${matchedMember.id}`}>{matchedMember.display_name}</a></h3><p>{matchedMember.professional_summary}</p></div>
+                  <div><span class={`relevance-band ${match.relevance_band}`}>{relevanceLabel}</span><h3><a href={`/profiles/${matchedMember.id}`}>{matchedMember.display_name}</a></h3>{affiliationByProfileId.get(matchedMember.id)?.organisations && <p class="field-help">{affiliationByProfileId.get(matchedMember.id)!.role_title ? `${affiliationByProfileId.get(matchedMember.id)!.role_title}, ` : ''}{affiliationByProfileId.get(matchedMember.id)!.organisations!.name} · {organisationTypeLabel(affiliationByProfileId.get(matchedMember.id)!.organisations!.organisation_type)}. Commercial affiliation, shown so you can weigh their perspective.</p>}<p>{matchedMember.professional_summary}</p></div>
                   <div class="match-actions">
                     {match.status === 'saved' && <span class="need-status saved">Saved</span>}
                     {need.status === 'active' && (!need.expires_at || new Date(need.expires_at) > new Date()) && <a class="btn primary" href={`/introductions/request/${match.id}`}>Request introduction</a>}
