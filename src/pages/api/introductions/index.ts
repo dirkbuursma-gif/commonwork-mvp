@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro';
 import { createSupabaseServerClient } from '../../../lib/supabase/server';
+import { logPilotFailure } from '../../../lib/observability';
 
 function value(form: FormData, key: string): string {
   return String(form.get(key) ?? '').trim();
@@ -39,6 +40,11 @@ export const POST: APIRoute = async (context) => {
     target_intermediary_note: value(form, 'intermediary_note'),
   });
 
+  if (error) logPilotFailure('introduction_request_failed', error, {
+    actor_profile_id: user.id,
+    match_id: matchId,
+    action: route,
+  });
   if (error || !introductionId) return redirect(context, matchId, 'request-unavailable');
   return context.redirect(`/introductions/${introductionId}?status=request-sent`, 303);
 };

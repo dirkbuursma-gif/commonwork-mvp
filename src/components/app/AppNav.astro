@@ -1,6 +1,6 @@
 ---
 interface Props {
-  active: 'today' | 'competence' | 'find' | 'introductions' | 'events';
+  active: 'today' | 'competence' | 'find' | 'introductions' | 'events' | 'intelligence';
   name: string;
   email: string;
 }
@@ -17,6 +17,7 @@ const links = [
   { id: 'today', label: 'Today', short: 'Today', href: '/today' },
   { id: 'competence', label: 'My competence', short: 'Offer', href: '/competence' },
   { id: 'find', label: 'Find competence', short: 'Find', href: '/find' },
+  { id: 'intelligence', label: 'Intelligence', short: 'Intel', href: '/intelligence' },
   { id: 'introductions', label: 'Introductions', short: 'Intros', href: '/introductions' },
   { id: 'events', label: 'Events', short: 'Events', href: '/events' },
 ] as const;

@@ -7,7 +7,7 @@ import '../styles/components.css';
 
 interface Props {
   title: string;
-  section: 'today' | 'competence' | 'find' | 'introductions' | 'events';
+  section: 'today' | 'competence' | 'find' | 'introductions' | 'events' | 'intelligence';
 }
 
 const { title, section } = Astro.props;
@@ -39,6 +39,11 @@ const name =
               <form class="dev-session-form" method="post" action="/api/auth/end-test-session">
                 <span class="dev-session-label">Local test session</span>
                 <button class="btn" type="submit">End test session</button>
+              </form>
+            )}
+            {user && !user.isLocalTestUser && (
+              <form method="post" action="/api/auth/sign-out">
+                <button class="btn" type="submit">Sign out</button>
               </form>
             )}
             <ThemeToggle />

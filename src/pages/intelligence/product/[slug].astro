@@ -1,0 +1,46 @@
+---
+import AppLayout from '../../../layouts/AppLayout.astro';
+import EmptyState from '../../../components/app/EmptyState.astro';
+import { createSupabaseServerClient } from '../../../lib/supabase/server';
+import { getProviderProductBySlug } from '../../../lib/provider-intelligence';
+import '../../../styles/intelligence.css';
+
+const user = Astro.locals.user;
+const localPreview = user?.isLocalTestUser === true;
+const supabase = localPreview ? null : createSupabaseServerClient(Astro);
+let result = null;
+let loadError = false;
+if (supabase) {
+  try {
+    result = await getProviderProductBySlug(supabase, Astro.params.slug ?? '');
+  } catch {
+    loadError = true;
+  }
+}
+---
+
+{localPreview ? (
+  <AppLayout title="Product intelligence" section="intelligence"><p class="form-notice" role="status">The local preview identity is read-only. Sign in with a local member account.</p></AppLayout>
+) : loadError ? (
+  <AppLayout title="Product intelligence" section="intelligence"><p class="form-notice error" role="alert">We could not load this product. Please try again shortly.</p></AppLayout>
+) : !result || !supabase ? (
+  <AppLayout title="Product unavailable" section="intelligence"><section class="panel panel-pad"><EmptyState title="Product unavailable" description="This product is not published or no longer available." /></section></AppLayout>
+) : (
+  <AppLayout title={result.product.name} section="intelligence">
+    <div class="page-head"><div><div class="eyebrow">{result.product.operating_layer || 'Product profile'}</div><h1>{result.product.name}</h1><p class="subtitle">{result.product.summary}</p></div></div>
+    <div class="stack">
+      {result.product.is_seed_data && <p class="intelligence-disclosure" role="note">Local demo catalogue: this record is a removable review fixture, not a certification or endorsement.</p>}
+      <section class="panel panel-pad">
+        <div class="panel-head"><div><div class="eyebrow">Provider</div><h2><a href={`/intelligence/provider/${result.provider.slug}`}>{result.provider.name}</a></h2><p>{result.provider.summary}</p></div>{result.provider.website_url && <a class="btn" href={result.provider.website_url} target="_blank" rel="noopener noreferrer">Provider website</a>}</div>
+        <div class="intelligence-meta"><span>Contribution: {result.product.contribution_role || 'Not assessed'}</span><span>Evidence: {result.product.evidence_maturity || 'Not assessed'}</span><span>Deployment: {result.product.deployment_model || 'Not specified'}</span></div>
+      </section>
+      {result.categories.length > 0 && <section class="panel panel-pad"><div class="eyebrow">Categories</div><div class="intelligence-meta">{result.categories.map((category) => <a class="btn" href={`/intelligence/category/${category.slug}`}>{category.name}</a>)}</div></section>}
+      {result.product.merchant_fit.length > 0 && <section class="panel panel-pad"><h2>Merchant fit</h2><ul>{result.product.merchant_fit.map((item) => <li>{item}</li>)}</ul></section>}
+      <section class="panel panel-pad"><h2>Capabilities</h2><p>{result.product.capabilities_summary || result.product.summary}</p>{result.product.architecture && <><h3>Architecture</h3><p>{result.product.architecture}</p></>}</section>
+      {result.product.boundary_and_dependencies && <section class="panel panel-pad"><h2>Boundaries and dependencies</h2><p>{result.product.boundary_and_dependencies}</p></section>}
+      {result.product.buyer_validation_questions.length > 0 && <section class="panel panel-pad"><h2>Questions to validate</h2><ul>{result.product.buyer_validation_questions.map((question) => <li>{question}</li>)}</ul></section>}
+      {result.product.public_disclosure_note && <p class="intelligence-disclosure">{result.product.public_disclosure_note}</p>}
+      <section class="panel panel-pad"><h2>Continue in Commonwork</h2><p>Use this provider context to describe a competence need and find relevant expertise.</p><a class="btn primary" href="/find">Find competence</a></section>
+    </div>
+  </AppLayout>
+)}

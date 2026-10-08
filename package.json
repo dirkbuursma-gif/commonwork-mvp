@@ -11,13 +11,29 @@
     "preview": "astro preview",
     "astro": "astro",
     "check": "astro check",
-    "test": "playwright test"
+    "test": "playwright test",
+    "pilot:seed": "node scripts/pilot-seed.mjs seed",
+    "pilot:clear": "node scripts/pilot-seed.mjs clear",
+    "connector:add": "node scripts/connectors.mjs add",
+    "connector:list": "node scripts/connectors.mjs list",
+    "connector:remove": "node scripts/connectors.mjs remove",
+    "report:list": "node scripts/pilot-operations.mjs report:list",
+    "report:view": "node scripts/pilot-operations.mjs report:view",
+    "report:review": "node scripts/pilot-operations.mjs report:review",
+    "report:resolve": "node scripts/pilot-operations.mjs report:resolve",
+    "report:dismiss": "node scripts/pilot-operations.mjs report:dismiss",
+    "privacy:list": "node scripts/pilot-operations.mjs privacy:list",
+    "privacy:view": "node scripts/pilot-operations.mjs privacy:view",
+    "privacy:review": "node scripts/pilot-operations.mjs privacy:review",
+    "privacy:resolve": "node scripts/pilot-operations.mjs privacy:resolve",
+    "privacy:reject": "node scripts/pilot-operations.mjs privacy:reject"
   },
   "dependencies": {
     "@astrojs/vercel": "^11.0.11",
     "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.117.2",
-    "astro": "^7.3.5"
+    "astro": "^7.3.5",
+    "resend": "^6.32.0"
   },
   "overrides": {
     "path-to-regexp": "^6.3.0"

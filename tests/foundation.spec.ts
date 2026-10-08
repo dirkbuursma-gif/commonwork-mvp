@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { createLocalMember } from './helpers/local-supabase';
 
 test('unauthenticated members are redirected to invite-only sign-in', async ({ page }) => {
   await page.goto('/today');
@@ -53,6 +54,29 @@ test('local test session can browse MVP pages and be ended', async ({ page }) =>
 
   await page.getByRole('button', { name: 'End test session' }).click();
   await expect(page).toHaveURL(/\/sign-in$/);
+});
+
+test('a Supabase member can sign out and loses protected-route access', async ({ browser }) => {
+  const member = await createLocalMember('Sign Out Member');
+  const context = await browser.newContext();
+
+  try {
+    await context.addCookies(member.cookies.map(({ name, value }) => ({
+      name,
+      value,
+      url: 'http://127.0.0.1:4322',
+    })));
+    const page = await context.newPage();
+    await page.goto('/today');
+    await expect(page.getByRole('button', { name: 'Sign out' })).toBeVisible();
+    await page.getByRole('button', { name: 'Sign out' }).click();
+    await expect(page).toHaveURL(/\/sign-in\?status=signed-out/);
+    await page.goto('/today');
+    await expect(page).toHaveURL(/\/sign-in/);
+  } finally {
+    await context.close();
+    await member.remove();
+  }
 });
 
 test('sign-in page supports dark mode', async ({ page }) => {

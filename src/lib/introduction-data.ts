@@ -95,6 +95,23 @@ export interface IntroductionNotification {
   created_at: string;
 }
 
+export interface PrivacyRequest {
+  id: string;
+  request_type: 'data_export' | 'account_deletion';
+  status: 'pending' | 'in_review' | 'fulfilled' | 'rejected' | 'cancelled';
+  member_note: string;
+  requested_at: string;
+  resolved_at: string | null;
+  resolution_note: string;
+}
+
+export interface BlockedIntroductionMember {
+  profile_id: string;
+  blocked_profile_id: string;
+  blocked_display_name: string;
+  created_at: string;
+}
+
 export interface AvailableConnector {
   profile_id: string;
   display_name: string;
@@ -212,4 +229,19 @@ export async function getMyIntroductionNotifications(client: SupabaseClient): Pr
     .limit(30);
   if (error) throw error;
   return (data ?? []) as IntroductionNotification[];
+}
+
+export async function getMyPrivacyRequests(client: SupabaseClient): Promise<PrivacyRequest[]> {
+  const { data, error } = await client.rpc('get_my_privacy_requests');
+  if (error) throw error;
+  return (data ?? []) as PrivacyRequest[];
+}
+
+export async function getMyIntroductionBlocks(client: SupabaseClient): Promise<BlockedIntroductionMember[]> {
+  const { data, error } = await client
+    .from('profile_introduction_blocks')
+    .select('profile_id, blocked_profile_id, blocked_display_name, created_at')
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data ?? []) as BlockedIntroductionMember[];
 }

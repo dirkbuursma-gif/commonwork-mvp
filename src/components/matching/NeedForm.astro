@@ -1,14 +1,15 @@
 ---
 import type { CanonicalCompetence } from '../../lib/competence-data';
-import type { CompetenceNeed, NeedCompetence } from '../../lib/need-data';
+import type { CompetenceNeed, MemberOrganisation, NeedCompetence } from '../../lib/need-data';
 
 interface Props {
   competencies: CanonicalCompetence[];
   need?: CompetenceNeed | null;
   needCompetencies?: NeedCompetence[];
+  retailerOrganisations?: MemberOrganisation[];
 }
 
-const { competencies, need = null, needCompetencies = [] } = Astro.props;
+const { competencies, need = null, needCompetencies = [], retailerOrganisations = [] } = Astro.props;
 const essential = new Set(needCompetencies.filter((item) => item.importance === 'essential').map((item) => item.competency_id));
 const useful = new Set(needCompetencies.filter((item) => item.importance === 'useful').map((item) => item.competency_id));
 const expiryDate = need?.expires_at ? new Date(need.expires_at) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
@@ -89,6 +90,17 @@ const categories = [
     <h2 id="need-context-title" tabindex="-1">Add useful context</h2>
     <p class="subtitle">Give potential matches enough context to understand the situation without exposing private details.</p>
     <label class="field" for="relevant-context">Relevant context<textarea id="relevant-context" name="relevant_context" maxlength="3000" rows="5" placeholder="Systems, constraints, timing, stakeholders or what has already been tried.">{need?.relevant_context ?? ''}</textarea></label>
+    {retailerOrganisations.length > 0 && (
+      <label class="field" for="retailer-organisation">Retailer organisation
+        <select id="retailer-organisation" name="retailer_organisation_id">
+          <option value="">Not specified</option>
+          {retailerOrganisations.map((org) => <option value={org.id} selected={need?.retailer_organisation_id === org.id}>{org.name}</option>)}
+        </select>
+      </label>
+    )}
+    <label class="field" for="retailer-segment">Market or segment<input id="retailer-segment" name="retailer_segment" maxlength="160" value={need?.retailer_segment ?? ''} placeholder="Mid-market fashion, B2B distribution, grocery..." /></label>
+    <label class="field" for="current-stack">Current stack<textarea id="current-stack" name="current_stack_note" maxlength="1500" rows="3" placeholder="Platforms and systems in place today. Visible to members if you share this need with the network.">{need?.current_stack_note ?? ''}</textarea></label>
+    <label class="field" for="project-context">Project context<textarea id="project-context" name="project_context" maxlength="1500" rows="3" placeholder="Timing, budget stage, decision process or project status.">{need?.project_context ?? ''}</textarea></label>
     <label class="field" for="requester-offers">What can you offer in return?<textarea id="requester-offers" name="what_requester_offers" maxlength="2000" rows="3" placeholder="Knowledge exchange, a peer conversation, implementation context, or another contribution.">{need?.what_requester_offers ?? ''}</textarea></label>
     <label class="field" for="conversation-type">Intended conversation type
       <select id="conversation-type" name="conversation_type">

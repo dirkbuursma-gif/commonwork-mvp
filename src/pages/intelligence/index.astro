@@ -1,0 +1,54 @@
+---
+import AppLayout from '../../layouts/AppLayout.astro';
+import EmptyState from '../../components/app/EmptyState.astro';
+import { createSupabaseServerClient } from '../../lib/supabase/server';
+import { getProviderCategories, type ProviderCategory } from '../../lib/provider-intelligence';
+import '../../styles/intelligence.css';
+
+const user = Astro.locals.user;
+const localPreview = user?.isLocalTestUser === true;
+const supabase = localPreview ? null : createSupabaseServerClient(Astro);
+let categories: ProviderCategory[] = [];
+let loadError = false;
+if (supabase) {
+  try {
+    categories = await getProviderCategories(supabase);
+  } catch {
+    loadError = true;
+  }
+}
+const isSeedData = categories.some((category) => category.is_seed_data);
+---
+
+<AppLayout title="Intelligence" section="intelligence">
+  <div class="page-head">
+    <div>
+      <div class="eyebrow">Reviewed provider intelligence</div>
+      <h1>Intelligence</h1>
+      <p class="subtitle">A member view of provider roles, boundaries and the competence behind each category.</p>
+    </div>
+  </div>
+  {localPreview ? (
+    <section class="panel panel-pad"><EmptyState title="Sign in with a local member account" description="The local preview identity is read-only and cannot access member intelligence." /></section>
+  ) : !supabase ? (
+    <p class="form-notice error" role="alert">Supabase is not configured. Intelligence is unavailable.</p>
+  ) : loadError ? (
+    <p class="form-notice error" role="alert">We could not load provider intelligence. Please try again shortly.</p>
+  ) : (
+    <div class="stack">
+      {isSeedData && <p class="intelligence-disclosure" role="note">Local demo catalogue: these records are fictional review fixtures and are not a production recommendation.</p>}
+      <section class="intelligence-grid" aria-label="Provider categories">
+        {categories.map((category) => (
+          <a class="panel panel-pad intelligence-card" href={`/intelligence/category/${category.slug}`}>
+            <span class="eyebrow">Category</span>
+            <h2>{category.name}</h2>
+            <p>{category.what_it_is}</p>
+            <p class="field-help"><strong>Boundary:</strong> {category.what_it_is_not}</p>
+            <span class="text-link">Explore category</span>
+          </a>
+        ))}
+      </section>
+      {categories.length === 0 && <section class="panel panel-pad"><EmptyState title="No published categories yet" description="Provider intelligence will appear here after a reviewed local seed or publication approval." /></section>}
+    </div>
+  )}
+</AppLayout>

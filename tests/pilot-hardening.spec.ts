@@ -1,0 +1,532 @@
+import { expect, test } from '@playwright/test';
+import { createLocalMember } from './helpers/local-supabase';
+import { renderTransactionalEmail, type EmailPurpose } from '../src/lib/notifications/templates';
+
+async function createProfile(member: Awaited<ReturnType<typeof createLocalMember>>, name: string, discoverable = false) {
+  const { error } = await member.client.from('profiles').insert({
+    id: member.id,
+    display_name: name,
+    professional_summary: `${name} works on practical commerce problems.`,
+    what_i_contribute: 'Evidence-led professional context.',
+    what_i_am_exploring: 'Useful peer conversations.',
+    profile_visibility: discoverable ? 'members' : 'private',
+  });
+  expect(error).toBeNull();
+}
+
+async function productDataCompetencyId(member: Awaited<ReturnType<typeof createLocalMember>>) {
+  const { data, error } = await member.client.from('competencies').select('id').eq('slug', 'product-data-quality').single();
+  expect(error).toBeNull();
+  return data!.id as string;
+}
+
+async function makeMatchReady(member: Awaited<ReturnType<typeof createLocalMember>>, name: string, competencyId: string) {
+  await createProfile(member, name, true);
+  const { data: profileCompetency, error: competenceError } = await member.client
+    .from('profile_competencies')
+    .insert({ profile_id: member.id, competency_id: competencyId, member_statement: `${name} improves product-data quality.`, discoverable: true })
+    .select('id')
+    .single();
+  expect(competenceError).toBeNull();
+  const { error: evidenceError } = await member.client.from('competence_evidence').insert({
+    profile_competency_id: profileCompetency!.id,
+    title: 'Product data example',
+    context: 'Product data had inconsistent attributes.',
+    contribution: 'I introduced validation and ownership.',
+    outcome: 'Teams could resolve inconsistent product records.',
+    visibility: 'members',
+  });
+  expect(evidenceError).toBeNull();
+  const { error: preferencesError } = await member.client.from('contact_preferences').insert({
+    profile_id: member.id,
+    open_to_peer_exchange: true,
+    availability_status: 'open',
+    conversation_capacity: 2,
+  });
+  expect(preferencesError).toBeNull();
+}
+
+async function insertDraftNeed(member: Awaited<ReturnType<typeof createLocalMember>>, competencyId: string, title: string) {
+  const { data: need, error: needError } = await member.client.from('competence_needs').insert({
+    owner_profile_id: member.id,
+    title,
+    business_outcome: 'Improve product-data readiness across channels.',
+    problem_statement: 'Ownership and validation are inconsistent.',
+    conversation_type: 'peer_exchange',
+    visibility: 'private_matches',
+    expires_at: new Date(Date.now() + 30 * 86400000).toISOString(),
+  }).select('id').single();
+  expect(needError).toBeNull();
+  const { error: termsError } = await member.client.from('need_competencies').insert({
+    need_id: need!.id,
+    competency_id: competencyId,
+    importance: 'essential',
+  });
+  expect(termsError).toBeNull();
+  return need!.id as string;
+}
+
+async function addContactMethod(member: Awaited<ReturnType<typeof createLocalMember>>) {
+  const { data, error } = await member.client.rpc('save_profile_contact_method', {
+    target_method_id: null,
+    target_method_type: 'email',
+    target_value: `pilot-${member.id.slice(0, 8)}@example.test`,
+    target_label: 'Work email',
+    make_primary: true,
+  });
+  expect(error).toBeNull();
+  return String(data);
+}
+
+test('transactional email templates cover every purpose with safe links and minimal context', () => {
+  const purposes: EmailPurpose[] = [
+    'recipient_consent_required', 'connector_action_required', 'requester_updated',
+    'introduction_ready', 'introduction_declined', 'introduction_expired', 'followup_requested',
+    'connector_replaced', 'conversation_completed', 'privacy_request_received',
+    'privacy_request_status_updated', 'report_received',
+  ];
+
+  for (const purpose of purposes) {
+    const email = renderTransactionalEmail({
+      purpose,
+      appBaseUrl: 'https://preview.commonwork.test',
+      introductionId: '00000000-0000-4000-8000-000000000001',
+      privacyRequestId: '00000000-0000-4000-8000-000000000002',
+      reportId: '00000000-0000-4000-8000-000000000003',
+    });
+    expect(email.subject.length).toBeGreaterThan(0);
+    expect(email.text).toContain('https://preview.commonwork.test/');
+    expect(email.html).toContain('https://preview.commonwork.test/');
+    expect(email.html).not.toContain('javascript:');
+    expect(email.text).not.toContain('Private evidence sentinel');
+    expect(email.html).toContain('does not include request notes, evidence, or contact information');
+  }
+
+  expect(() => renderTransactionalEmail({
+    purpose: 'introduction_ready',
+    appBaseUrl: 'http://not-secure.example.com',
+    introductionId: null,
+    privacyRequestId: null,
+    reportId: null,
+  })).toThrow(/HTTPS/);
+});
+
+test('Connector administration CLI is allowlisted, audited and guarded for production', async () => {
+  const administrator = await createLocalMember('Pilot Administrator');
+  const target = await createLocalMember('Pilot Connector');
+  const ordinaryMember = await createLocalMember('Ordinary Member');
+
+  try {
+    for (const member of [administrator, target, ordinaryMember]) {
+      const { error } = await member.client.from('profiles').insert({
+        id: member.id,
+        display_name: member === administrator ? 'Pilot Administrator' : member === target ? 'Pilot Connector' : 'Ordinary Member',
+        professional_summary: 'A pilot test profile.',
+        what_i_contribute: 'Practical professional context.',
+        profile_visibility: 'private',
+      });
+      expect(error).toBeNull();
+    }
+    await administrator.provisionAdministrator();
+
+    expect(() => ordinaryMember.runConnectorAdminCli(['add', target.email, '--capacity', '3', '--yes']))
+      .toThrow(/not an active Commonwork administrator/);
+    expect(() => administrator.runConnectorAdminCli(['add', target.email, '--capacity', '3'], 'production'))
+      .toThrow(/Refusing a production action/);
+
+    const assignedOutput = administrator.runConnectorAdminCli(['add', target.email, '--capacity', '3', '--yes']);
+    expect(assignedOutput).toContain('Assigned Connector Pilot Connector');
+    expect(await target.connectorCapacity()).toBe(3);
+
+    const listing = administrator.runConnectorAdminCli(['list', '--yes']);
+    expect(listing).toContain('Pilot Connector');
+    expect(listing).toContain('active');
+
+    const removedOutput = administrator.runConnectorAdminCli(['remove', target.email, '--yes']);
+    expect(removedOutput).toContain('Revoked Connector Pilot Connector');
+    expect(listing).not.toContain('service_role');
+  } finally {
+    await administrator.remove();
+    await target.remove();
+    await ordinaryMember.remove();
+  }
+});
+
+test('transactional outbox maps, suppresses demo mail and deduplicates Resend events', async () => {
+  const member = await createLocalMember('Outbox Test Member');
+  let senderCalls = 0;
+  try {
+    await createProfile(member, 'Outbox Test Member');
+    const notificationId = await member.enqueueTestNotification('introduction_requested');
+    const queued = await member.getTestEmailDelivery(notificationId);
+    expect(queued).toMatchObject({
+      notification_type: 'introduction_requested',
+      email_purpose: 'recipient_consent_required',
+      recipient_profile_id: member.id,
+      status: 'queued',
+    });
+    const { error: deliveryReadError } = await member.client.from('email_deliveries').select('id').limit(1);
+    const { error: eventReadError } = await member.client.from('email_events').select('id').limit(1);
+    expect(deliveryReadError).toBeTruthy();
+    expect(eventReadError).toBeTruthy();
+
+    const dispatch = await member.dispatchTestEmailBatch(async () => {
+      senderCalls += 1;
+      return { id: 'must-not-send', error: null };
+    }, { SEED_EMAIL_MODE: 'suppress' });
+    expect(dispatch).toMatchObject({ sent: 0, failed: 0 });
+    expect(dispatch.suppressed).toBeGreaterThanOrEqual(1);
+    expect(senderCalls).toBe(0);
+    const suppressed = await member.getTestEmailDelivery(notificationId);
+    expect(suppressed).toMatchObject({ status: 'suppressed', provider_message_id: null, sent_at: null, delivered_at: null });
+
+    const environmentSuppressedNotificationId = await member.enqueueTestNotification('introduction_declined');
+    const environmentSuppressed = await member.dispatchTestEmailBatch(async () => {
+      senderCalls += 1;
+      return { id: 'must-not-send', error: null };
+    }, { SEED_EMAIL_MODE: 'suppress' }, async () => 'human@pilot.invalid');
+    expect(environmentSuppressed).toMatchObject({ sent: 0, failed: 0 });
+    expect(environmentSuppressed.suppressed).toBeGreaterThanOrEqual(1);
+    expect(senderCalls).toBe(0);
+    expect(await member.getTestEmailDelivery(environmentSuppressedNotificationId)).toMatchObject({
+      status: 'suppressed', failure_code: 'seed_email_mode', provider_message_id: null,
+    });
+
+    const suppressedMessageId = `suppressed-${member.id}`;
+    await member.setTestDeliveryProviderMessageId(notificationId, suppressedMessageId, 'suppressed');
+    const suppressedWebhook = await member.recordTestProviderEvent(`suppressed-event-${member.id}`, suppressedMessageId, 'email.delivered');
+    expect(suppressedWebhook).toBe(false);
+    expect(await member.getTestEmailEventCount(suppressedMessageId)).toBe(0);
+
+    const secondNotificationId = await member.enqueueTestNotification('privacy_request_received');
+    const secondDelivery = await member.getTestEmailDelivery(secondNotificationId);
+    expect(secondDelivery).toMatchObject({
+      notification_type: 'privacy_request_received',
+      email_purpose: 'privacy_request_received',
+      status: 'queued',
+    });
+    const deliveredMessageId = `delivered-${member.id}`;
+    const deliveredEventId = `delivered-event-${member.id}`;
+    await member.setTestDeliveryProviderMessageId(secondNotificationId, deliveredMessageId, 'sent');
+    expect(await member.recordTestProviderEvent(deliveredEventId, deliveredMessageId, 'email.delivered')).toBe(true);
+    expect(await member.recordTestProviderEvent(deliveredEventId, deliveredMessageId, 'email.delivered')).toBe(false);
+    expect(await member.getTestEmailEventCount(deliveredMessageId)).toBe(1);
+    expect(await member.getTestEmailDelivery(secondNotificationId)).toMatchObject({ status: 'delivered' });
+
+    const pendingNotificationId = await member.enqueueTestNotification('introduction_requested');
+    await member.deleteTestProfile();
+    expect(await member.getTestEmailDeliveryByIdempotencyKey(`notification:${pendingNotificationId}`))
+      .toMatchObject({ status: 'suppressed', recipient_profile_id: null, failure_code: 'recipient_profile_deleted' });
+  } finally {
+    await member.remove();
+  }
+});
+
+test('transactional outbox retries transient provider failures with the same idempotency key', async () => {
+  const member = await createLocalMember('Retry Outbox Member');
+  const idempotencyKeys: string[] = [];
+  const environment = {
+    APP_BASE_URL: 'http://127.0.0.1:4322',
+    EMAIL_FROM_ADDRESS: 'sign-in@auth.example.test',
+    RESEND_API_KEY: 're_local_test_only',
+  };
+
+  try {
+    await createProfile(member, 'Retry Outbox Member');
+    const notificationId = await member.enqueueTestNotification('introduction_requested');
+    const recipientResolver = async () => 'recipient@fixture.invalid';
+
+    const firstAttempt = await member.dispatchTestEmailBatch(async (email) => {
+      idempotencyKeys.push(email.idempotencyKey);
+      return { id: null, error: { statusCode: 503 } };
+    }, environment, recipientResolver);
+    expect(firstAttempt).toMatchObject({ claimed: 1, sent: 0, suppressed: 0, failed: 1 });
+    expect(await member.getTestEmailDelivery(notificationId)).toMatchObject({
+      status: 'queued', attempt_count: 1, failure_code: 'provider_unavailable',
+    });
+
+    await member.makeTestEmailRetryDue(notificationId);
+    const secondAttempt = await member.dispatchTestEmailBatch(async (email) => {
+      idempotencyKeys.push(email.idempotencyKey);
+      return { id: `resend-message-${member.id}`, error: null };
+    }, environment, recipientResolver);
+    expect(secondAttempt).toMatchObject({ claimed: 1, sent: 1, suppressed: 0, failed: 0 });
+    expect(idempotencyKeys).toHaveLength(2);
+    expect(idempotencyKeys[0]).toBe(idempotencyKeys[1]);
+    expect(await member.getTestEmailDelivery(notificationId)).toMatchObject({
+      status: 'sent', attempt_count: 2, failure_code: null,
+    });
+  } finally {
+    await member.remove();
+  }
+});
+
+test('notification dispatch endpoint requires the cron bearer secret', async ({ request }) => {
+  const missingAuthorization = await request.get('/api/internal/notifications/dispatch');
+  expect(missingAuthorization.status()).toBe(401);
+
+  const invalidAuthorization = await request.get('/api/internal/notifications/dispatch', {
+    headers: { authorization: 'Bearer incorrect-test-secret' },
+  });
+  expect(invalidAuthorization.status()).toBe(401);
+
+  const unsignedWebhook = await request.post('/api/webhooks/resend', {
+    data: '{}',
+  });
+  expect(unsignedWebhook.status()).toBe(400);
+});
+
+test('pilot report and privacy operations are admin-gated and status-audited', async () => {
+  const requester = await createLocalMember('Operations Requester');
+  const recipient = await createLocalMember('Operations Recipient');
+  const administrator = await createLocalMember('Operations Administrator');
+  const ordinaryMember = await createLocalMember('Ordinary Operator');
+
+  try {
+    await createProfile(administrator, 'Operations Administrator');
+    await administrator.provisionAdministrator();
+    const competencyId = await productDataCompetencyId(requester);
+    await makeMatchReady(requester, 'Operations Requester', competencyId);
+    await makeMatchReady(recipient, 'Operations Recipient', competencyId);
+
+    const needId = await insertDraftNeed(requester, competencyId, 'Operator workflow test');
+    const { error: activateError } = await requester.client.from('competence_needs')
+      .update({ status: 'active' }).eq('id', needId);
+    expect(activateError).toBeNull();
+    const { error: matchError } = await requester.client.rpc('generate_matches_for_need', { target_need_id: needId });
+    expect(matchError).toBeNull();
+    const { data: match, error: matchReadError } = await requester.client.from('matches')
+      .select('id').eq('need_id', needId).eq('matched_profile_id', recipient.id).single();
+    expect(matchReadError).toBeNull();
+    const contactMethodId = await addContactMethod(requester);
+    const { data: introductionId, error: introductionError } = await requester.client.rpc('request_introduction', {
+      target_match_id: match!.id,
+      target_route: 'direct',
+      target_suggested_introducer_id: null,
+      target_trusted_connector_id: null,
+      target_why_this_person: 'Their competence is relevant to this work.',
+      target_why_now: 'We are reviewing the work this week.',
+      target_proposed_conversation: 'Compare practical validation methods.',
+      target_requester_offer: 'I can share our current approach.',
+      target_contact_method_id: contactMethodId,
+      target_intermediary_note: '',
+    });
+    expect(introductionError).toBeNull();
+    const { data: reportId, error: reportError } = await recipient.client.rpc('report_introduction', {
+      target_introduction_id: introductionId,
+      target_category: 'privacy_concern',
+      target_details: 'The introduction included unexpected contact.',
+    });
+    expect(reportError).toBeNull();
+    expect(await recipient.getTestEmailDeliveriesForEntity('report_id', reportId!)).toMatchObject([{
+      notification_type: 'introduction_report_received',
+      email_purpose: 'report_received',
+      recipient_profile_id: recipient.id,
+      status: 'queued',
+    }]);
+
+    const { data: privacyRequestId, error: privacyRequestError } = await requester.client.rpc('request_member_privacy_action', {
+      target_request_type: 'account_deletion',
+      target_note: 'Please review my account deletion request.',
+    });
+    expect(privacyRequestError).toBeNull();
+    expect(await requester.getTestEmailDeliveriesForEntity('privacy_request_id', privacyRequestId!)).toMatchObject([{
+      notification_type: 'privacy_request_received',
+      email_purpose: 'privacy_request_received',
+      recipient_profile_id: requester.id,
+      status: 'queued',
+    }]);
+
+    const reportList = administrator.runPilotOperationsCli(['report:list', '--yes']);
+    expect(reportList).toContain(reportId);
+    const reportView = JSON.parse(administrator.runPilotOperationsCli(['report:view', reportId!, '--yes']));
+    expect(reportView.report.details).toBe('The introduction included unexpected contact.');
+    administrator.runPilotOperationsCli(['report:review', reportId!, '--note', 'Review started by the pilot operator.', '--yes']);
+    administrator.runPilotOperationsCli(['report:resolve', reportId!, '--note', 'The concern was reviewed and addressed.', '--yes']);
+    const resolvedReport = JSON.parse(administrator.runPilotOperationsCli(['report:view', reportId!, '--yes']));
+    expect(resolvedReport.report.status).toBe('resolved');
+    expect(resolvedReport.audit.map((entry: { status_after: string }) => entry.status_after)).toEqual(['in_review', 'resolved']);
+
+    const privacyList = administrator.runPilotOperationsCli(['privacy:list', '--yes']);
+    expect(privacyList).toContain(privacyRequestId);
+    const privacyView = JSON.parse(administrator.runPilotOperationsCli(['privacy:view', privacyRequestId!, '--yes']));
+    expect(privacyView.request.member_note).toBe('Please review my account deletion request.');
+    administrator.runPilotOperationsCli(['privacy:review', privacyRequestId!, '--note', 'Identity verification is in progress.', '--yes']);
+    administrator.runPilotOperationsCli(['privacy:resolve', privacyRequestId!, '--note', 'Deletion was completed under the approved retention process.', '--yes']);
+    const resolvedPrivacyRequest = JSON.parse(administrator.runPilotOperationsCli(['privacy:view', privacyRequestId!, '--yes']));
+    expect(resolvedPrivacyRequest.request.status).toBe('fulfilled');
+    expect(resolvedPrivacyRequest.audit.map((entry: { status_after: string }) => entry.status_after)).toEqual(['in_review', 'fulfilled']);
+    const privacyDeliveries = await requester.getTestEmailDeliveriesForEntity('privacy_request_id', privacyRequestId!);
+    expect(privacyDeliveries).toHaveLength(3);
+    expect(privacyDeliveries).toEqual(expect.arrayContaining([
+      expect.objectContaining({ email_purpose: 'privacy_request_received', status: 'queued' }),
+      expect.objectContaining({ notification_type: 'privacy_request_status_updated', email_purpose: 'privacy_request_status_updated', status: 'queued' }),
+      expect.objectContaining({ notification_type: 'privacy_request_status_updated', email_purpose: 'privacy_request_status_updated', status: 'queued' }),
+    ]));
+
+    expect(() => ordinaryMember.runPilotOperationsCli(['report:list', '--yes']))
+      .toThrow(/not an active Commonwork administrator/);
+    expect(() => administrator.runPilotOperationsCli([
+      'report:dismiss', reportId!, '--note', 'A production dismissal must be confirmed.', '--yes',
+    ], 'production')).toThrow(/Refusing a production action/);
+  } finally {
+    await requester.remove();
+    await recipient.remove();
+    await administrator.remove();
+    await ordinaryMember.remove();
+  }
+});
+
+test('member privacy requests, export, deactivation and introduction blocks remain owner-scoped', async () => {
+  const member = await createLocalMember('Privacy Member');
+  const other = await createLocalMember('Other Member');
+  try {
+    await createProfile(other, 'Other Member', true);
+    const competencyId = await productDataCompetencyId(member);
+    await makeMatchReady(member, 'Privacy Member', competencyId);
+    await addContactMethod(member);
+
+    const { data: blockResult, error: blockError } = await member.client.rpc('block_member_from_introductions', {
+      target_profile_id: other.id,
+      should_block: true,
+    });
+    expect(blockError).toBeNull();
+    expect(blockResult).toBe(true);
+    const { data: ownBlocks } = await member.client.from('profile_introduction_blocks')
+      .select('blocked_profile_id, blocked_display_name').eq('profile_id', member.id);
+    expect(ownBlocks).toEqual([{ blocked_profile_id: other.id, blocked_display_name: 'Other Member' }]);
+    const { data: hiddenBlocks } = await other.client.from('profile_introduction_blocks')
+      .select('blocked_profile_id').eq('profile_id', member.id);
+    expect(hiddenBlocks).toEqual([]);
+    const { error: forgedBlockError } = await other.client.from('profile_introduction_blocks').insert({
+      profile_id: member.id,
+      blocked_profile_id: other.id,
+      blocked_display_name: 'Forged entry',
+    });
+    expect(forgedBlockError).toBeTruthy();
+    const { data: unblockResult, error: unblockError } = await member.client.rpc('block_member_from_introductions', {
+      target_profile_id: other.id,
+      should_block: false,
+    });
+    expect(unblockError).toBeNull();
+    expect(unblockResult).toBe(true);
+
+    const firstExportRequest = await member.client.rpc('request_member_privacy_action', {
+      target_request_type: 'data_export',
+      target_note: 'Provide my profile data.',
+    });
+    const repeatedExportRequest = await member.client.rpc('request_member_privacy_action', {
+      target_request_type: 'data_export',
+      target_note: 'Repeated request should be idempotent.',
+    });
+    expect(firstExportRequest.error).toBeNull();
+    expect(repeatedExportRequest.error).toBeNull();
+    expect(repeatedExportRequest.data).toBe(firstExportRequest.data);
+    const { data: exportData, error: exportError } = await member.client.rpc('export_my_member_data');
+    expect(exportError).toBeNull();
+    expect(exportData).toMatchObject({ authentication_email: member.email, profile: { id: member.id } });
+    expect(exportData?.contact_methods).toHaveLength(1);
+
+    const { data: deletionRequest, error: deletionError } = await member.client.rpc('request_member_privacy_action', {
+      target_request_type: 'account_deletion',
+      target_note: 'Please review deletion of this test account.',
+    });
+    expect(deletionError).toBeNull();
+    const { data: ownRequests } = await member.client.rpc('get_my_privacy_requests');
+    expect(ownRequests).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: deletionRequest, request_type: 'account_deletion', status: 'pending' }),
+    ]));
+    const { data: otherRequests } = await other.client.rpc('get_my_privacy_requests');
+    expect(otherRequests).toEqual([]);
+
+    const { data: deactivated, error: deactivateError } = await member.client.rpc('deactivate_my_member_profile');
+    expect(deactivateError).toBeNull();
+    expect(deactivated).toBe(true);
+    const { data: profileData } = await member.client.rpc('get_my_profile');
+    const profile = Array.isArray(profileData) ? profileData[0] : profileData;
+    expect(profile?.profile_visibility).toBe('private');
+    const { data: preferences } = await member.client.from('contact_preferences')
+      .select('availability_status, conversation_capacity').eq('profile_id', member.id).single();
+    expect(preferences).toMatchObject({ availability_status: 'unavailable', conversation_capacity: 0 });
+  } finally {
+    await member.remove();
+    await other.remove();
+  }
+});
+
+test('active needs, match recalculation and introduction requests are rate-limited in the database', async () => {
+  const owner = await createLocalMember('Rate Limited Requester');
+  const recipients = await Promise.all(Array.from({ length: 6 }, (_, index) => createLocalMember(`Rate Recipient ${index + 1}`)));
+  try {
+    await createProfile(owner, 'Rate Limited Requester');
+    const competencyId = await productDataCompetencyId(owner);
+    const activeNeedIds: string[] = [];
+    for (let index = 0; index < 5; index += 1) {
+      const needId = await insertDraftNeed(owner, competencyId, `Active need ${index + 1}`);
+      const { error } = await owner.client.from('competence_needs').update({ status: 'active' }).eq('id', needId);
+      expect(error).toBeNull();
+      activeNeedIds.push(needId);
+    }
+    const sixthNeedId = await insertDraftNeed(owner, competencyId, 'Sixth active need');
+    const { error: sixthNeedError } = await owner.client.from('competence_needs').update({ status: 'active' }).eq('id', sixthNeedId);
+    expect(sixthNeedError).toBeTruthy();
+
+    for (let index = 0; index < recipients.length; index += 1) {
+      await makeMatchReady(recipients[index]!, `Rate Recipient ${index + 1}`, competencyId);
+    }
+    const requesterContactId = await addContactMethod(owner);
+    const { data: generated, error: initialMatchError } = await owner.client.rpc('generate_matches_for_need', { target_need_id: activeNeedIds[0] });
+    expect(initialMatchError).toBeNull();
+    expect(generated).toBeGreaterThanOrEqual(recipients.length);
+    for (let count = 0; count < 8; count += 1) {
+      const { error } = await owner.client.rpc('generate_matches_for_need', { target_need_id: activeNeedIds[0] });
+      expect(error).toBeNull();
+    }
+    const concurrentRecalculations = await Promise.all([
+      owner.client.rpc('generate_matches_for_need', { target_need_id: activeNeedIds[1] }),
+      owner.client.rpc('generate_matches_for_need', { target_need_id: activeNeedIds[2] }),
+    ]);
+    expect(concurrentRecalculations.filter(({ error }) => !error)).toHaveLength(1);
+    expect(concurrentRecalculations.filter(({ error }) => error?.code === 'P0001')).toHaveLength(1);
+    const { error: eleventhRecalculationError } = await owner.client.rpc('generate_matches_for_need', { target_need_id: activeNeedIds[0] });
+    expect(eleventhRecalculationError).toBeTruthy();
+
+    const { data: matches, error: matchesError } = await owner.client.from('matches')
+      .select('id, matched_profile_id').eq('need_id', activeNeedIds[0]).order('created_at', { ascending: true });
+    expect(matchesError).toBeNull();
+    for (let index = 0; index < 5; index += 1) {
+      const match = matches!.find((item) => item.matched_profile_id === recipients[index]!.id);
+      expect(match).toBeTruthy();
+      const { error } = await owner.client.rpc('request_introduction', {
+        target_match_id: match!.id,
+        target_route: 'direct',
+        target_suggested_introducer_id: null,
+        target_trusted_connector_id: null,
+        target_why_this_person: 'Their competence is relevant to this work.',
+        target_why_now: 'We are reviewing this work this week.',
+        target_proposed_conversation: 'Compare practical product-data validation methods.',
+        target_requester_offer: 'I can share our current framework.',
+        target_contact_method_id: requesterContactId,
+        target_intermediary_note: '',
+      });
+      expect(error).toBeNull();
+    }
+    const sixthMatch = matches!.find((item) => item.matched_profile_id === recipients[5]!.id);
+    const { error: sixthIntroductionError } = await owner.client.rpc('request_introduction', {
+      target_match_id: sixthMatch!.id,
+      target_route: 'direct',
+      target_suggested_introducer_id: null,
+      target_trusted_connector_id: null,
+      target_why_this_person: 'Their competence is relevant to this work.',
+      target_why_now: 'We are reviewing this work this week.',
+      target_proposed_conversation: 'Compare practical product-data validation methods.',
+      target_requester_offer: 'I can share our current framework.',
+      target_contact_method_id: requesterContactId,
+      target_intermediary_note: '',
+    });
+    expect(sixthIntroductionError).toBeTruthy();
+  } finally {
+    await owner.remove();
+    for (const recipient of recipients) await recipient.remove();
+  }
+});

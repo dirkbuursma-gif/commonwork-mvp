@@ -27,6 +27,10 @@ export interface CompetenceNeed {
   visibility: NeedVisibility;
   status: NeedStatus;
   expires_at: string | null;
+  retailer_organisation_id: string | null;
+  retailer_segment: string;
+  current_stack_note: string;
+  project_context: string;
   created_at: string;
   updated_at: string;
 }
@@ -78,7 +82,7 @@ export interface MatchEvidence {
   outcome: string;
 }
 
-const needColumns = 'id, owner_profile_id, title, business_outcome, problem_statement, relevant_context, what_requester_offers, conversation_type, visibility, status, expires_at, created_at, updated_at';
+const needColumns = 'id, owner_profile_id, title, business_outcome, problem_statement, relevant_context, what_requester_offers, conversation_type, visibility, status, expires_at, retailer_organisation_id, retailer_segment, current_stack_note, project_context, created_at, updated_at';
 const matchColumns = 'id, need_id, matched_profile_id, relevance_band, status, calculated_at, created_at, updated_at';
 const profileColumns = 'id, display_name, professional_summary, what_i_contribute, what_i_am_exploring';
 const reasonColumns = 'id, match_id, reason_type, competency_id, evidence_id, explanation, created_at';
@@ -157,4 +161,78 @@ export async function getMatchEvidence(client: SupabaseClient, needId: string): 
   const { data, error } = await client.rpc('matching_evidence_for_need', { target_need_id: needId });
   if (error) throw error;
   return (data ?? []) as MatchEvidence[];
+}
+
+export type OrganisationType = 'retailer' | 'vendor' | 'si_gtm' | 'advisor' | 'other';
+
+export interface MemberOrganisation {
+  id: string;
+  slug: string;
+  name: string;
+  organisation_type: OrganisationType;
+}
+
+export interface ProfileAffiliation {
+  profile_id: string;
+  role_title: string;
+  organisations: MemberOrganisation | null;
+}
+
+export interface ProductSuggestion {
+  provider_product_id: string;
+  product_slug: string;
+  product_name: string;
+  provider_name: string;
+  evidence_maturity: string;
+  essential_matches: number;
+  useful_matches: number;
+  matched_competencies: string[];
+}
+
+export interface PartnerSuggestion {
+  organisation_id: string;
+  organisation_slug: string;
+  organisation_name: string;
+  summary: string;
+  essential_matches: number;
+  useful_matches: number;
+  matched_competencies: string[];
+  implements_products: string[];
+}
+
+export function organisationTypeLabel(type: OrganisationType): string {
+  return { retailer: 'Retailer', vendor: 'Vendor', si_gtm: 'Implementation / GTM partner', advisor: 'Advisor', other: 'Organisation' }[type];
+}
+
+export async function getOwnRetailerOrganisations(client: SupabaseClient, profileId: string): Promise<MemberOrganisation[]> {
+  const { data, error } = await client
+    .from('profile_organisations')
+    .select('organisations(id, slug, name, organisation_type)')
+    .eq('profile_id', profileId);
+  if (error) throw error;
+  return ((data ?? []) as unknown as Array<{ organisations: MemberOrganisation | null }>)
+    .map((row) => row.organisations)
+    .filter((org): org is MemberOrganisation => org?.organisation_type === 'retailer');
+}
+
+export async function getProfileAffiliations(client: SupabaseClient, profileIds: string[]): Promise<ProfileAffiliation[]> {
+  if (profileIds.length === 0) return [];
+  const { data, error } = await client
+    .from('profile_organisations')
+    .select('profile_id, role_title, organisations(id, slug, name, organisation_type)')
+    .in('profile_id', profileIds);
+  if (error) throw error;
+  return (data ?? []) as unknown as ProfileAffiliation[];
+}
+
+export async function getNeedProductSuggestions(client: SupabaseClient, needId: string): Promise<ProductSuggestion[]> {
+  const { data, error } = await client.rpc('get_need_product_suggestions', { target_need_id: needId });
+  if (error) throw error;
+  return (data ?? []) as ProductSuggestion[];
+}
+
+export async function getNeedPartnerSuggestions(client: SupabaseClient, needId: string): Promise<PartnerSuggestion[]> {
+  const { data, error } = await client.rpc('get_need_partner_suggestions', { target_need_id: needId });
+  if (error) throw error;
+  return (data ?? []) as PartnerSuggestion[];
 }

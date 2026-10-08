@@ -1,0 +1,43 @@
+---
+import AppLayout from '../../../layouts/AppLayout.astro';
+import EmptyState from '../../../components/app/EmptyState.astro';
+import { createSupabaseServerClient } from '../../../lib/supabase/server';
+import { getProviderBySlug, type ProviderProduct, type ProviderSummary } from '../../../lib/provider-intelligence';
+import '../../../styles/intelligence.css';
+
+const user = Astro.locals.user;
+const localPreview = user?.isLocalTestUser === true;
+const supabase = localPreview ? null : createSupabaseServerClient(Astro);
+let provider: ProviderSummary | null = null;
+let products: ProviderProduct[] = [];
+let loadError = false;
+
+if (supabase) {
+  try {
+    const result = await getProviderBySlug(supabase, Astro.params.slug ?? '');
+    provider = result?.provider ?? null;
+    products = result?.products ?? [];
+  } catch {
+    loadError = true;
+  }
+}
+---
+
+{localPreview ? (
+  <AppLayout title="Provider intelligence" section="intelligence"><p class="form-notice" role="status">The local preview identity is read-only. Sign in with a local member account.</p></AppLayout>
+) : loadError ? (
+  <AppLayout title="Provider intelligence" section="intelligence"><p class="form-notice error" role="alert">We could not load this provider. Please try again shortly.</p></AppLayout>
+) : !provider || !supabase ? (
+  <AppLayout title="Provider unavailable" section="intelligence"><section class="panel panel-pad"><EmptyState title="Provider unavailable" description="This provider is not published or no longer available." /></section></AppLayout>
+) : (
+  <AppLayout title={provider.name} section="intelligence">
+    <div class="page-head"><div><div class="eyebrow">Provider profile</div><h1>{provider.name}</h1><p class="subtitle">{provider.summary}</p></div></div>
+    {provider.is_seed_data && <p class="intelligence-disclosure" role="note">Local demo catalogue: this provider record is a removable review fixture.</p>}
+    {provider.public_disclosure_note && <p class="intelligence-disclosure">{provider.public_disclosure_note}</p>}
+    {provider.website_url && <p><a class="text-link" href={provider.website_url} target="_blank" rel="noopener noreferrer">Provider website</a></p>}
+    <section class="stack" aria-labelledby="products-title">
+      <div class="panel-head"><div><div class="eyebrow">Published products</div><h2 id="products-title">Products from {provider.name}</h2></div></div>
+      {products.length ? <div class="intelligence-grid">{products.map((product) => <a class="panel panel-pad intelligence-card" href={`/intelligence/product/${product.slug}`}><span class="eyebrow">{product.operating_layer || product.contribution_role}</span><h3>{product.name}</h3><p>{product.summary}</p><span class="field-help">Evidence: {product.evidence_maturity || 'not assessed'}</span><span class="text-link">View product profile</span></a>)}</div> : <section class="panel panel-pad"><EmptyState title="No published products" description="No product records are published for this provider." /></section>}
+    </section>
+  </AppLayout>
+)}

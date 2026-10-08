@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro';
 import { createSupabaseServerClient } from '../../../lib/supabase/server';
+import { logPilotFailure } from '../../../lib/observability';
 
 function value(form: FormData, key: string): string {
   return String(form.get(key) ?? '').trim();
@@ -91,9 +92,20 @@ export const POST: APIRoute = async (context) => {
       target_welcome_future: optionalBoolean(value(form, 'would_welcome_future_introductions')),
       target_private_feedback: value(form, 'private_feedback'),
     }));
+  } else if (action === 'report') {
+    ({ error: rpcError } = await supabase.rpc('report_introduction', {
+      target_introduction_id: introductionId,
+      target_category: value(form, 'report_category'),
+      target_details: value(form, 'report_details'),
+    }));
   } else {
     return context.redirect(`/introductions/${introductionId}?status=action-unavailable`, 303);
   }
 
+  if (rpcError) logPilotFailure('introduction_action_failed', rpcError, {
+    actor_profile_id: user.id,
+    introduction_id: introductionId,
+    action,
+  });
   return context.redirect(`/introductions/${introductionId}?status=${rpcError ? 'action-unavailable' : 'action-saved'}`, 303);
 };

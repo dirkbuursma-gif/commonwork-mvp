@@ -68,6 +68,14 @@ Onboarding completion is calculated in PostgreSQL from a non-empty display name,
 
 A need captures a business outcome, problem to solve, essential and useful competencies, context, what the requester offers, preferred conversation type, visibility and expiry. Visibility values are `private_matches` (default), `selected_network`, `selected_event` and `network`. Only `private_matches` and `network` can be activated in this release; selected scopes stay unavailable until their membership and RLS boundaries exist. A network brief is readable by signed-in members while active and unexpired, but its match results remain requester-only.
 
+## Organisations and ecosystem links
+
+`organisations` (type `retailer`, `vendor`, `si_gtm`, `advisor`, `other`; vendors may reference a catalogue `provider_id`) with `profile_organisations` (member, organisation, role title, one primary per member). Capability links: `product_competency_links`, `organisation_competency_links` and `organisation_product_links` (`implements`, `certified_on`, `integrates`). Needs gain `retailer_organisation_id` (the owner must belong to it, enforced by trigger), `retailer_segment`, `current_stack_note` and `project_context`; these are visible on `network` needs, so members should not enter confidential detail.
+
+Trust model: all organisation, affiliation and capability writes are service-role (curator) only, so members cannot self-declare vendor or partner affiliations. Affiliations are readable for the member's own row and for discoverable profiles; product and partner links only when the product and provider are published. `get_need_product_suggestions` and `get_need_partner_suggestions` return results to the need owner only. Matching never uses organisation membership as a relationship signal or a score input; it is shown as commercial-affiliation disclosure.
+
+Local fictional demo data: `npm run pilot:seed` / `npm run pilot:clear` (`scripts/pilot-seed.mjs`) create about 20 synthetic members (`@pilot.example.test`), 14 organisations, 5 needs and 4 introductions through the real RPCs. The script refuses non-localhost Supabase hosts. Set `PILOT_SEED_PASSWORD` (12+ characters) for a known sign-in password; otherwise passwords are random.
+
 ## Matching
 
 Initial internal weighting:
