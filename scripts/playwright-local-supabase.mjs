@@ -4,16 +4,47 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const cwd = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const start = spawnSync('npx', ['supabase', 'start'], { cwd, stdio: 'ignore' });
-if (start.status !== 0) {
-  console.error(`Local Supabase startup failed with exit code ${start.status ?? 'unknown'}.`);
-  process.exit(start.status ?? 1);
+const setupDeadline = Date.now() + 210_000;
+
+function runSupabase(args, label, timeout = Math.max(1, setupDeadline - Date.now())) {
+  const result = spawnSync('npx', ['supabase', ...args], {
+    cwd,
+    stdio: 'inherit',
+    timeout,
+  });
+  if (result.error || result.status !== 0) {
+    const reason = result.error ? result.error.name : `exit code ${result.status ?? 'unknown'}`;
+    console.error(`Local Supabase ${label} failed (${reason}).`);
+    return false;
+  }
+  return true;
 }
 
-const status = execFileSync('npx', ['supabase', 'status', '-o', 'env'], {
-  cwd,
-  encoding: 'utf8',
-});
+function stopSupabase() {
+  return runSupabase(['stop'], 'shutdown', 60_000);
+}
+
+if (!runSupabase(['start'], 'startup')) {
+  stopSupabase();
+  process.exit(1);
+}
+if (!runSupabase(['db', 'reset'], 'database reset')) {
+  stopSupabase();
+  process.exit(1);
+}
+
+let status;
+try {
+  status = execFileSync('npx', ['supabase', 'status', '-o', 'env'], {
+    cwd,
+    encoding: 'utf8',
+    timeout: Math.max(1, setupDeadline - Date.now()),
+  });
+} catch (error) {
+  console.error(`Local Supabase status failed (${error.name}).`);
+  stopSupabase();
+  process.exit(1);
+}
 const values = {};
 for (const line of status.split(/\r?\n/)) {
   const separator = line.indexOf('=');
@@ -27,6 +58,7 @@ for (const line of status.split(/\r?\n/)) {
 
 if (!values.API_URL || !values.ANON_KEY) {
   console.error('Local Supabase status did not provide its URL and anon key.');
+  stopSupabase();
   process.exit(1);
 }
 
@@ -52,8 +84,9 @@ for (const signal of ['SIGINT', 'SIGTERM']) {
 
 server.on('error', (error) => {
   console.error('Could not start the Astro test server:', error.message);
-  process.exit(1);
+  process.exit(stopSupabase() ? 1 : 2);
 });
 server.on('exit', (code, signal) => {
-  process.exit(code ?? (signal ? 1 : 0));
+  const exitCode = code ?? (signal ? 1 : 0);
+  process.exit(stopSupabase() ? exitCode : 1);
 });
