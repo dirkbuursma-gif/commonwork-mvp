@@ -17,6 +17,7 @@
     "connector:add": "node scripts/connectors.mjs add",
     "connector:list": "node scripts/connectors.mjs list",
     "connector:remove": "node scripts/connectors.mjs remove",
+    "signals:report": "node scripts/signals-report.mjs",
     "report:list": "node scripts/pilot-operations.mjs report:list",
     "report:view": "node scripts/pilot-operations.mjs report:view",
     "report:review": "node scripts/pilot-operations.mjs report:review",
