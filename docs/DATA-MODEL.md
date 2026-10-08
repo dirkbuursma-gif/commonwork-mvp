@@ -76,6 +76,10 @@ Trust model: all organisation, affiliation and capability writes are service-rol
 
 Local fictional demo data: `npm run pilot:seed` / `npm run pilot:clear` (`scripts/pilot-seed.mjs`) create about 20 synthetic members (`@pilot.example.test`), 14 organisations, 5 needs and 4 introductions through the real RPCs. The script refuses non-localhost Supabase hosts. Set `PILOT_SEED_PASSWORD` (12+ characters) for a known sign-in password; otherwise passwords are random.
 
+## Intent signals
+
+Internal-only `member_activity_events` plus the `member_intent_scores` and `organisation_intent_scores` views record that meaningful actions happened, never their content. See [INTENT-SIGNALS.md](./INTENT-SIGNALS.md).
+
 ## Matching
 
 Initial internal weighting:
