@@ -213,3 +213,42 @@ on conflict (provider_product_id) where provider_product_id is not null do updat
   retired_by = null;
 
 commit;
+delete from public.product_competency_links
+where is_seed_data = true and seed_batch = 'commonwork-intelligence-v1';
+
+insert into public.product_competency_links (
+  provider_product_id, competency_id, relationship_type, relevance_note, is_seed_data, seed_batch
+)
+select pp.id, c.id, s.relationship_type, s.relevance_note, true, 'commonwork-intelligence-v1'
+from (values
+  ('adobe-commerce', 'commerce-platforms', 'expertise', 'Enterprise commerce platform capability.'),
+  ('adobe-commerce', 'replatforming-strategy', 'related', 'Migration scope and extension model shape the move.'),
+  ('kibo-commerce', 'commerce-platforms', 'expertise', 'Composable commerce platform capability.'),
+  ('kibo-commerce', 'composable-commerce', 'expertise', 'Composable architecture and boundary decisions.'),
+  ('kibo-order-management', 'commerce-architecture', 'related', 'Order orchestration sits across inventory and fulfilment boundaries.'),
+  ('salesforce-commerce-cloud', 'commerce-platforms', 'expertise', 'Enterprise commerce within the Salesforce environment.'),
+  ('salesforce-commerce-cloud', 'platform-assessment', 'related', 'Qualify licensing, extension model and dependencies.'),
+  ('salesforce-order-management', 'systems-integration', 'related', 'Order data flows across commerce and service systems.'),
+  ('rierino-commerce-platform', 'composable-commerce', 'expertise', 'Composable, API-led commerce capability.'),
+  ('rierino-commerce-platform', 'commerce-architecture', 'related', 'Architecture and integration pattern fit.'),
+  ('informatica-product-360', 'product-information-management', 'expertise', 'Product information governance and mastering.'),
+  ('informatica-product-360', 'product-data-quality', 'common_need', 'Data completeness and consistency controls.'),
+  ('catsy-pim-dam', 'product-information-management', 'expertise', 'PIM and DAM for product content.'),
+  ('catsy-pim-dam', 'product-data-enrichment', 'expertise', 'Enrichment and channel distribution.'),
+  ('adobe-experience-manager-assets', 'product-data-enrichment', 'related', 'Asset management supports product content enrichment.'),
+  ('begen', 'agentic-commerce', 'expertise', 'AI agent development for commerce workflows.'),
+  ('begen', 'ai-agent-governance', 'related', 'Permissions and escalation need validation.'),
+  ('benext-ai', 'agentic-commerce', 'related', 'Conversational and agent services.'),
+  ('benext-ai', 'ai-agent-governance', 'related', 'Hand-off and system permission controls.'),
+  ('bloomreach-discovery', 'product-discovery-optimization', 'expertise', 'Search and discovery capability.'),
+  ('salesforce-personalization', 'customer-experience', 'related', 'Personalization depends on consented identity data.'),
+  ('genesys-cloud', 'customer-experience', 'expertise', 'Contact-centre journeys and routing.'),
+  ('genesys-cloud', 'workflow-automation', 'related', 'Bounded service automation.'),
+  ('zendesk', 'customer-experience', 'expertise', 'Service operations platform.'),
+  ('zendesk', 'human-centered-automation', 'related', 'Automation with agent oversight.'),
+  ('salesforce-service-cloud', 'workflow-automation', 'related', 'Service workflow automation.'),
+  ('telus-international', 'human-centered-automation', 'related', 'Service delivery with human oversight.')
+) as s(product_slug, competency_slug, relationship_type, relevance_note)
+join public.provider_products pp on pp.slug = s.product_slug
+join public.competencies c on c.slug = s.competency_slug and c.status = 'active'
+on conflict (provider_product_id, competency_id) do nothing;

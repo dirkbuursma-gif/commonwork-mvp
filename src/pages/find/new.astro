@@ -2,17 +2,20 @@
 import AppLayout from '../../layouts/AppLayout.astro';
 import NeedForm from '../../components/matching/NeedForm.astro';
 import { getCanonicalCompetencies, type CanonicalCompetence } from '../../lib/competence-data';
+import { getOwnRetailerOrganisations, type MemberOrganisation } from '../../lib/need-data';
 import { createSupabaseServerClient } from '../../lib/supabase/server';
 
 const user = Astro.locals.user;
 const localPreview = user?.isLocalTestUser === true;
 const supabase = localPreview ? null : createSupabaseServerClient(Astro);
 let competencies: CanonicalCompetence[] = [];
+let retailerOrganisations: MemberOrganisation[] = [];
 let loadError = false;
 
 if (supabase && !localPreview) {
   try {
     competencies = await getCanonicalCompetencies(supabase);
+    if (user) retailerOrganisations = await getOwnRetailerOrganisations(supabase, user.id);
   } catch {
     loadError = true;
   }
@@ -28,7 +31,7 @@ if (supabase && !localPreview) {
   ) : loadError ? (
     <p class="form-notice error" role="alert">The competence vocabulary could not be loaded. Please try again shortly.</p>
   ) : supabase ? (
-    <NeedForm competencies={competencies} />
+    <NeedForm competencies={competencies} retailerOrganisations={retailerOrganisations} />
   ) : (
     <p class="form-notice error" role="alert">Supabase is not configured. Need creation is unavailable.</p>
   )}

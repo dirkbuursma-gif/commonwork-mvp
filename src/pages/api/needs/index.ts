@@ -43,6 +43,10 @@ export const POST: APIRoute = async (context) => {
   const whatRequesterOffers = value(form, 'what_requester_offers');
   const conversationType = value(form, 'conversation_type') || 'peer_exchange';
   const visibility = value(form, 'visibility') || 'private_matches';
+  const retailerOrganisationId = value(form, 'retailer_organisation_id');
+  const retailerSegment = value(form, 'retailer_segment');
+  const currentStackNote = value(form, 'current_stack_note');
+  const projectContext = value(form, 'project_context');
   const expiresRaw = value(form, 'expires_at');
   const essentialIds = values(form, 'essential_competencies');
   const usefulIds = values(form, 'useful_competencies').filter((id) => !essentialIds.includes(id));
@@ -86,6 +90,10 @@ export const POST: APIRoute = async (context) => {
     conversation_type: conversationType,
     visibility,
     expires_at: expiresAt,
+    retailer_organisation_id: retailerOrganisationId || null,
+    retailer_segment: retailerSegment.slice(0, 160),
+    current_stack_note: currentStackNote.slice(0, 1500),
+    project_context: projectContext.slice(0, 1500),
   };
 
   let savedNeedId = needId;
