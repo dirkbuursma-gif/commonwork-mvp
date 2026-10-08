@@ -1,0 +1,94 @@
+---
+import AppLayout from '../../../layouts/AppLayout.astro';
+import EmptyState from '../../../components/app/EmptyState.astro';
+import { createSupabaseServerClient } from '../../../lib/supabase/server';
+import {
+  getCategoryCompetencies,
+  getProviderCategory,
+  getProviderCategoryProducts,
+  getRelevantExperts,
+  type CategoryCompetency,
+  type CategoryProduct,
+  type RelevantExpert,
+} from '../../../lib/provider-intelligence';
+import '../../../styles/intelligence.css';
+
+const user = Astro.locals.user;
+const localPreview = user?.isLocalTestUser === true;
+const supabase = localPreview ? null : createSupabaseServerClient(Astro);
+const slug = Astro.params.slug ?? '';
+let category = null;
+let products: CategoryProduct[] = [];
+let competencies: CategoryCompetency[] = [];
+let experts: RelevantExpert[] = [];
+let loadError = false;
+
+if (supabase) {
+  try {
+    category = await getProviderCategory(supabase, slug);
+    if (category) {
+      [products, competencies] = await Promise.all([
+        getProviderCategoryProducts(supabase, category.id),
+        getCategoryCompetencies(supabase, category.id),
+      ]);
+      experts = await getRelevantExperts(supabase, competencies);
+    }
+  } catch {
+    loadError = true;
+  }
+}
+---
+
+{localPreview ? (
+  <AppLayout title="Category intelligence" section="intelligence"><p class="form-notice" role="status">The local preview identity is read-only. Sign in with a local member account.</p></AppLayout>
+) : loadError ? (
+  <AppLayout title="Category intelligence" section="intelligence"><p class="form-notice error" role="alert">We could not load this category. Please try again shortly.</p></AppLayout>
+) : !category || !supabase ? (
+  <AppLayout title="Category unavailable" section="intelligence"><section class="panel panel-pad"><EmptyState title="Category unavailable" description="This category is not published or no longer available." /></section></AppLayout>
+) : (
+  <AppLayout title={category.name} section="intelligence">
+    <div class="page-head">
+      <div><div class="eyebrow">Provider intelligence</div><h1>{category.name}</h1><p class="subtitle">{category.what_it_is}</p></div>
+    </div>
+    {category.is_seed_data && <p class="intelligence-disclosure" role="note">Local demo catalogue: these records are fictional review fixtures and are not a production recommendation.</p>}
+    <div class="stack">
+      <section class="panel panel-pad">
+        <div class="grid2">
+          <div><h2>What this category is</h2><p>{category.what_it_is}</p></div>
+          <div><h2>What this category is not</h2><p>{category.what_it_is_not}</p></div>
+        </div>
+      </section>
+
+      <section class="stack" aria-labelledby="comparison-title">
+        <div class="panel-head"><div><div class="eyebrow">Curated comparison</div><h2 id="comparison-title">Products in this category</h2><p>Compare operating role, evidence maturity and merchant fit. No rating or universal ranking is implied.</p></div></div>
+        {products.length === 0 ? (
+          <section class="panel panel-pad"><EmptyState title="No published products yet" description="This category has no published provider records." /></section>
+        ) : (
+          <div class="intelligence-table-wrap" role="region" aria-label="Provider comparison" tabindex="0">
+            <table class="intelligence-table">
+              <thead><tr><th>Product / provider</th><th>Operating role</th><th>Evidence</th><th>Merchant fit</th></tr></thead>
+              <tbody>{products.map((product) => (
+                <tr>
+                  <td><a href={`/intelligence/product/${product.slug}`}><strong>{product.name}</strong></a><p class="field-help">{product.provider.name}</p><p>{product.fit_summary || product.summary}</p>{product.public_disclosure_note && <p class="field-help">{product.public_disclosure_note}</p>}</td>
+                  <td><strong>{product.operating_layer || product.contribution_role || 'Provider product'}</strong><p>{product.contribution_role}</p></td>
+                  <td>{product.evidence_maturity || 'Not assessed'}</td>
+                  <td>{product.merchant_fit.length ? product.merchant_fit.join('; ') : 'Validate fit against requirements.'}</td>
+                </tr>
+              ))}</tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      <section class="stack" aria-labelledby="competencies-title">
+        <div class="panel-head"><div><div class="eyebrow">Related competence</div><h2 id="competencies-title">What matters in this category</h2></div></div>
+        {competencies.length ? <div class="intelligence-grid">{competencies.map((item) => <article class="panel panel-pad intelligence-card"><h3>{item.name}</h3><p>{item.relevance_note || item.description}</p><span class="field-help">{item.relationship_type.replaceAll('_', ' ')}</span></article>)}</div> : <section class="panel panel-pad"><EmptyState title="No competence links yet" description="Category-to-competence links are curated locally." /></section>}
+      </section>
+
+      <section class="stack" aria-labelledby="experts-title">
+        <div class="panel-head"><div><div class="eyebrow">Member network</div><h2 id="experts-title">Relevant experts</h2><p>Only complete profiles and competencies members chose to make discoverable appear here.</p></div><a class="btn" href="/find">Find competence</a></div>
+        {experts.length ? <div class="intelligence-experts">{experts.map((expert) => <a class="intelligence-expert" href={`/profiles/${expert.id}`}><strong>{expert.display_name}</strong><span>{expert.professional_summary}</span><span class="field-help">{expert.competencies.join(' · ')}</span></a>)}</div> : <section class="panel panel-pad"><EmptyState title="No discoverable experts yet" description="Explore provider intelligence while members build and share relevant competence." /></section>}
+      </section>
+    </div>
+  </AppLayout>
+)}

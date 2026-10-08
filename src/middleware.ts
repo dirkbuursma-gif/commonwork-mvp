@@ -1,5 +1,6 @@
 import { defineMiddleware } from 'astro:middleware';
 import { getCurrentUser } from './lib/auth';
+import { validateIntelligenceReturnPath } from './lib/auth-return-path';
 
 const publicPaths = new Set([
   '/sign-in',
@@ -31,7 +32,10 @@ export const onRequest = defineMiddleware(async (context, next) => {
     context.cookies.get('commonwork_local_test_session')?.value === 'enabled';
   const user = hasLocalTestSession ? localTestUser : await getCurrentUser(context);
   if (!user) {
-    return context.redirect('/sign-in', 303);
+    const returnPath = validateIntelligenceReturnPath(`${pathname}${new URL(context.request.url).search}`);
+    const signInUrl = new URL('/sign-in', context.request.url);
+    if (returnPath) signInUrl.searchParams.set('return_to', returnPath);
+    return context.redirect(`${signInUrl.pathname}${signInUrl.search}`, 303);
   }
 
   context.locals.user = user;

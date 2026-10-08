@@ -78,6 +78,13 @@ function readLocalConfig(): LocalConfig {
   return { apiUrl, anonKey, serviceRoleKey };
 }
 
+export function createLocalAdminClient(): SupabaseClient<any, 'public', any, any, any> {
+  const config = readLocalConfig();
+  return createClient(config.apiUrl, config.serviceRoleKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+}
+
 export async function createLocalMember(displayName: string): Promise<LocalMember> {
   const config = readLocalConfig();
   const admin = createClient(config.apiUrl, config.serviceRoleKey, {

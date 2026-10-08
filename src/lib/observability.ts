@@ -15,6 +15,19 @@ function safeErrorCode(error: unknown): string {
   return /^[A-Z0-9_-]{1,32}$/.test(code) ? code : 'unknown';
 }
 
+function safeErrorMetadata(error: unknown): { error_name?: string; error_status?: number } {
+  if (!error || typeof error !== 'object') return {};
+  const fields = error as { name?: unknown; status?: unknown };
+  const metadata: { error_name?: string; error_status?: number } = {};
+  if (typeof fields.name === 'string' && /^[A-Za-z][A-Za-z0-9_]{0,47}$/.test(fields.name)) {
+    metadata.error_name = fields.name;
+  }
+  if (typeof fields.status === 'number' && Number.isInteger(fields.status) && fields.status >= 100 && fields.status <= 599) {
+    metadata.error_status = fields.status;
+  }
+  return metadata;
+}
+
 export function logPilotFailure(event: string, error: unknown, context: PilotLogContext = {}) {
   const safeContext: PilotLogContext = {};
   for (const key of ['actor_profile_id', 'need_id', 'match_id', 'introduction_id'] as const) {
@@ -27,6 +40,7 @@ export function logPilotFailure(event: string, error: unknown, context: PilotLog
     level: 'error',
     event: safeAction.test(event) ? event : 'pilot_operation_failed',
     error_code: safeErrorCode(error),
+    ...safeErrorMetadata(error),
     occurred_at: new Date().toISOString(),
     ...safeContext,
   }));
