@@ -5,7 +5,9 @@ values
   ('agentic-commerce', 'Agentic Commerce', 'Commerce capabilities that help systems represent products, connect workflows and take bounded action with appropriate controls.', 'A readiness badge, a single platform feature or proof that autonomous buying is dependable in every context.', 1, true, 'commonwork-intelligence-v1'),
   ('commerce-platforms', 'Commerce Platforms', 'Transactional and operational systems for catalogues, pricing, promotions, carts, checkout and commerce workflows.', 'A complete commerce architecture by itself; fit depends on adjacent data, integrations, fulfilment and operating capabilities.', 2, true, 'commonwork-intelligence-v1'),
   ('product-data-enrichment', 'Product Data & Enrichment', 'Capabilities that structure, govern, enrich and distribute product content for people, channels and machine-readable discovery.', 'A guarantee of discoverability or conversion; source quality, governance and distribution still matter.', 3, true, 'commonwork-intelligence-v1'),
-  ('contact-centre-service-automation', 'Contact Centre & Service Automation', 'Customer-service platforms and automation that support agents, resolve bounded requests and connect service activity to commerce operations.', 'Unsupervised replacement of service teams; escalation, policy and operational ownership remain essential.', 4, true, 'commonwork-intelligence-v1')
+  ('contact-centre-service-automation', 'Contact Centre & Service Automation', 'Customer-service platforms and automation that support agents, resolve bounded requests and connect service activity to commerce operations.', 'Unsupervised replacement of service teams; escalation, policy and operational ownership remain essential.', 4, true, 'commonwork-intelligence-v1'),
+  ('ecommerce-operations-support', 'Ecommerce Operations & Support Services', 'Managed teams that carry out repeatable ecommerce operations on a retailer''s behalf, such as catalogue and listing maintenance, marketplace support, product-data tasks and customer support.', 'Software, or a replacement for in-house trading, merchandising and platform decisions; scope, service levels, quality controls and data access are agreed per engagement.', 5, true, 'commonwork-intelligence-v1'),
+  ('integration-automation', 'Integration & Automation', 'Tools and services that connect commerce, data and back-office systems, and monitor and maintain those connections, including AI-assisted integration build and repair.', 'Not a substitute for clear system ownership, integration governance, or source-of-truth decisions; data contracts, access control, change approval, and incident responsibility still need an owner.', 6, true, 'commonwork-intelligence-v1')
 on conflict (slug) do update set
   name = excluded.name,
   what_it_is = excluded.what_it_is,
@@ -42,6 +44,26 @@ on conflict (source_system, source_record_id) do update set
   reviewed_by = excluded.reviewed_by,
   is_seed_data = excluded.is_seed_data,
   seed_batch = excluded.seed_batch;
+
+insert into public.providers (
+  slug, name, website_url, summary, source_system, source_record_id, source_url,
+  imported_at, reviewed_at, reviewed_by, is_seed_data, seed_batch, provider_type
+)
+values
+  ('plumbed', 'Plumbed', 'https://www.plumbed.io', 'Integration build, monitoring and repair for commerce and SaaS environments.', 'cp-provider-export-2026-09-02', 'plumbed', 'https://www.plumbed.io', '2026-10-07T00:00:00Z', null, null, true, 'commonwork-intelligence-v1', 'software_vendor'),
+  ('staffcloud', 'Staffcloud', 'https://staffcloud.net', 'Managed back-office and catalogue operations support for ecommerce retailers.', 'cp-provider-export-2026-09-02', 'staffcloud', 'https://staffcloud.net', '2026-10-07T00:00:00Z', null, null, true, 'commonwork-intelligence-v1', 'service_partner')
+on conflict (source_system, source_record_id) do update set
+  slug = excluded.slug,
+  name = excluded.name,
+  website_url = excluded.website_url,
+  summary = excluded.summary,
+  source_url = excluded.source_url,
+  imported_at = excluded.imported_at,
+  reviewed_at = excluded.reviewed_at,
+  reviewed_by = excluded.reviewed_by,
+  is_seed_data = excluded.is_seed_data,
+  seed_batch = excluded.seed_batch,
+  provider_type = excluded.provider_type;
 
 insert into public.provider_products (
   provider_id, slug, name, summary, operating_layer, contribution_role, evidence_maturity,
@@ -101,6 +123,48 @@ on conflict (source_system, source_record_id) do update set
   is_seed_data = excluded.is_seed_data,
   seed_batch = excluded.seed_batch;
 
+-- Plumbed and Staffcloud: copy comes from the Commerce Partners partner pages (plumbed.md, staffcloud.md).
+-- Provider-published performance metrics are deliberately not reproduced.
+insert into public.provider_products (
+  provider_id, slug, name, summary, operating_layer, contribution_role, evidence_maturity,
+  merchant_fit, boundary_and_dependencies, buyer_validation_questions, architecture,
+  deployment_model, capabilities_summary, source_system, source_record_id, source_url,
+  imported_at, reviewed_at, reviewed_by, is_seed_data, seed_batch
+)
+select
+  p.id, s.slug, s.name, s.summary, s.operating_layer, s.contribution_role, s.evidence_maturity,
+  s.merchant_fit, s.boundary_and_dependencies, s.buyer_validation_questions, s.architecture,
+  s.deployment_model, s.capabilities_summary, 'cp-platform-catalogue-2026-10-07', s.source_record_id,
+  s.source_url, '2026-10-07T00:00:00Z', null,
+  null, true, 'commonwork-intelligence-v1'
+from (values
+  ('plumbed', 'plumbed-integration-platform', 'Plumbed', 'Builds, monitors and repairs integrations, positioned as a lower-overhead alternative to recurring custom integration projects.', 'Integration platform', 'Integration build, monitoring and repair', 'Claimed', array['Businesses with complex multi-system integration landscapes', 'Teams dealing with recurring API changes, schema drift and integration incidents'], 'Public messaging emphasises the build, operate and heal lifecycle; no named customers or quantitative metrics are published. Validate system ownership, access control and repair approval before relying on it.', array['Which repairs are applied automatically and which need human approval?', 'How are API and schema changes detected and reported?'], 'AI-assisted integration lifecycle', 'To confirm with provider', 'Build: prompt-driven integration design. Operate: monitoring of flow health, errors and schema or API changes. Heal: governed, AI-assisted diagnosis and controlled repair.', 'plat-r9rfrnwb1', 'https://www.plumbed.io'),
+  ('staffcloud', 'staffcloud-managed-ecommerce-support', 'Staffcloud managed ecommerce support', 'Managed back-office and catalogue operations capacity for Shopify and Magento retailers.', 'Managed service', 'Catalogue and back-office operations capacity', 'Claimed', array['Shopify and Shopify Plus merchants with growing product, marketplace and customer-support workloads', 'Magento and Adobe Commerce retailers that need execution capacity around catalogue, listing and support workflows'], 'A managed service, not software. Scope, service levels, data access and quality controls are agreed per engagement; provider-published performance figures are not reproduced here.', array['Which tasks, systems and permissions are in scope?', 'How is catalogue quality checked and reported?'], 'Managed service delivery', 'Managed delivery', 'Shopify and Magento catalogue operations, marketplace and listing support, Amazon Vendor Central item setup and attribute backfilling, customer support services and catalogue quality audits.', 'plat-3c7pkmauy', 'https://staffcloud.net/services/ecommerce-product-support-services/')
+) as s(provider_slug, slug, name, summary, operating_layer, contribution_role, evidence_maturity,
+        merchant_fit, boundary_and_dependencies, buyer_validation_questions, architecture,
+        deployment_model, capabilities_summary, source_record_id, source_url)
+join public.providers p on p.slug = s.provider_slug
+on conflict (source_system, source_record_id) do update set
+  provider_id = excluded.provider_id,
+  slug = excluded.slug,
+  name = excluded.name,
+  summary = excluded.summary,
+  operating_layer = excluded.operating_layer,
+  contribution_role = excluded.contribution_role,
+  evidence_maturity = excluded.evidence_maturity,
+  merchant_fit = excluded.merchant_fit,
+  boundary_and_dependencies = excluded.boundary_and_dependencies,
+  buyer_validation_questions = excluded.buyer_validation_questions,
+  architecture = excluded.architecture,
+  deployment_model = excluded.deployment_model,
+  capabilities_summary = excluded.capabilities_summary,
+  source_url = excluded.source_url,
+  imported_at = excluded.imported_at,
+  reviewed_at = excluded.reviewed_at,
+  reviewed_by = excluded.reviewed_by,
+  is_seed_data = excluded.is_seed_data,
+  seed_batch = excluded.seed_batch;
+
 delete from public.provider_links l
 using public.provider_products pp
 where l.provider_product_id = pp.id
@@ -132,6 +196,8 @@ from (values
   ('salesforce-service-cloud', 'contact-centre-service-automation', 'Service workflows; validate automation permissions and escalation.', 1),
   ('telus-international', 'contact-centre-service-automation', 'Managed service operations; validate regions and service boundaries.', 2),
   ('genesys-cloud', 'contact-centre-service-automation', 'Omnichannel contact-centre platform; validate routing and audit controls.', 3),
+  ('plumbed-integration-platform', 'integration-automation', 'Integration build, monitoring and repair; validate ownership, access and repair approval.', 1),
+  ('staffcloud-managed-ecommerce-support', 'ecommerce-operations-support', 'Managed catalogue and back-office operations; validate scope, service levels and data access.', 1),
   ('zendesk', 'contact-centre-service-automation', 'Support workflows; review automation and marketplace integration controls.', 4)
 ) as s(product_slug, category_slug, fit_summary, sort_order)
 join public.provider_products pp on pp.slug = s.product_slug
@@ -160,6 +226,8 @@ from (values
   ('catsy-pim-dam', 'https://www.catsy.com'),
   ('telus-international', 'https://www.telusinternational.com'),
   ('genesys-cloud', 'https://www.genesys.com'),
+  ('plumbed-integration-platform', 'https://www.plumbed.io'),
+  ('staffcloud-managed-ecommerce-support', 'https://staffcloud.net'),
   ('zendesk', 'https://www.zendesk.com')
 ) as s(product_slug, url)
 join public.provider_products pp on pp.slug = s.product_slug;
@@ -180,6 +248,12 @@ from (values
   ('product-data-enrichment', 'product-information-management', 'expertise', 'Ownership and publishing of structured product information.', 1),
   ('product-data-enrichment', 'product-data-quality', 'common_need', 'Data completeness and consistency shape downstream product use.', 2),
   ('contact-centre-service-automation', 'customer-experience', 'expertise', 'Customer service journeys and experience operations.', 1),
+  ('ecommerce-operations-support', 'retail-operations', 'expertise', 'Repeatable retail operating processes carried out by managed teams.', 1),
+  ('ecommerce-operations-support', 'product-data-quality', 'common_need', 'Catalogue completeness and consistency drive much of the outsourced work.', 2),
+  ('ecommerce-operations-support', 'workflow-automation', 'related', 'Managed work is increasingly combined with bounded automation.', 3),
+  ('integration-automation', 'systems-integration', 'expertise', 'Connecting and maintaining interfaces between business systems.', 1),
+  ('integration-automation', 'commerce-architecture', 'related', 'Integration boundaries and dependencies shape the commerce architecture.', 2),
+  ('integration-automation', 'workflow-automation', 'related', 'Automated build and repair of integrations needs bounded controls.', 3),
   ('contact-centre-service-automation', 'workflow-automation', 'related', 'Bounded automation with escalation and exception handling.', 2)
 ) as s(category_slug, competency_slug, relationship_type, relevance_note, sort_order)
 join public.provider_categories pc on pc.slug = s.category_slug
@@ -192,7 +266,13 @@ on conflict (category_id, competency_id) do update set
   seed_batch = 'commonwork-intelligence-v1';
 
 insert into public.provider_publication_status (provider_id, status, public_disclosure_note, published_at)
-select p.id, 'published', 'Local demo copy of a public Commerce Partners catalogue profile. Not a certification or endorsement.', '2026-10-07T00:00:00Z'
+select p.id,
+  case when p.slug in ('plumbed', 'staffcloud') then 'draft' else 'published' end,
+  case when p.slug in ('plumbed', 'staffcloud')
+    then 'Draft: pending Commonwork review before public release.'
+    else 'Local demo copy of a public Commerce Partners catalogue profile. Not a certification or endorsement.'
+  end,
+  case when p.slug in ('plumbed', 'staffcloud') then null else '2026-10-07T00:00:00Z'::timestamptz end
 from public.providers p
 where p.is_seed_data and p.seed_batch = 'commonwork-intelligence-v1'
 on conflict (provider_id) where provider_id is not null do update set
@@ -204,12 +284,16 @@ on conflict (provider_id) where provider_id is not null do update set
 
 insert into public.provider_publication_status (provider_product_id, status, public_disclosure_note, published_at, retired_at)
 select pp.id,
-  case when pp.slug in ('begen', 'benext-ai') then 'retired' else 'published' end,
+  case when pp.slug in ('begen', 'benext-ai') then 'retired'
+    when pp.slug in ('plumbed-integration-platform', 'staffcloud-managed-ecommerce-support') then 'draft'
+    else 'published' end,
   case when pp.slug in ('begen', 'benext-ai')
     then 'Retired: Begen is represented by AdMultify and Benext by Be.cited.'
+    when pp.slug in ('plumbed-integration-platform', 'staffcloud-managed-ecommerce-support')
+    then 'Draft: pending Commonwork review before public release.'
     else 'Local demo copy of a public Commerce Partners catalogue profile. Confirm current fit, evidence and dependencies before relying on it.'
   end,
-  '2026-10-07T00:00:00Z',
+  case when pp.slug in ('plumbed-integration-platform', 'staffcloud-managed-ecommerce-support') then null else '2026-10-07T00:00:00Z'::timestamptz end,
   case when pp.slug in ('begen', 'benext-ai') then now() end
 from public.provider_products pp
 where pp.is_seed_data and pp.seed_batch = 'commonwork-intelligence-v1'
@@ -249,6 +333,10 @@ from (values
   ('bloomreach-discovery', 'product-discovery-optimization', 'expertise', 'Search and discovery capability.'),
   ('salesforce-personalization', 'customer-experience', 'related', 'Personalization depends on consented identity data.'),
   ('genesys-cloud', 'customer-experience', 'expertise', 'Contact-centre journeys and routing.'),
+  ('plumbed-integration-platform', 'systems-integration', 'expertise', 'Integration build, monitoring and repair.'),
+  ('plumbed-integration-platform', 'workflow-automation', 'related', 'Governed, AI-assisted repair workflows.'),
+  ('staffcloud-managed-ecommerce-support', 'retail-operations', 'expertise', 'Managed catalogue and back-office operations.'),
+  ('staffcloud-managed-ecommerce-support', 'product-data-quality', 'related', 'Catalogue quality audits and attribute maintenance.'),
   ('genesys-cloud', 'workflow-automation', 'related', 'Bounded service automation.'),
   ('zendesk', 'customer-experience', 'expertise', 'Service operations platform.'),
   ('zendesk', 'human-centered-automation', 'related', 'Automation with agent oversight.'),
