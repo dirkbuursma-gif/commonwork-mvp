@@ -1,8 +1,10 @@
 import { expect, test } from '@playwright/test';
 import { createLocalAdminClient, createLocalMember } from './helpers/local-supabase';
 
-const draftProviderSlugs = ['plumbed', 'staffcloud'];
-const draftProductSlugs = ['plumbed-integration-platform', 'staffcloud-managed-ecommerce-support'];
+const draftProviderSlugs = ['plumbed', 'staffcloud', 'geoffy', 'vtex'];
+const unreviewedProviderSlugs = ['plumbed', 'staffcloud'];
+const unreviewedProductSlugs = ['plumbed-integration-platform', 'staffcloud-managed-ecommerce-support'];
+const draftProductSlugs = ['plumbed-integration-platform', 'staffcloud-managed-ecommerce-support', 'geoffy', 'vtex-commerce-platform'];
 
 test('provider_type accepts only the defined values and defaults to software_vendor', async () => {
   const admin = createLocalAdminClient();
@@ -34,21 +36,33 @@ test('draft Plumbed and Staffcloud records are stored as drafts but hidden from 
   const admin = createLocalAdminClient();
   const { data: providerStatus } = await admin.from('provider_publication_status')
     .select('status, published_at, providers!inner(slug, reviewed_at, reviewed_by)').in('providers.slug', draftProviderSlugs);
-  expect(providerStatus).toHaveLength(2);
+  expect(providerStatus).toHaveLength(4);
   for (const row of providerStatus ?? []) {
     expect(row.status).toBe('draft');
     expect(row.published_at).toBeNull();
-    expect((row as any).providers.reviewed_at).toBeNull();
-    expect((row as any).providers.reviewed_by).toBeNull();
+    const provider = (row as any).providers;
+    if (unreviewedProviderSlugs.includes(provider.slug)) {
+      expect(provider.reviewed_at).toBeNull();
+      expect(provider.reviewed_by).toBeNull();
+    } else {
+      expect(provider.reviewed_at).not.toBeNull();
+      expect(provider.reviewed_by).not.toBeNull();
+    }
   }
   const { data: productStatus } = await admin.from('provider_publication_status')
     .select('status, published_at, provider_products!inner(slug, reviewed_at, reviewed_by)').in('provider_products.slug', draftProductSlugs);
-  expect(productStatus).toHaveLength(2);
+  expect(productStatus).toHaveLength(4);
   for (const row of productStatus ?? []) {
     expect(row.status).toBe('draft');
     expect(row.published_at).toBeNull();
-    expect((row as any).provider_products.reviewed_at).toBeNull();
-    expect((row as any).provider_products.reviewed_by).toBeNull();
+    const product = (row as any).provider_products;
+    if (unreviewedProductSlugs.includes(product.slug)) {
+      expect(product.reviewed_at).toBeNull();
+      expect(product.reviewed_by).toBeNull();
+    } else {
+      expect(product.reviewed_at).not.toBeNull();
+      expect(product.reviewed_by).not.toBeNull();
+    }
   }
 
   const member = await createLocalMember('Draft Hidden Member');
@@ -70,7 +84,7 @@ test('draft partners do not appear in the Intelligence category pages', async ({
       .then(({ error }) => expect(error).toBeNull());
     await context.addCookies(member.cookies.map(({ name, value }) => ({ name, value, url: 'http://127.0.0.1:4322' })));
     const page = await context.newPage();
-    for (const [slug, name] of [['integration-automation', 'Plumbed'], ['ecommerce-operations-support', 'Staffcloud']]) {
+    for (const [slug, name] of [['integration-automation', 'Plumbed'], ['ecommerce-operations-support', 'Staffcloud'], ['agentic-commerce', 'Geoffy'], ['product-data-enrichment', 'Geoffy'], ['commerce-platforms', 'VTEX']]) {
       await page.goto(`/intelligence/category/${slug}`);
       await expect(page.getByText(name, { exact: false })).toHaveCount(0);
     }
