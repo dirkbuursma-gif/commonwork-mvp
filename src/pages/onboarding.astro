@@ -1,7 +1,9 @@
 ---
 import AppLayout from '../layouts/AppLayout.astro';
 import EmptyState from '../components/app/EmptyState.astro';
+import CvImport from '../components/app/CvImport.astro';
 import { createSupabaseServerClient } from '../lib/supabase/server';
+import { COUNTRY_CODES } from '../lib/country-codes';
 import type {
   CanonicalCompetence,
   CompetenceEvidence,
@@ -23,6 +25,7 @@ const supabase = localPreview ? null : createSupabaseServerClient(Astro);
 const stepNames = ['contribution', 'competencies', 'evidence', 'conversations'] as const;
 type StepName = (typeof stepNames)[number];
 const requestedStep = Astro.url.searchParams.get('step');
+const countryNames = new Intl.DisplayNames(['en'], { type: 'region' });
 const step: StepName = stepNames.includes(requestedStep as StepName)
   ? (requestedStep as StepName)
   : 'contribution';
@@ -75,6 +78,7 @@ const profileDisplayName =
   profile?.display_name ||
   (typeof user?.user_metadata?.full_name === 'string' ? user.user_metadata.full_name : '') ||
   '';
+const existingCompetenceSlugs = competencies.flatMap((item) => item.competencies?.slug ?? []);
 const isReadyForEvidence = competencies.length > 0;
 const isReadyForConversations = evidence.length > 0;
 ---
@@ -146,6 +150,28 @@ const isReadyForConversations = evidence.length > 0;
               What are you exploring? <span class="field-optional">Optional</span>
               <textarea id="what-exploring" name="what_i_am_exploring" maxlength="2000" rows="3" placeholder="Share the business questions or areas you are learning about.">{profile?.what_i_am_exploring ?? ''}</textarea>
             </label>
+            <label class="field" for="base-country-code">
+              Base country <span class="field-optional">Optional</span>
+              <select id="base-country-code" name="base_country_code">
+                <option value="">Not specified</option>
+                {COUNTRY_CODES.map((code) => (
+                  <option value={code} selected={profile?.base_country_code === code}>
+                    {code} — {countryNames.of(code)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label class="field" for="markets-served">
+              Markets served <span class="field-optional">Optional</span>
+              <select id="markets-served" name="markets_served" multiple size="6" aria-describedby="markets-served-help">
+                {COUNTRY_CODES.map((code) => (
+                  <option value={code} selected={profile?.markets_served.includes(code) ?? false}>
+                    {code} — {countryNames.of(code)}
+                  </option>
+                ))}
+              </select>
+              <span class="field-help" id="markets-served-help">Choose up to 20 countries. Leave blank if you prefer not to say.</span>
+            </label>
             <label class="field" for="profile-visibility">
               Profile visibility
               <select id="profile-visibility" name="profile_visibility">
@@ -167,6 +193,8 @@ const isReadyForConversations = evidence.length > 0;
           <div class="eyebrow">Step 2 of 4</div>
           <h2 id="competencies-title">Name what you know and do</h2>
           <p class="subtitle">Choose a shared competence, describe how you apply it, and use examples later to give it context.</p>
+
+          <CvImport competencies={canonicalCompetencies} existingSlugs={existingCompetenceSlugs} />
 
           {competencies.length > 0 ? (
             <div class="competence-list" aria-label="Competencies on your profile">
