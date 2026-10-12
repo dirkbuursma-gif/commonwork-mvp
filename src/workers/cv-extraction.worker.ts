@@ -4,9 +4,8 @@ const MAX_EXTRACTED_CHARACTERS = 50_000;
 const MAX_DOCX_UNCOMPRESSED_BYTES = 20 * 1024 * 1024;
 const MAX_DOCX_ENTRIES = 256;
 
-type ExtractionFailure = 'too-many-characters' | 'no-searchable-text' | 'password-protected' | 'unreadable';
-
 interface ExtractionRequest {
+  type: 'extract';
   bytes: ArrayBuffer;
 }
 
@@ -69,30 +68,30 @@ function inspectDocxArchive(bytes: ArrayBuffer): 'ok' | 'password-protected' | '
   return offset === centralDirectoryOffset + centralDirectorySize ? 'ok' : 'unreadable';
 }
 
-function failure(reason: ExtractionFailure): void {
-  self.postMessage({ ok: false, reason });
-}
+self.postMessage({ type: 'ready' });
 
 self.addEventListener('message', async (event: MessageEvent<ExtractionRequest>) => {
+  if (event.data.type !== 'extract') return;
   const { bytes } = event.data;
 
   try {
     const archiveStatus = inspectDocxArchive(bytes);
     if (archiveStatus !== 'ok') {
-      failure(archiveStatus);
+      self.postMessage({ type: 'result', ok: false, reason: archiveStatus });
       return;
     }
 
+    self.postMessage({ type: 'progress', phase: 'extracting' });
     const result = await mammoth.extractRawText({ arrayBuffer: bytes });
     if (result.value.length > MAX_EXTRACTED_CHARACTERS) {
-      failure('too-many-characters');
+      self.postMessage({ type: 'result', ok: false, reason: 'too-many-characters' });
       return;
     }
     if (!result.value.trim()) {
-      failure('no-searchable-text');
+      self.postMessage({ type: 'result', ok: false, reason: 'no-searchable-text' });
       return;
     }
-    self.postMessage({ ok: true, text: result.value });
+    self.postMessage({ type: 'result', ok: true, text: result.value });
   } catch (error) {
     if (
       typeof error === 'object' &&
@@ -100,9 +99,9 @@ self.addEventListener('message', async (event: MessageEvent<ExtractionRequest>) 
       'name' in error &&
       error.name === 'PasswordException'
     ) {
-      failure('password-protected');
+      self.postMessage({ type: 'result', ok: false, reason: 'password-protected' });
       return;
     }
-    failure('unreadable');
+    self.postMessage({ type: 'result', ok: false, reason: 'unreadable' });
   }
 });

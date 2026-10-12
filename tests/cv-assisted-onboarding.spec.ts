@@ -185,15 +185,28 @@ test('synthetic DOCX extraction stays local until a member explicitly saves a re
   const cvContentInLogs: string[] = [];
   const profileWrites: string[] = [];
   const workerDiagnostics: string[] = [];
+  const page = await context.newPage();
   try {
     await context.addCookies(member.cookies.map(({ name, value }) => ({
       name,
       value,
       url: 'http://127.0.0.1:4322',
     })));
-    const page = await context.newPage();
-    page.on('worker', (worker) => workerDiagnostics.push(`worker: ${new URL(worker.url()).pathname}`));
-    page.on('pageerror', (error) => workerDiagnostics.push(`page error: ${error.name}`));
+    await page.addInitScript(() => {
+      const phases: string[] = [];
+      Object.assign(window, { __cvPhases: phases });
+      document.addEventListener('cv-import-phase', (event) => {
+        phases.push((event as CustomEvent<string>).detail);
+      });
+    });
+    page.on('worker', (worker) => {
+      workerDiagnostics.push(`worker created: ${new URL(worker.url()).pathname}`);
+      worker.on('close', () => workerDiagnostics.push('worker closed'));
+    });
+    page.on('pageerror', (error) => workerDiagnostics.push(`page error: ${error.name}: ${error.stack}`));
+    page.on('framenavigated', (frame) => {
+      if (frame === page.mainFrame()) workerDiagnostics.push(`navigation: ${new URL(frame.url()).pathname}`);
+    });
     page.on('console', (message) => {
       if (message.type() === 'error') workerDiagnostics.push(`console error: ${new URL(message.location().url || 'http://localhost').pathname}`);
     });
@@ -236,8 +249,35 @@ test('synthetic DOCX extraction stays local until a member explicitly saves a re
       mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
       buffer: createDocx(cvText),
     });
-    await expect(page.getByRole('status'), workerDiagnostics.join('\n'))
-      .toContainText('2 possible matches found', { timeout: 25_000 });
+    try {
+      await expect(page.getByRole('status')).toContainText('2 possible matches found', { timeout: 25_000 });
+    } catch (error) {
+      const phases = await page.evaluate(() =>
+        (window as Window & { __cvPhases?: string[] }).__cvPhases ?? [],
+      );
+      throw new Error(`${error instanceof Error ? error.message : String(error)}\nCV import events: ${[...workerDiagnostics, ...phases].join(' → ')}`);
+    }
+    const phaseTimeline = await page.evaluate(() =>
+      (window as Window & { __cvPhases?: string[] }).__cvPhases ?? [],
+    );
+    const expectedPhases = [
+      'selected',
+      'worker-starting',
+      'file-read',
+      'worker-ready',
+      'buffer-transferred',
+      'extracting',
+      'extraction-complete',
+      'suggestions-calculated',
+      'ui-updated',
+      'complete',
+    ];
+    let lastPhaseIndex = -1;
+    for (const phase of expectedPhases) {
+      const phaseIndex = phaseTimeline.indexOf(phase, lastPhaseIndex + 1);
+      expect(phaseIndex, `CV import phase timeline: ${phaseTimeline.join(' → ')}`).toBeGreaterThan(lastPhaseIndex);
+      lastPhaseIndex = phaseIndex;
+    }
     await expect(page.getByRole('status')).toContainText('1 match was already on your profile and skipped');
     await expect(page.locator('[data-cv-list]').getByRole('heading', { name: 'Customer experience' })).toHaveCount(0);
     await page.locator('[data-cv-list] summary').first().click();

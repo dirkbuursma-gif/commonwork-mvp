@@ -49,9 +49,17 @@ const { competencies, existingSlugs } = Astro.props;
     const memberStatement = document.querySelector<HTMLTextAreaElement>('#member-statement');
     const competencies = JSON.parse(root.dataset.competencies ?? '[]') as CompetenceOption[];
     const existingSlugs = new Set(JSON.parse(root.dataset.existingSlugs ?? '[]') as string[]);
+    const workerTimeoutMs = 30_000;
     let suggestions: CompetenceSuggestion[] = [];
     let activeWorker: Worker | null = null;
+    let activeWorkerTimeout: number | null = null;
     let activePdfController: AbortController | null = null;
+    let activePdfTimeout: number | null = null;
+
+    const setPhase = (phase: string) => {
+      root.dataset.cvPhase = phase;
+      root.dispatchEvent(new CustomEvent('cv-import-phase', { bubbles: true, detail: phase }));
+    };
 
     const clearSuggestions = () => {
       suggestions = [];
@@ -61,13 +69,21 @@ const { competencies, existingSlugs } = Astro.props;
 
     const finishWorker = (worker: Worker) => {
       worker.terminate();
-      if (activeWorker === worker) activeWorker = null;
+      if (activeWorker === worker) {
+        activeWorker = null;
+        if (activeWorkerTimeout !== null) window.clearTimeout(activeWorkerTimeout);
+        activeWorkerTimeout = null;
+      }
       if (cancelButton) cancelButton.hidden = true;
       if (controls) controls.hidden = false;
     };
 
     const finishPdf = (controller: AbortController) => {
-      if (activePdfController === controller) activePdfController = null;
+      if (activePdfController === controller) {
+        activePdfController = null;
+        if (activePdfTimeout !== null) window.clearTimeout(activePdfTimeout);
+        activePdfTimeout = null;
+      }
       if (cancelButton) cancelButton.hidden = true;
       if (controls) controls.hidden = false;
     };
@@ -76,10 +92,8 @@ const { competencies, existingSlugs } = Astro.props;
       if (activeWorker) finishWorker(activeWorker);
       if (activePdfController) {
         const controller = activePdfController;
-        activePdfController = null;
         controller.abort();
-        if (cancelButton) cancelButton.hidden = true;
-        if (controls) controls.hidden = false;
+        finishPdf(controller);
       }
     };
 
@@ -98,7 +112,9 @@ const { competencies, existingSlugs } = Astro.props;
     const showSuggestions = (text: string) => {
       const result = findCompetenceSuggestions(text, competencies, existingSlugs);
       suggestions = result.suggestions;
+      setPhase('suggestions-calculated');
       renderSuggestions(result.duplicateCount);
+      setPhase('ui-updated');
     };
 
     const renderSuggestions = (duplicateCount: number) => {
@@ -164,6 +180,7 @@ const { competencies, existingSlugs } = Astro.props;
       cancelActiveImport();
       clearSuggestions();
       status.textContent = '';
+      setPhase('selected');
 
       const extension = file.name.split('.').pop()?.toLowerCase();
       if (extension !== 'docx' && extension !== 'pdf') {
@@ -188,6 +205,16 @@ const { competencies, existingSlugs } = Astro.props;
         if (controls) controls.hidden = false;
         if (cancelButton) cancelButton.hidden = false;
         status.textContent = 'Reading this file locally…';
+        setPhase('reading');
+        activePdfTimeout = window.setTimeout(() => {
+          if (activePdfController !== controller) return;
+          controller.abort();
+          finishPdf(controller);
+          fileInput.value = '';
+          clearSuggestions();
+          setPhase('timed-out');
+          status.textContent = 'CV reading took too long and was stopped. Try again or continue with manual entry.';
+        }, workerTimeoutMs);
 
         try {
           const bytes = await file.arrayBuffer();
@@ -199,14 +226,18 @@ const { competencies, existingSlugs } = Astro.props;
           finishPdf(controller);
           fileInput.value = '';
           if (!result.ok) {
+            setPhase('failed');
             showFailure(result.reason);
             return;
           }
+          setPhase('suggesting');
           showSuggestions(result.text);
+          setPhase('complete');
         } catch {
           if (controller.signal.aborted) return;
           finishPdf(controller);
           fileInput.value = '';
+          setPhase('failed');
           showFailure('unreadable');
         } finally {
           if (activePdfController === controller) finishPdf(controller);
@@ -214,38 +245,108 @@ const { competencies, existingSlugs } = Astro.props;
         return;
       }
 
-      const worker = new Worker(new URL('../../workers/cv-extraction.worker.ts', import.meta.url), { type: 'module' });
+      let worker: Worker;
+      try {
+        worker = new Worker(new URL('../../workers/cv-extraction.worker.ts', import.meta.url), { type: 'module' });
+      } catch {
+        fileInput.value = '';
+        setPhase('failed');
+        status.textContent = 'CV reading could not start. Try another file or continue with manual entry.';
+        return;
+      }
       activeWorker = worker;
       if (controls) controls.hidden = false;
       if (cancelButton) cancelButton.hidden = false;
       status.textContent = 'Reading this file locally…';
+      setPhase('worker-starting');
 
-      worker.onmessage = (event: MessageEvent<{ ok: true; text: string } | { ok: false; reason: string }>) => {
+      let workerReady = false;
+      let fileBytes: ArrayBuffer | null = null;
+      const transferWhenReady = () => {
+        if (!workerReady || !fileBytes || activeWorker !== worker) return;
+        const bytes = fileBytes;
+        fileBytes = null;
+        try {
+          worker.postMessage({ type: 'extract', bytes }, [bytes]);
+          setPhase('buffer-transferred');
+        } catch {
+          if (activeWorker !== worker) return;
+          finishWorker(worker);
+          fileInput.value = '';
+          setPhase('failed');
+          status.textContent = 'The file could not be read in this browser. Try again or continue with manual entry.';
+        }
+      };
+
+      worker.onmessage = (event: MessageEvent<
+        | { type: 'ready' }
+        | { type: 'progress'; phase: 'extracting' }
+        | { type: 'result'; ok: true; text: string }
+        | { type: 'result'; ok: false; reason: string }
+      >) => {
         if (activeWorker !== worker) return;
+        if (event.data.type === 'ready') {
+          workerReady = true;
+          setPhase('worker-ready');
+          transferWhenReady();
+          return;
+        }
+        if (event.data.type === 'progress') {
+          setPhase('extracting');
+          return;
+        }
         finishWorker(worker);
         fileInput.value = '';
+        setPhase('extraction-complete');
         if (!event.data.ok) {
+          setPhase('failed');
           showFailure(event.data.reason);
           return;
         }
-
-        showSuggestions(event.data.text);
+        setPhase('suggesting');
+        try {
+          showSuggestions(event.data.text);
+          setPhase('complete');
+        } catch {
+          clearSuggestions();
+          setPhase('failed');
+          status.textContent = 'CV suggestions could not be prepared. Try another file or continue with manual entry.';
+        }
       };
       worker.onerror = () => {
         if (activeWorker !== worker) return;
         finishWorker(worker);
         fileInput.value = '';
-        status.textContent = 'This document could not be read. Choose another file or continue manually.';
+        setPhase('failed');
+        status.textContent = 'CV reading stopped unexpectedly. Try again or continue with manual entry.';
       };
+      worker.onmessageerror = () => {
+        if (activeWorker !== worker) return;
+        finishWorker(worker);
+        fileInput.value = '';
+        setPhase('failed');
+        status.textContent = 'CV reading returned an invalid result. Try again or continue with manual entry.';
+      };
+      activeWorkerTimeout = window.setTimeout(() => {
+        if (activeWorker !== worker) return;
+        finishWorker(worker);
+        fileInput.value = '';
+        clearSuggestions();
+        setPhase('timed-out');
+        status.textContent = 'CV reading took too long and was stopped. Try again or continue with manual entry.';
+      }, workerTimeoutMs);
 
       try {
         const bytes = await file.arrayBuffer();
         if (activeWorker !== worker) return;
-        worker.postMessage({ bytes }, [bytes]);
+        fileBytes = bytes;
+        setPhase('file-read');
+        transferWhenReady();
       } catch {
         finishWorker(worker);
         fileInput.value = '';
-        status.textContent = 'The file could not be read in this browser. Continue manually.';
+        setPhase('failed');
+        status.textContent = 'The file could not be read in this browser. Try again or continue with manual entry.';
       }
     });
 
@@ -254,6 +355,7 @@ const { competencies, existingSlugs } = Astro.props;
       fileInput && (fileInput.value = '');
       clearSuggestions();
       if (status) status.textContent = 'Import cancelled. Transient CV content was cleared.';
+      setPhase('cancelled');
     });
 
     clearButton?.addEventListener('click', () => {
@@ -261,6 +363,7 @@ const { competencies, existingSlugs } = Astro.props;
       fileInput && (fileInput.value = '');
       clearSuggestions();
       if (status) status.textContent = 'CV content and suggestions cleared.';
+      setPhase('cleared');
     });
 
     window.addEventListener('pagehide', () => {
