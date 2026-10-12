@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { createLocalMember, type LocalMember } from './helpers/local-supabase';
+import { createLocalAdminClient, createLocalMember, type LocalMember } from './helpers/local-supabase';
 
 type CompetenceSetup = {
   competencyId: string;
@@ -80,6 +80,7 @@ test('a member creates a private need and gets privacy-safe explained matches', 
   const unavailableMember = await createLocalMember('Unavailable Member');
   const undiscoverableMember = await createLocalMember('Undiscoverable Member');
   const outsider = await createLocalMember('Unrelated Member');
+  const admin = createLocalAdminClient();
   const context = await browser.newContext({ viewport: { width: 375, height: 812 }, colorScheme: 'dark' });
 
   try {
@@ -260,6 +261,31 @@ test('a member creates a private need and gets privacy-safe explained matches', 
       expect.objectContaining({ matched_profile_id: matchedMember.id, status: 'saved' }),
       expect.objectContaining({ matched_profile_id: secondMatchedMember.id, status: 'dismissed' }),
     ]));
+
+    const readRanking = async () => {
+      const { data, error } = await admin.from('matches')
+        .select('matched_profile_id, score_internal, relevance_band')
+        .eq('need_id', needId!)
+        .order('score_internal', { ascending: false })
+        .order('matched_profile_id');
+      expect(error).toBeNull();
+      return data;
+    };
+    const rankingBeforeGeography = await readRanking();
+    const geographyUpdates = await Promise.all([
+      matchedMember.client.from('profiles')
+        .update({ base_country_code: 'NZ', markets_served: ['GB', 'US'] })
+        .eq('id', matchedMember.id),
+      secondMatchedMember.client.from('profiles')
+        .update({ base_country_code: 'FR', markets_served: ['DE', 'NL'] })
+        .eq('id', secondMatchedMember.id),
+    ]);
+    expect(geographyUpdates.every(({ error }) => error === null)).toBe(true);
+    const { error: recalculationError } = await owner.client.rpc('generate_matches_for_need', {
+      target_need_id: needId!,
+    });
+    expect(recalculationError).toBeNull();
+    expect(await readRanking()).toEqual(rankingBeforeGeography);
   } finally {
     try {
       await context.close();

@@ -34,9 +34,12 @@
     "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.117.2",
     "astro": "^7.3.5",
+    "mammoth": "1.13.0",
+    "pdfjs-dist": "5.4.624",
     "resend": "^6.32.0"
   },
   "overrides": {
+    "argparse": "3.0.2",
     "path-to-regexp": "^6.3.0"
   },
   "allowScripts": {

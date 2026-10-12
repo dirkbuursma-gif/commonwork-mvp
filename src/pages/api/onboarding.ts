@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro';
 import { createSupabaseServerClient } from '../../lib/supabase/server';
+import { isCountryCode, isValidMarketsServed } from '../../lib/country-codes';
 
 const categories = new Set(['knowledge', 'practical_capability', 'way_of_working']);
 const evidenceStatuses = new Set(['declared', 'demonstrated']);
@@ -37,8 +38,18 @@ export const POST: APIRoute = async (context) => {
     const whatIContribute = value(form, 'what_i_contribute');
     const whatIAmExploring = value(form, 'what_i_am_exploring');
     const visibility = value(form, 'profile_visibility') || 'private';
+    const baseCountryCode = value(form, 'base_country_code');
+    const marketValues = form.getAll('markets_served');
+    const marketsServed = marketValues.filter((item): item is string => typeof item === 'string');
 
     if (!displayName || !professionalSummary || !whatIContribute || !['private', 'members'].includes(visibility)) {
+      return failure(context, 'invalid', 'contribution');
+    }
+    if (
+      marketValues.length !== marketsServed.length
+      || (baseCountryCode !== '' && !isCountryCode(baseCountryCode))
+      || !isValidMarketsServed(marketsServed)
+    ) {
       return failure(context, 'invalid', 'contribution');
     }
 
@@ -47,6 +58,8 @@ export const POST: APIRoute = async (context) => {
       professional_summary: professionalSummary,
       what_i_contribute: whatIContribute,
       what_i_am_exploring: whatIAmExploring,
+      base_country_code: baseCountryCode || null,
+      markets_served: marketsServed,
       profile_visibility: visibility,
     };
     const { data: currentProfile, error: profileReadError } = await supabase.rpc('get_my_profile');
