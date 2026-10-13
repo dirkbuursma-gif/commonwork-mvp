@@ -2,38 +2,24 @@ import type { APIRoute } from 'astro';
 import { createSupabaseServerClient } from '../../../lib/supabase/server';
 import { validateIntelligenceReturnPath } from '../../../lib/auth-return-path';
 import { logPilotFailure } from '../../../lib/observability';
-
-function signInRedirect(context: Parameters<APIRoute>[0], status: string, returnPath: string | null) {
-  const url = new URL('/sign-in', context.request.url);
-  url.searchParams.set('status', status);
-  if (returnPath) url.searchParams.set('return_to', returnPath);
-  return context.redirect(`${url.pathname}${url.search}`, 303);
-}
+import { normalizeEmail, requestEmailCode, signInPath, writePendingSignIn } from '../../../lib/email-code-auth';
 
 export const POST: APIRoute = async (context) => {
   const formData = await context.request.formData();
-  const email = String(formData.get('email') ?? '').trim().toLowerCase();
+  const email = normalizeEmail(formData.get('email'));
   const returnPath = validateIntelligenceReturnPath(formData.get('return_to'));
 
-  if (!email || email.length > 254 || !/^\S+@\S+\.\S+$/.test(email)) {
-    return signInRedirect(context, 'invalid', returnPath);
-  }
+  if (!email) return context.redirect(signInPath('/sign-in', 'invalid', returnPath), 303);
 
   const supabase = createSupabaseServerClient(context);
-  if (!supabase) {
-    return signInRedirect(context, 'configuration', returnPath);
-  }
+  if (!supabase) return context.redirect(signInPath('/sign-in', 'configuration', returnPath), 303);
 
-  const callbackUrl = new URL('/auth/callback', context.request.url);
-  if (returnPath) callbackUrl.searchParams.set('return_to', returnPath);
-  const { error } = await supabase.auth.signInWithOtp({
-    email,
-    options: {
-      shouldCreateUser: false,
-      emailRedirectTo: callbackUrl.toString(),
-    },
-  });
+  const outcome = await requestEmailCode(supabase, email, (error) =>
+    logPilotFailure('email_code_send_failed', error, { action: 'email_code' }),
+  );
+  if (outcome === 'rate_limited') return context.redirect(signInPath('/sign-in', 'rate-limited', returnPath), 303);
+  if (outcome === 'unavailable') return context.redirect(signInPath('/sign-in', 'unavailable', returnPath), 303);
 
-  if (error) logPilotFailure('magic_link_send_failed', error, { action: 'magic_link' });
-  return signInRedirect(context, error ? 'unavailable' : 'sent', returnPath);
+  writePendingSignIn(context.cookies, { email, sentAt: Date.now() }, context.request.url);
+  return context.redirect(signInPath('/sign-in/code', 'sent', returnPath), 303);
 };

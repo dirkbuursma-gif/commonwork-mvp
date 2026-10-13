@@ -7,7 +7,7 @@ test('unauthenticated members are redirected to invite-only sign-in', async ({ p
   await expect(page).toHaveURL(/\/sign-in$/);
   await expect(page.getByRole('heading', { name: 'Sign in to Commonwork' })).toBeVisible();
   await expect(page.getByLabel('Email address')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Send sign-in link' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Email me a code' })).toBeVisible();
   await expect(page.getByRole('link', { name: 'Contact Dirk' })).toHaveAttribute(
     'href',
     'mailto:dirk.buursma@commerce-partners.com',
