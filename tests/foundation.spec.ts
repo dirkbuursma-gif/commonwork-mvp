@@ -7,7 +7,12 @@ test('unauthenticated members are redirected to invite-only sign-in', async ({ p
   await expect(page).toHaveURL(/\/sign-in$/);
   await expect(page.getByRole('heading', { name: 'Sign in to Commonwork' })).toBeVisible();
   await expect(page.getByLabel('Email address')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Send sign-in link' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Email me a code' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Contact Dirk' })).toHaveAttribute(
+    'href',
+    'mailto:dirk.buursma@commerce-partners.com',
+  );
+  await expect(page.getByText('Do not email passwords or sensitive CV content.')).toBeVisible();
 
   await page.goto('/onboarding');
   await expect(page).toHaveURL(/\/sign-in$/);
@@ -93,6 +98,10 @@ test('local preview onboarding is read-only and supports dark mode', async ({ pa
   await page.goto('/onboarding');
 
   await expect(page.getByText('Database features require Supabase sign-in.')).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Contact Dirk' })).toHaveAttribute(
+    'href',
+    'mailto:dirk.buursma@commerce-partners.com',
+  );
   await expect(page.getByLabel('Name shown on your profile')).toHaveCount(0);
   await page.getByRole('button', { name: 'Switch to dark theme' }).click();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');

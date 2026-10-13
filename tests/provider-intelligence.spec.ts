@@ -28,6 +28,8 @@ test('a signed-in member can browse published intelligence and continue to Find'
   const member = await createLocalMember('Intelligence Browse Member');
   const context = await browser.newContext();
   try {
+    await member.client.from('profiles').insert({ id: member.id, display_name: 'Intelligence Browse Member' })
+      .then(({ error }) => expect(error).toBeNull());
     await context.addCookies(member.cookies.map(({ name, value }) => ({ name, value, url: 'http://127.0.0.1:4322' })));
     const page = await context.newPage();
     await page.goto('/intelligence');
@@ -40,6 +42,9 @@ test('a signed-in member can browse published intelligence and continue to Find'
     await page.getByRole('link', { name: 'Adobe Commerce' }).click();
     await expect(page.getByRole('heading', { name: 'Adobe Commerce', exact: true })).toBeVisible();
     await expect(page.getByRole('link', { name: 'Find competence' }).last()).toHaveAttribute('href', '/find');
+    const { data: viewEvents } = await createLocalAdminClient().from('member_activity_events')
+      .select('event_name').eq('profile_id', member.id).eq('event_name', 'commonwork_product_viewed');
+    expect(viewEvents).toHaveLength(1);
   } finally {
     await context.close();
     await member.remove();

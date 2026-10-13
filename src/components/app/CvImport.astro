@@ -1,0 +1,455 @@
+---
+import type { CompetenceOption } from '../../lib/cv-suggestions';
+
+interface Props {
+  competencies: CompetenceOption[];
+  existingSlugs: string[];
+}
+
+const { competencies, existingSlugs } = Astro.props;
+---
+
+<section
+  class="cv-import"
+  aria-labelledby="cv-import-title"
+  data-cv-import
+  data-competencies={JSON.stringify(competencies)}
+  data-existing-slugs={JSON.stringify(existingSlugs)}
+>
+  <h3 id="cv-import-title">Find possible matches in a CV <span class="field-optional">Optional</span></h3>
+  <p>We look for phrases from the shared competence vocabulary. These are suggestions, not verified claims. Your CV and extracted text stay in this browser; nothing is saved unless you complete the existing profile form.</p>
+  <p>DOCX or text-searchable PDF only, up to 5 MB, 10 PDF pages and 50,000 extracted characters. Scanned and password-protected files are not supported. You can always continue manually.</p>
+  <label class="field" for="cv-import-file">Choose a DOCX or searchable PDF
+    <input id="cv-import-file" type="file" accept=".docx,.pdf,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" />
+  </label>
+  <div class="cv-import-actions" data-cv-actions hidden>
+    <button class="btn small" type="button" data-cv-cancel hidden>Cancel import</button>
+    <button class="btn small" type="button" data-cv-clear>Clear CV suggestions</button>
+  </div>
+  <p class="form-notice" role="status" aria-live="polite" data-cv-status></p>
+  <div data-cv-results hidden>
+    <h4>Possible matches to review</h4>
+    <ul class="cv-suggestion-list" data-cv-list></ul>
+  </div>
+</section>
+
+<script>
+  import { findCompetenceSuggestions, type CompetenceOption, type CompetenceSuggestion } from '../../lib/cv-suggestions';
+
+  const root = document.querySelector<HTMLElement>('[data-cv-import]');
+  if (root) {
+    const fileInput = root.querySelector<HTMLInputElement>('#cv-import-file');
+    const status = root.querySelector<HTMLElement>('[data-cv-status]');
+    const controls = root.querySelector<HTMLElement>('[data-cv-actions]');
+    const cancelButton = root.querySelector<HTMLButtonElement>('[data-cv-cancel]');
+    const clearButton = root.querySelector<HTMLButtonElement>('[data-cv-clear]');
+    const results = root.querySelector<HTMLElement>('[data-cv-results]');
+    const list = root.querySelector<HTMLUListElement>('[data-cv-list]');
+    const competencySelect = document.querySelector<HTMLSelectElement>('#competency-id');
+    const memberStatement = document.querySelector<HTMLTextAreaElement>('#member-statement');
+    const competencies = JSON.parse(root.dataset.competencies ?? '[]') as CompetenceOption[];
+    const existingSlugs = new Set(JSON.parse(root.dataset.existingSlugs ?? '[]') as string[]);
+    const workerTimeoutMs = 30_000;
+    let suggestions: CompetenceSuggestion[] = [];
+    let activeWorker: Worker | null = null;
+    let activeWorkerTimeout: number | null = null;
+    let activePdfController: AbortController | null = null;
+    let activePdfTimeout: number | null = null;
+
+    const setPhase = (phase: string) => {
+      root.dataset.cvPhase = phase;
+      root.dispatchEvent(new CustomEvent('cv-import-phase', { bubbles: true, detail: phase }));
+    };
+
+    const clearSuggestions = () => {
+      suggestions = [];
+      list?.replaceChildren();
+      if (results) results.hidden = true;
+    };
+
+    const finishWorker = (worker: Worker) => {
+      worker.terminate();
+      if (activeWorker === worker) {
+        activeWorker = null;
+        if (activeWorkerTimeout !== null) window.clearTimeout(activeWorkerTimeout);
+        activeWorkerTimeout = null;
+      }
+      if (cancelButton) cancelButton.hidden = true;
+      if (controls) controls.hidden = false;
+    };
+
+    const finishPdf = (controller: AbortController) => {
+      if (activePdfController === controller) {
+        activePdfController = null;
+        if (activePdfTimeout !== null) window.clearTimeout(activePdfTimeout);
+        activePdfTimeout = null;
+      }
+      if (cancelButton) cancelButton.hidden = true;
+      if (controls) controls.hidden = false;
+    };
+
+    const cancelActiveImport = () => {
+      if (activeWorker) finishWorker(activeWorker);
+      if (activePdfController) {
+        const controller = activePdfController;
+        controller.abort();
+        finishPdf(controller);
+      }
+    };
+
+    const failureMessages: Record<string, string> = {
+      'too-many-pages': 'This PDF has more than 10 pages. Choose a shorter file or continue manually.',
+      'too-many-characters': 'The extracted text exceeds 50,000 characters. Choose a shorter file or continue manually.',
+      'no-searchable-text': 'No searchable text was found. Scanned PDFs are not supported; continue manually.',
+      'password-protected': 'Password-protected documents are not supported. Choose an unlocked file or continue manually.',
+      unreadable: 'This document could not be read. It may be damaged or unsupported; continue manually.',
+    };
+
+    const showFailure = (reason: string) => {
+      if (status) status.textContent = failureMessages[reason] ?? failureMessages.unreadable;
+    };
+
+    const showSuggestions = (text: string) => {
+      const result = findCompetenceSuggestions(text, competencies, existingSlugs);
+      suggestions = result.suggestions;
+      setPhase('suggestions-calculated');
+      renderSuggestions(result.duplicateCount);
+      setPhase('ui-updated');
+    };
+
+    const renderSuggestions = (duplicateCount: number) => {
+      if (!list || !results || !status) return;
+      list.replaceChildren();
+
+      suggestions.forEach((suggestion, index) => {
+        const item = document.createElement('li');
+        const heading = document.createElement('h5');
+        heading.textContent = suggestion.competence.name;
+        const reason = document.createElement('p');
+        reason.textContent = `Possible match: “${suggestion.matchedPhrase}” appears in the source. This does not verify the claim.`;
+        const context = document.createElement('details');
+        const summary = document.createElement('summary');
+        summary.textContent = 'Review source context';
+        const excerpt = document.createElement('blockquote');
+        excerpt.textContent = suggestion.sourceExcerpt;
+        context.append(summary, excerpt);
+        const actions = document.createElement('div');
+        actions.className = 'cv-suggestion-actions';
+        const useButton = document.createElement('button');
+        useButton.className = 'btn small primary';
+        useButton.type = 'button';
+        useButton.textContent = 'Use this match';
+        useButton.addEventListener('click', () => {
+          if (!competencySelect || !memberStatement) {
+            status.textContent = 'The profile form is unavailable. Please choose a competence manually.';
+            return;
+          }
+          competencySelect.value = suggestion.competence.id;
+          memberStatement.focus();
+          clearSuggestions();
+          status.textContent = 'Selected for review. Write your own statement and explicitly add it to your profile. CV text and excerpts have been cleared.';
+        });
+        const dismissButton = document.createElement('button');
+        dismissButton.className = 'btn small';
+        dismissButton.type = 'button';
+        dismissButton.textContent = 'Dismiss';
+        dismissButton.setAttribute('aria-label', `Dismiss ${suggestion.competence.name} match`);
+        dismissButton.addEventListener('click', () => {
+          suggestions = suggestions.filter((_, suggestionIndex) => suggestionIndex !== index);
+          renderSuggestions(duplicateCount);
+          status.textContent = 'Dismissed. This choice is not saved.';
+        });
+        actions.append(useButton, dismissButton);
+        item.append(heading, reason, context, actions);
+        list.append(item);
+      });
+
+      results.hidden = suggestions.length === 0;
+      const duplicateMessage = duplicateCount > 0
+        ? ` ${duplicateCount} match${duplicateCount === 1 ? ' was' : 'es were'} already on your profile and skipped.`
+        : '';
+      status.textContent = suggestions.length > 0
+        ? `${suggestions.length} possible match${suggestions.length === 1 ? '' : 'es'} found. Review the context and choose whether to use or dismiss each.${duplicateMessage}`
+        : `No new matches found.${duplicateMessage} Continue with manual onboarding.`;
+    };
+
+    fileInput?.addEventListener('change', async () => {
+      const file = fileInput.files?.[0];
+      if (!file || !status) return;
+
+      cancelActiveImport();
+      clearSuggestions();
+      status.textContent = '';
+      setPhase('selected');
+
+      const extension = file.name.split('.').pop()?.toLowerCase();
+      if (extension !== 'docx' && extension !== 'pdf') {
+        status.textContent = 'Choose a DOCX or PDF file. You can continue with manual onboarding.';
+        fileInput.value = '';
+        return;
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        status.textContent = 'This file is larger than 5 MB. Choose a smaller file or continue manually.';
+        fileInput.value = '';
+        return;
+      }
+      if (file.size === 0) {
+        status.textContent = 'This file is empty. Choose another file or continue manually.';
+        fileInput.value = '';
+        return;
+      }
+
+      if (extension === 'pdf') {
+        const controller = new AbortController();
+        activePdfController = controller;
+        if (controls) controls.hidden = false;
+        if (cancelButton) cancelButton.hidden = false;
+        status.textContent = 'Reading this file locally…';
+        setPhase('reading');
+        activePdfTimeout = window.setTimeout(() => {
+          if (activePdfController !== controller) return;
+          controller.abort();
+          finishPdf(controller);
+          fileInput.value = '';
+          clearSuggestions();
+          setPhase('timed-out');
+          status.textContent = 'CV reading took too long and was stopped. Try again or continue with manual entry.';
+        }, workerTimeoutMs);
+
+        try {
+          const bytes = await file.arrayBuffer();
+          if (controller.signal.aborted) return;
+          const { extractPdfText } = await import('../../lib/pdf-extraction');
+          if (controller.signal.aborted) return;
+          const result = await extractPdfText(bytes, controller.signal);
+          if (controller.signal.aborted) return;
+          finishPdf(controller);
+          fileInput.value = '';
+          if (!result.ok) {
+            setPhase('failed');
+            showFailure(result.reason);
+            return;
+          }
+          setPhase('suggesting');
+          showSuggestions(result.text);
+          setPhase('complete');
+        } catch {
+          if (controller.signal.aborted) return;
+          finishPdf(controller);
+          fileInput.value = '';
+          setPhase('failed');
+          showFailure('unreadable');
+        } finally {
+          if (activePdfController === controller) finishPdf(controller);
+        }
+        return;
+      }
+
+      let worker: Worker;
+      try {
+        worker = new Worker(new URL('../../workers/cv-extraction.worker.ts', import.meta.url), { type: 'module' });
+      } catch {
+        fileInput.value = '';
+        setPhase('failed');
+        status.textContent = 'CV reading could not start. Try another file or continue with manual entry.';
+        return;
+      }
+      activeWorker = worker;
+      if (controls) controls.hidden = false;
+      if (cancelButton) cancelButton.hidden = false;
+      status.textContent = 'Reading this file locally…';
+      setPhase('worker-starting');
+
+      let workerReady = false;
+      let fileBytes: ArrayBuffer | null = null;
+      const transferWhenReady = () => {
+        if (!workerReady || !fileBytes || activeWorker !== worker) return;
+        const bytes = fileBytes;
+        fileBytes = null;
+        try {
+          worker.postMessage({ type: 'extract', bytes }, [bytes]);
+          setPhase('buffer-transferred');
+        } catch {
+          if (activeWorker !== worker) return;
+          finishWorker(worker);
+          fileInput.value = '';
+          setPhase('failed');
+          status.textContent = 'The file could not be read in this browser. Try again or continue with manual entry.';
+        }
+      };
+
+      worker.onmessage = (event: MessageEvent<
+        | { type: 'ready' }
+        | { type: 'progress'; phase: 'extracting' }
+        | { type: 'result'; ok: true; text: string }
+        | { type: 'result'; ok: false; reason: string }
+      >) => {
+        if (activeWorker !== worker) return;
+        if (event.data.type === 'ready') {
+          workerReady = true;
+          setPhase('worker-ready');
+          transferWhenReady();
+          return;
+        }
+        if (event.data.type === 'progress') {
+          setPhase('extracting');
+          return;
+        }
+        finishWorker(worker);
+        fileInput.value = '';
+        setPhase('extraction-complete');
+        if (!event.data.ok) {
+          setPhase('failed');
+          showFailure(event.data.reason);
+          return;
+        }
+        setPhase('suggesting');
+        try {
+          showSuggestions(event.data.text);
+          setPhase('complete');
+        } catch {
+          clearSuggestions();
+          setPhase('failed');
+          status.textContent = 'CV suggestions could not be prepared. Try another file or continue with manual entry.';
+        }
+      };
+      worker.onerror = () => {
+        if (activeWorker !== worker) return;
+        finishWorker(worker);
+        fileInput.value = '';
+        setPhase('failed');
+        status.textContent = 'CV reading stopped unexpectedly. Try again or continue with manual entry.';
+      };
+      worker.onmessageerror = () => {
+        if (activeWorker !== worker) return;
+        finishWorker(worker);
+        fileInput.value = '';
+        setPhase('failed');
+        status.textContent = 'CV reading returned an invalid result. Try again or continue with manual entry.';
+      };
+      activeWorkerTimeout = window.setTimeout(() => {
+        if (activeWorker !== worker) return;
+        finishWorker(worker);
+        fileInput.value = '';
+        clearSuggestions();
+        setPhase('timed-out');
+        status.textContent = 'CV reading took too long and was stopped. Try again or continue with manual entry.';
+      }, workerTimeoutMs);
+
+      try {
+        const bytes = await file.arrayBuffer();
+        if (activeWorker !== worker) return;
+        fileBytes = bytes;
+        setPhase('file-read');
+        transferWhenReady();
+      } catch {
+        finishWorker(worker);
+        fileInput.value = '';
+        setPhase('failed');
+        status.textContent = 'The file could not be read in this browser. Try again or continue with manual entry.';
+      }
+    });
+
+    cancelButton?.addEventListener('click', () => {
+      cancelActiveImport();
+      fileInput && (fileInput.value = '');
+      clearSuggestions();
+      if (status) status.textContent = 'Import cancelled. Transient CV content was cleared.';
+      setPhase('cancelled');
+    });
+
+    clearButton?.addEventListener('click', () => {
+      cancelActiveImport();
+      fileInput && (fileInput.value = '');
+      clearSuggestions();
+      if (status) status.textContent = 'CV content and suggestions cleared.';
+      setPhase('cleared');
+    });
+
+    window.addEventListener('pagehide', () => {
+      cancelActiveImport();
+      clearSuggestions();
+      if (fileInput) fileInput.value = '';
+    }, { once: true });
+  }
+</script>
+
+<style>
+  .cv-import {
+    display: grid;
+    gap: 10px;
+    margin: 22px 0;
+    padding: 18px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--offset);
+  }
+
+  .cv-import h3,
+  .cv-import h4,
+  .cv-import h5,
+  .cv-import p {
+    margin: 0;
+  }
+
+  .cv-import h3 {
+    font-size: 1rem;
+  }
+
+  .cv-import > p {
+    color: var(--muted);
+    font-size: 0.88rem;
+  }
+
+  .cv-import-actions,
+  .cv-suggestion-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .cv-suggestion-list {
+    display: grid;
+    gap: 12px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .cv-suggestion-list li {
+    display: grid;
+    gap: 8px;
+    min-width: 0;
+    padding: 14px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--panel);
+  }
+
+  .cv-suggestion-list h5 {
+    font-size: 0.98rem;
+  }
+
+  .cv-suggestion-list p,
+  .cv-suggestion-list blockquote {
+    color: var(--muted);
+    font-size: 0.86rem;
+    overflow-wrap: anywhere;
+  }
+
+  .cv-suggestion-list blockquote {
+    margin: 8px 0 0;
+    padding-left: 12px;
+    border-left: 2px solid var(--line);
+  }
+
+  @media (max-width: 520px) {
+    .cv-import {
+      padding: 14px;
+    }
+
+    .cv-suggestion-actions .btn {
+      flex: 1 1 auto;
+    }
+  }
+</style>

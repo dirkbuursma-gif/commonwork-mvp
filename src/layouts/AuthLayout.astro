@@ -1,5 +1,6 @@
 ---
 import ThemeToggle from '../components/app/ThemeToggle.astro';
+import SupportContact from '../components/app/SupportContact.astro';
 import '../styles/tokens.css';
 import '../styles/global.css';
 import '../styles/components.css';
@@ -23,5 +24,13 @@ const { title } = Astro.props;
   <body>
     <div class="auth-top-actions"><ThemeToggle /></div>
     <slot />
+    <div class="auth-support"><SupportContact /></div>
   </body>
 </html>
+
+<style>
+  .auth-support {
+    width: min(1120px, calc(100% - 40px));
+    margin: 0 auto;
+  }
+</style>

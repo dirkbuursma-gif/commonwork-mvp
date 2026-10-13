@@ -5,7 +5,9 @@ values
   ('agentic-commerce', 'Agentic Commerce', 'Commerce capabilities that help systems represent products, connect workflows and take bounded action with appropriate controls.', 'A readiness badge, a single platform feature or proof that autonomous buying is dependable in every context.', 1, true, 'commonwork-intelligence-v1'),
   ('commerce-platforms', 'Commerce Platforms', 'Transactional and operational systems for catalogues, pricing, promotions, carts, checkout and commerce workflows.', 'A complete commerce architecture by itself; fit depends on adjacent data, integrations, fulfilment and operating capabilities.', 2, true, 'commonwork-intelligence-v1'),
   ('product-data-enrichment', 'Product Data & Enrichment', 'Capabilities that structure, govern, enrich and distribute product content for people, channels and machine-readable discovery.', 'A guarantee of discoverability or conversion; source quality, governance and distribution still matter.', 3, true, 'commonwork-intelligence-v1'),
-  ('contact-centre-service-automation', 'Contact Centre & Service Automation', 'Customer-service platforms and automation that support agents, resolve bounded requests and connect service activity to commerce operations.', 'Unsupervised replacement of service teams; escalation, policy and operational ownership remain essential.', 4, true, 'commonwork-intelligence-v1')
+  ('contact-centre-service-automation', 'Contact Centre & Service Automation', 'Customer-service platforms and automation that support agents, resolve bounded requests and connect service activity to commerce operations.', 'Unsupervised replacement of service teams; escalation, policy and operational ownership remain essential.', 4, true, 'commonwork-intelligence-v1'),
+  ('ecommerce-operations-support', 'Ecommerce Operations & Support Services', 'Managed teams that carry out repeatable ecommerce operations on a retailer''s behalf, such as catalogue and listing maintenance, marketplace support, product-data tasks and customer support.', 'Software, or a replacement for in-house trading, merchandising and platform decisions; scope, service levels, quality controls and data access are agreed per engagement.', 5, true, 'commonwork-intelligence-v1'),
+  ('integration-automation', 'Integration & Automation', 'Tools and services that connect commerce, data and back-office systems, and monitor and maintain those connections, including AI-assisted integration build and repair.', 'Not a substitute for clear system ownership, integration governance, or source-of-truth decisions; data contracts, access control, change approval, and incident responsibility still need an owner.', 6, true, 'commonwork-intelligence-v1')
 on conflict (slug) do update set
   name = excluded.name,
   what_it_is = excluded.what_it_is,
@@ -19,13 +21,14 @@ insert into public.providers (
   imported_at, reviewed_at, reviewed_by, is_seed_data, seed_batch
 )
 values
-  ('begen', 'Begen', 'https://www.begen.ai', 'Provider of AdMultify creative automation and Begen AI capabilities.', 'cp-provider-export-2026-09-02', 'begen', 'https://www.begen.ai', '2026-10-07T00:00:00Z', '2026-10-07T00:00:00Z', 'Commerce Partners public catalogue review', true, 'commonwork-intelligence-v1'),
-  ('benext', 'Benext', 'https://www.benext.com', 'Provider of Benext AI services and Be.cited generative-search visibility capabilities.', 'cp-provider-export-2026-09-02', 'benext', 'https://www.benext.com', '2026-10-07T00:00:00Z', '2026-10-07T00:00:00Z', 'Commerce Partners public catalogue review', true, 'commonwork-intelligence-v1'),
+  ('begen', 'Begen', 'https://www.begen.ai', 'Provider of AdMultify creative automation.', 'cp-provider-export-2026-09-02', 'begen', 'https://www.begen.ai', '2026-10-07T00:00:00Z', '2026-10-07T00:00:00Z', 'Commerce Partners public catalogue review', true, 'commonwork-intelligence-v1'),
+  ('benext', 'Benext', 'https://www.benext.com', 'Provider of Be.cited generative-search visibility capabilities.', 'cp-provider-export-2026-09-02', 'benext', 'https://www.benext.com', '2026-10-07T00:00:00Z', '2026-10-07T00:00:00Z', 'Commerce Partners public catalogue review', true, 'commonwork-intelligence-v1'),
   ('bloomreach', 'Bloomreach', 'https://www.bloomreach.com', 'Commerce experience, discovery and engagement products.', 'cp-provider-export-2026-09-02', 'bloomreach-discovery', 'https://www.bloomreach.com', '2026-10-07T00:00:00Z', '2026-10-07T00:00:00Z', 'Commerce Partners public catalogue review', true, 'commonwork-intelligence-v1'),
   ('adobe', 'Adobe', 'https://www.adobe.com', 'Commerce and digital-asset capabilities within the Adobe product ecosystem.', 'cp-provider-export-2026-09-02', 'adobe-commerce-magento', 'https://www.adobe.com', '2026-10-07T00:00:00Z', '2026-10-07T00:00:00Z', 'Commerce Partners public catalogue review', true, 'commonwork-intelligence-v1'),
   ('kibo', 'Kibo', 'https://kibocommerce.com', 'Composable commerce and order-management products.', 'cp-provider-export-2026-09-02', 'kibo-commerce', 'https://kibocommerce.com', '2026-10-07T00:00:00Z', '2026-10-07T00:00:00Z', 'Commerce Partners public catalogue review', true, 'commonwork-intelligence-v1'),
   ('salesforce', 'Salesforce', 'https://www.salesforce.com', 'Commerce, personalization, order-management and customer-service products.', 'cp-provider-export-2026-09-02', 'salesforce', 'https://www.salesforce.com', '2026-10-07T00:00:00Z', '2026-10-07T00:00:00Z', 'Commerce Partners public catalogue review', true, 'commonwork-intelligence-v1'),
   ('rierino', 'Rierino', 'https://www.rierino.com', 'Commerce orchestration and product-information capabilities.', 'cp-provider-export-2026-09-02', 'rierino', 'https://www.rierino.com', '2026-10-07T00:00:00Z', '2026-10-07T00:00:00Z', 'Commerce Partners public catalogue review', true, 'commonwork-intelligence-v1'),
+  ('vtex', 'VTEX', 'https://vtex.com', 'Connected commerce suite spanning digital commerce, B2B, marketplace, order management and headless storefront options.', 'cp-provider-export-2026-09-02', 'vtex', 'https://vtex.com', '2026-10-07T00:00:00Z', null, null, true, 'commonwork-intelligence-v1'),
   ('informatica', 'Informatica', 'https://www.informatica.com', 'Enterprise data-management and product-information capabilities.', 'cp-provider-export-2026-09-02', 'informatica', 'https://www.informatica.com', '2026-10-07T00:00:00Z', '2026-10-07T00:00:00Z', 'Commerce Partners public catalogue review', true, 'commonwork-intelligence-v1'),
   ('catsy', 'Catsy', 'https://www.catsy.com', 'Product information and digital-asset management capabilities.', 'cp-provider-export-2026-09-02', 'catsy', 'https://www.catsy.com', '2026-10-07T00:00:00Z', '2026-10-07T00:00:00Z', 'Commerce Partners public catalogue review', true, 'commonwork-intelligence-v1'),
   ('telus-international', 'TELUS International', 'https://www.telusinternational.com', 'Customer experience and service operations.', 'cp-provider-export-2026-09-02', 'telus-international', 'https://www.telusinternational.com', '2026-10-07T00:00:00Z', '2026-10-07T00:00:00Z', 'Commerce Partners public catalogue review', true, 'commonwork-intelligence-v1'),
@@ -43,6 +46,26 @@ on conflict (source_system, source_record_id) do update set
   is_seed_data = excluded.is_seed_data,
   seed_batch = excluded.seed_batch;
 
+insert into public.providers (
+  slug, name, website_url, summary, source_system, source_record_id, source_url,
+  imported_at, reviewed_at, reviewed_by, is_seed_data, seed_batch, provider_type
+)
+values
+  ('plumbed', 'Plumbed', 'https://www.plumbed.io', 'Integration build, monitoring and repair for commerce and SaaS environments.', 'cp-provider-export-2026-09-02', 'plumbed', 'https://www.plumbed.io', '2026-10-07T00:00:00Z', null, null, true, 'commonwork-intelligence-v1', 'software_vendor'),
+  ('staffcloud', 'Staffcloud', 'https://staffcloud.net', 'Managed back-office and catalogue operations support for ecommerce retailers.', 'cp-provider-export-2026-09-02', 'staffcloud', 'https://staffcloud.net', '2026-10-07T00:00:00Z', null, null, true, 'commonwork-intelligence-v1', 'service_partner')
+on conflict (source_system, source_record_id) do update set
+  slug = excluded.slug,
+  name = excluded.name,
+  website_url = excluded.website_url,
+  summary = excluded.summary,
+  source_url = excluded.source_url,
+  imported_at = excluded.imported_at,
+  reviewed_at = excluded.reviewed_at,
+  reviewed_by = excluded.reviewed_by,
+  is_seed_data = excluded.is_seed_data,
+  seed_batch = excluded.seed_batch,
+  provider_type = excluded.provider_type;
+
 insert into public.provider_products (
   provider_id, slug, name, summary, operating_layer, contribution_role, evidence_maturity,
   merchant_fit, boundary_and_dependencies, buyer_validation_questions, architecture,
@@ -53,8 +76,10 @@ select
   p.id, s.slug, s.name, s.summary, s.operating_layer, s.contribution_role, s.evidence_maturity,
   s.merchant_fit, s.boundary_and_dependencies, s.buyer_validation_questions, s.architecture,
   s.deployment_model, s.capabilities_summary, 'cp-platform-catalogue-2026-10-07', s.source_record_id,
-  s.source_url, '2026-10-07T00:00:00Z', '2026-10-07T00:00:00Z',
-  'Commerce Partners public catalogue review', true, 'commonwork-intelligence-v1'
+  s.source_url, '2026-10-07T00:00:00Z',
+  case when s.slug = 'vtex-commerce-platform' then null else '2026-10-07T00:00:00Z'::timestamptz end,
+  case when s.slug = 'vtex-commerce-platform' then null else 'Commerce Partners public catalogue review' end,
+  true, 'commonwork-intelligence-v1'
 from (values
   ('begen', 'begen', 'begen', 'AI-agent and conversational experience services for web, messaging and voice channels.', 'AI agent development', 'Cross-stack orchestration layer', 'Claimed', array['Retailers exploring bounded conversational workflows'], 'Validate data ownership, escalation paths, permissions, integrations and human oversight.', array['Which business system owns the source-of-truth data this product depends on?', 'What controls govern hand-off when the agent is uncertain?'], 'LLM-based assistant services', 'Services / implementation', 'Agent design, build and operation', 'plat-b6udqv7u0', 'https://www.begen.ai'),
   ('begen', 'admultify', 'AdMultify', 'AI creative automation that generates and adapts campaign assets from a key visual.', 'AI creative', 'Commercial-meaning foundation', 'Claimed', array['Retailers and brands producing campaign variants'], 'Validate rights, review workflows, source assets and distribution destinations.', array['How are asset rights and brand rules enforced?', 'What human approval is required before publication?'], 'Creative automation', 'SaaS', 'Static and video creative variants; campaign workflows', 'plat-admultify', 'https://www.begen.ai'),
@@ -64,6 +89,7 @@ from (values
   ('adobe', 'adobe-commerce', 'Adobe Commerce', 'Commerce platform for catalogue, checkout, promotions, APIs and extensible workflows.', 'Commerce platform', 'Cross-stack orchestration layer', 'Documented', array['Enterprise and complex B2B/B2C commerce'], 'Qualify licensing, deployment, integrations, implementation capacity and operating cost.', array['Which extensions are essential?', 'How are upgrades and customizations governed?'], 'Extensible commerce platform', 'Cloud / self-managed options', 'B2B, B2C, catalogue, checkout and APIs', 'plat-8g0v6t0dk', 'https://business.adobe.com/products/commerce/magento.html'),
   ('adobe', 'adobe-experience-manager-assets', 'Adobe Experience Manager Assets', 'Digital asset management for rights, workflows, metadata and asset delivery.', 'Digital asset management', 'Commercial-meaning foundation', 'Documented', array['Large multi-brand organizations with governed asset workflows'], 'Distinct from product information management; validate rights and delivery integrations.', array['How are asset rights represented?', 'Which channels receive approved renditions?'], 'Digital asset management', 'Enterprise SaaS', 'Asset lifecycle, metadata, rights and dynamic delivery', 'plat-adobe-experience-manager-assets', 'https://business.adobe.com/products/experience-manager/assets/aem-assets.html'),
   ('kibo', 'kibo-commerce', 'Kibo Commerce', 'Composable commerce platform for catalogue, checkout, orders and multi-market operations.', 'Commerce platform', 'Cross-stack orchestration layer', 'Documented', array['Mid-market teams seeking modular commerce'], 'Validate North American operating fit, implementation scope and integration ownership.', array['Which commerce functions remain outside the platform?', 'What is the operating model for extensions?'], 'Composable commerce platform', 'SaaS', 'Catalogue, checkout, orders and integrations', 'plat-zsc42vx3o', 'https://kibocommerce.com'),
+  ('vtex', 'vtex-commerce-platform', 'VTEX Commerce Platform', 'Connected commerce suite for digital commerce, B2B, marketplace and seller management, order management, headless storefronts and APIs.', 'Commerce platform', 'Integrated commerce suite with modular extension', 'Documented', array['Enterprise brands and retailers needing B2C, B2B and marketplace functionality in one capability set'], 'Validate operating geography and local ecosystem, B2B depth, marketplace governance, integration limits and the GMV-based cost model at scale.', array['Which marketplace, seller and B2B requirements does the suite cover natively?', 'Where are the integration and API limits, and who owns extensions?', 'How does cost develop as GMV grows?'], 'Cloud SaaS; connected commerce with pragmatic composability', 'Cloud SaaS', 'Digital commerce, B2B, marketplace and seller management, OMS, headless storefront options, APIs and omnichannel capability', 'plat-czu1ajo74', 'https://vtex.com/en-us/vtex-io/'),
   ('kibo', 'kibo-order-management', 'Kibo Order Management', 'Order management capabilities connecting inventory, sourcing and fulfilment decisions.', 'Order management', 'Operational-truth foundation', 'Claimed', array['Retailers coordinating inventory and fulfilment across channels'], 'Validate dependency on commerce, ERP, inventory and carrier systems.', array['How are inventory sources reconciled?', 'How are exception and split-order decisions controlled?'], 'Order management system', 'SaaS', 'Order orchestration and fulfilment workflows', 'plat-kibo-order-management', 'https://kibocommerce.com'),
   ('salesforce', 'salesforce-commerce-cloud', 'Salesforce Commerce Cloud', 'Enterprise commerce suite for catalogue, checkout and multi-channel transactions.', 'Commerce platform', 'Cross-stack orchestration layer', 'Documented', array['Enterprise teams using Salesforce commerce and customer systems'], 'Qualify licensing, integration boundaries, extensibility and implementation complexity.', array['Which customer and product data is authoritative?', 'How are extensions and releases governed?'], 'Enterprise commerce platform', 'SaaS', 'B2B/B2C commerce, catalogue, checkout and APIs', 'plat-6ukswb758', 'https://www.salesforce.com/commerce/'),
   ('salesforce', 'salesforce-personalization', 'Salesforce Personalization', 'Real-time customer personalization across Salesforce commerce and marketing touchpoints.', 'Personalization', 'Discovery foundation', 'Documented', array['Teams with consented customer data and measurable journeys'], 'Fit depends on identity, consent, source data and the Salesforce operating environment.', array['Which consent state governs activation?', 'How are audience rules audited?'], 'Customer data and personalization', 'Cloud service', 'Segmentation, personalization and journey activation', 'plat-salesforce-personalization', 'https://www.salesforce.com/marketing/personalization/'),
@@ -101,19 +127,132 @@ on conflict (source_system, source_record_id) do update set
   is_seed_data = excluded.is_seed_data,
   seed_batch = excluded.seed_batch;
 
+-- Geoffy comes from its own partner intake (self-submitted, 2026-09-14), not the catalogue export.
+insert into public.providers (
+  slug, name, website_url, summary, source_system, source_record_id, source_url,
+  imported_at, reviewed_at, reviewed_by, is_seed_data, seed_batch
+)
+values (
+  'geoffy', 'Geoffy', 'https://geoffy.ai',
+  'Provider of a GEO (generative engine optimisation) platform that makes e-commerce product data readable and citable by AI shopping assistants.',
+  'cp-partner-intake-2026-09-14', 'geoffy', 'https://geoffy.ai',
+  '2026-09-14T00:00:00Z', null, null,
+  true, 'commonwork-intelligence-v1'
+)
+on conflict (source_system, source_record_id) do update set
+  slug = excluded.slug,
+  name = excluded.name,
+  website_url = excluded.website_url,
+  summary = excluded.summary,
+  source_url = excluded.source_url,
+  imported_at = excluded.imported_at,
+  reviewed_at = excluded.reviewed_at,
+  reviewed_by = excluded.reviewed_by,
+  is_seed_data = excluded.is_seed_data,
+  seed_batch = excluded.seed_batch;
+
+-- Plumbed and Staffcloud: copy comes from the Commerce Partners partner pages (plumbed.md, staffcloud.md).
+-- Provider-published performance metrics are deliberately not reproduced.
+insert into public.provider_products (
+  provider_id, slug, name, summary, operating_layer, contribution_role, evidence_maturity,
+  merchant_fit, boundary_and_dependencies, buyer_validation_questions, architecture,
+  deployment_model, capabilities_summary, source_system, source_record_id, source_url,
+  imported_at, reviewed_at, reviewed_by, is_seed_data, seed_batch
+)
+select
+  p.id, s.slug, s.name, s.summary, s.operating_layer, s.contribution_role, s.evidence_maturity,
+  s.merchant_fit, s.boundary_and_dependencies, s.buyer_validation_questions, s.architecture,
+  s.deployment_model, s.capabilities_summary, 'cp-platform-catalogue-2026-10-07', s.source_record_id,
+  s.source_url, '2026-10-07T00:00:00Z', null,
+  null, true, 'commonwork-intelligence-v1'
+from (values
+  ('plumbed', 'plumbed-integration-platform', 'Plumbed', 'Builds, monitors and repairs integrations, positioned as a lower-overhead alternative to recurring custom integration projects.', 'Integration platform', 'Integration build, monitoring and repair', 'Claimed', array['Businesses with complex multi-system integration landscapes', 'Teams dealing with recurring API changes, schema drift and integration incidents'], 'Public messaging emphasises the build, operate and heal lifecycle; no named customers or quantitative metrics are published. Validate system ownership, access control and repair approval before relying on it.', array['Which repairs are applied automatically and which need human approval?', 'How are API and schema changes detected and reported?'], 'AI-assisted integration lifecycle', 'To confirm with provider', 'Build: prompt-driven integration design. Operate: monitoring of flow health, errors and schema or API changes. Heal: governed, AI-assisted diagnosis and controlled repair.', 'plat-r9rfrnwb1', 'https://www.plumbed.io'),
+  ('staffcloud', 'staffcloud-managed-ecommerce-support', 'Staffcloud managed ecommerce support', 'Managed back-office and catalogue operations capacity for Shopify and Magento retailers.', 'Managed service', 'Catalogue and back-office operations capacity', 'Claimed', array['Shopify and Shopify Plus merchants with growing product, marketplace and customer-support workloads', 'Magento and Adobe Commerce retailers that need execution capacity around catalogue, listing and support workflows'], 'A managed service, not software. Scope, service levels, data access and quality controls are agreed per engagement; provider-published performance figures are not reproduced here.', array['Which tasks, systems and permissions are in scope?', 'How is catalogue quality checked and reported?'], 'Managed service delivery', 'Managed delivery', 'Shopify and Magento catalogue operations, marketplace and listing support, Amazon Vendor Central item setup and attribute backfilling, customer support services and catalogue quality audits.', 'plat-3c7pkmauy', 'https://staffcloud.net/services/ecommerce-product-support-services/')
+) as s(provider_slug, slug, name, summary, operating_layer, contribution_role, evidence_maturity,
+        merchant_fit, boundary_and_dependencies, buyer_validation_questions, architecture,
+        deployment_model, capabilities_summary, source_record_id, source_url)
+join public.providers p on p.slug = s.provider_slug
+on conflict (source_system, source_record_id) do update set
+  provider_id = excluded.provider_id,
+  slug = excluded.slug,
+  name = excluded.name,
+  summary = excluded.summary,
+  operating_layer = excluded.operating_layer,
+  contribution_role = excluded.contribution_role,
+  evidence_maturity = excluded.evidence_maturity,
+  merchant_fit = excluded.merchant_fit,
+  boundary_and_dependencies = excluded.boundary_and_dependencies,
+  buyer_validation_questions = excluded.buyer_validation_questions,
+  architecture = excluded.architecture,
+  deployment_model = excluded.deployment_model,
+  capabilities_summary = excluded.capabilities_summary,
+  source_url = excluded.source_url,
+  imported_at = excluded.imported_at,
+  reviewed_at = excluded.reviewed_at,
+  reviewed_by = excluded.reviewed_by,
+  is_seed_data = excluded.is_seed_data,
+  seed_batch = excluded.seed_batch;
+
+-- Geoffy product.
+insert into public.provider_products (
+  provider_id, slug, name, summary, operating_layer, contribution_role, evidence_maturity,
+  merchant_fit, boundary_and_dependencies, buyer_validation_questions, architecture,
+  deployment_model, capabilities_summary, source_system, source_record_id, source_url,
+  imported_at, reviewed_at, reviewed_by, is_seed_data, seed_batch
+)
+select
+  p.id, 'geoffy', 'Geoffy',
+  'GEO platform for e-commerce that restructures product data so AI assistants such as ChatGPT, Perplexity, Gemini and Google AI Overviews can find, understand and cite products, then measures the result.',
+  'AI product discoverability', 'Machine-readable product-data layer', 'Claimed',
+  array['Merchants with medium to large product catalogues'],
+  'Sits alongside the existing SEO stack, agency and CMS; it does not replace them. Improves the odds of being cited but cannot guarantee placement in AI answers. Needs admin access to a Shopify or WordPress store and reasonably complete product data.',
+  array['How is AI-referred traffic measured today, and which baseline will the trial use?', 'Which product attributes and comparison context does Geoffy generate, and who approves them?', 'How does it coexist with the current schema, SEO and feed tooling?'],
+  'Point solution on top of the storefront and catalogue',
+  'Shopify app, WooCommerce plugin and headless package (Next.js, Astro)',
+  'AI visibility audit, product-data structuring for answer engines, and monitoring of citations and AI-referred traffic.',
+  'cp-partner-intake-2026-09-14', 'geoffy', 'https://geoffy.ai',
+  '2026-09-14T00:00:00Z', null, null,
+  true, 'commonwork-intelligence-v1'
+from public.providers p
+where p.slug = 'geoffy'
+on conflict (source_system, source_record_id) do update set
+  provider_id = excluded.provider_id,
+  slug = excluded.slug,
+  name = excluded.name,
+  summary = excluded.summary,
+  operating_layer = excluded.operating_layer,
+  contribution_role = excluded.contribution_role,
+  evidence_maturity = excluded.evidence_maturity,
+  merchant_fit = excluded.merchant_fit,
+  boundary_and_dependencies = excluded.boundary_and_dependencies,
+  buyer_validation_questions = excluded.buyer_validation_questions,
+  architecture = excluded.architecture,
+  deployment_model = excluded.deployment_model,
+  capabilities_summary = excluded.capabilities_summary,
+  source_url = excluded.source_url,
+  imported_at = excluded.imported_at,
+  reviewed_at = excluded.reviewed_at,
+  reviewed_by = excluded.reviewed_by,
+  is_seed_data = excluded.is_seed_data,
+  seed_batch = excluded.seed_batch;
+
 delete from public.provider_links l
 using public.provider_products pp
 where l.provider_product_id = pp.id
   and pp.is_seed_data
   and pp.seed_batch = 'commonwork-intelligence-v1';
 
+delete from public.provider_category_memberships m
+using public.provider_products pp
+where m.provider_product_id = pp.id
+  and pp.slug in ('begen', 'benext-ai');
+
 insert into public.provider_category_memberships (provider_product_id, category_id, fit_summary, sort_order)
 select pp.id, pc.id, s.fit_summary, s.sort_order
 from (values
-  ('begen', 'agentic-commerce', 'AI agent development; validate permissions, escalation and operational control.', 1),
   ('admultify', 'agentic-commerce', 'Creative automation; review rights, brand controls and channel approval.', 2),
-  ('benext-ai', 'agentic-commerce', 'Conversational and agent services; validate hand-off and system permissions.', 3),
   ('be-cited', 'agentic-commerce', 'Generative-search visibility; treat monitoring as evidence, not a ranking guarantee.', 4),
+  ('geoffy', 'agentic-commerce', 'Makes product data legible to AI shopping assistants; treat it as improving the odds, not guaranteeing placement.', 3),
   ('bloomreach-discovery', 'agentic-commerce', 'Discovery capabilities that depend on governed catalogues and ranking controls.', 5),
   ('salesforce-personalization', 'agentic-commerce', 'Personalized experiences depend on consented identity and source data.', 6),
   ('adobe-commerce', 'commerce-platforms', 'Enterprise commerce suite; qualify complexity, licensing and extension model.', 1),
@@ -122,13 +261,17 @@ from (values
   ('salesforce-commerce-cloud', 'commerce-platforms', 'Enterprise commerce in a broader Salesforce operating environment.', 4),
   ('salesforce-order-management', 'commerce-platforms', 'Order and inventory coordination across regions and systems.', 5),
   ('rierino-commerce-platform', 'commerce-platforms', 'Cross-stack commerce orchestration; clarify system and operating ownership.', 6),
+  ('vtex-commerce-platform', 'commerce-platforms', 'Integrated enterprise suite with marketplace, B2B and order management; qualify geography, governance and cost model.', 7),
   ('adobe-experience-manager-assets', 'product-data-enrichment', 'Digital assets and rights; complementary to, not synonymous with, PIM.', 1),
   ('rierino', 'product-data-enrichment', 'Product information capabilities within a broader commerce platform.', 2),
+  ('geoffy', 'product-data-enrichment', 'Restructures existing product data for machine-readable discovery; depends on source catalogue quality.', 5),
   ('informatica-product-360', 'product-data-enrichment', 'Enterprise PIM/MDM; assess stewardship and integration capacity.', 3),
   ('catsy-pim-dam', 'product-data-enrichment', 'Product content and media management with publishing workflows.', 4),
   ('salesforce-service-cloud', 'contact-centre-service-automation', 'Service workflows; validate automation permissions and escalation.', 1),
   ('telus-international', 'contact-centre-service-automation', 'Managed service operations; validate regions and service boundaries.', 2),
   ('genesys-cloud', 'contact-centre-service-automation', 'Omnichannel contact-centre platform; validate routing and audit controls.', 3),
+  ('plumbed-integration-platform', 'integration-automation', 'Integration build, monitoring and repair; validate ownership, access and repair approval.', 1),
+  ('staffcloud-managed-ecommerce-support', 'ecommerce-operations-support', 'Managed catalogue and back-office operations; validate scope, service levels and data access.', 1),
   ('zendesk', 'contact-centre-service-automation', 'Support workflows; review automation and marketplace integration controls.', 4)
 ) as s(product_slug, category_slug, fit_summary, sort_order)
 join public.provider_products pp on pp.slug = s.product_slug
@@ -140,10 +283,9 @@ on conflict (provider_product_id, category_id) do update set
 insert into public.provider_links (provider_product_id, link_type, label, url, sort_order)
 select pp.id, 'official', 'Official product information', s.url, 1
 from (values
-  ('begen', 'https://www.begen.ai'),
   ('admultify', 'https://www.begen.ai'),
-  ('benext-ai', 'https://www.benext.com'),
   ('be-cited', 'https://www.benext.com'),
+  ('geoffy', 'https://geoffy.ai'),
   ('bloomreach-discovery', 'https://www.bloomreach.com/en/products/discovery'),
   ('adobe-commerce', 'https://business.adobe.com/products/commerce/magento.html'),
   ('adobe-experience-manager-assets', 'https://business.adobe.com/products/experience-manager/assets/aem-assets.html'),
@@ -155,10 +297,13 @@ from (values
   ('salesforce-service-cloud', 'https://www.salesforce.com/products/service-cloud/'),
   ('rierino-commerce-platform', 'https://www.rierino.com'),
   ('rierino', 'https://www.rierino.com'),
+  ('vtex-commerce-platform', 'https://vtex.com/en-us/vtex-io/'),
   ('informatica-product-360', 'https://www.informatica.com'),
   ('catsy-pim-dam', 'https://www.catsy.com'),
   ('telus-international', 'https://www.telusinternational.com'),
   ('genesys-cloud', 'https://www.genesys.com'),
+  ('plumbed-integration-platform', 'https://www.plumbed.io'),
+  ('staffcloud-managed-ecommerce-support', 'https://staffcloud.net'),
   ('zendesk', 'https://www.zendesk.com')
 ) as s(product_slug, url)
 join public.provider_products pp on pp.slug = s.product_slug;
@@ -179,6 +324,12 @@ from (values
   ('product-data-enrichment', 'product-information-management', 'expertise', 'Ownership and publishing of structured product information.', 1),
   ('product-data-enrichment', 'product-data-quality', 'common_need', 'Data completeness and consistency shape downstream product use.', 2),
   ('contact-centre-service-automation', 'customer-experience', 'expertise', 'Customer service journeys and experience operations.', 1),
+  ('ecommerce-operations-support', 'retail-operations', 'expertise', 'Repeatable retail operating processes carried out by managed teams.', 1),
+  ('ecommerce-operations-support', 'product-data-quality', 'common_need', 'Catalogue completeness and consistency drive much of the outsourced work.', 2),
+  ('ecommerce-operations-support', 'workflow-automation', 'related', 'Managed work is increasingly combined with bounded automation.', 3),
+  ('integration-automation', 'systems-integration', 'expertise', 'Connecting and maintaining interfaces between business systems.', 1),
+  ('integration-automation', 'commerce-architecture', 'related', 'Integration boundaries and dependencies shape the commerce architecture.', 2),
+  ('integration-automation', 'workflow-automation', 'related', 'Automated build and repair of integrations needs bounded controls.', 3),
   ('contact-centre-service-automation', 'workflow-automation', 'related', 'Bounded automation with escalation and exception handling.', 2)
 ) as s(category_slug, competency_slug, relationship_type, relevance_note, sort_order)
 join public.provider_categories pc on pc.slug = s.category_slug
@@ -191,7 +342,13 @@ on conflict (category_id, competency_id) do update set
   seed_batch = 'commonwork-intelligence-v1';
 
 insert into public.provider_publication_status (provider_id, status, public_disclosure_note, published_at)
-select p.id, 'published', 'Local demo copy of a public Commerce Partners catalogue profile. Not a certification or endorsement.', '2026-10-07T00:00:00Z'
+select p.id,
+  case when p.slug in ('plumbed', 'staffcloud', 'geoffy', 'vtex') then 'draft' else 'published' end,
+  case when p.slug in ('plumbed', 'staffcloud', 'geoffy', 'vtex')
+    then 'Draft: pending Commonwork review before public release.'
+    else 'Local demo copy of a public Commerce Partners catalogue profile. Not a certification or endorsement.'
+  end,
+  case when p.slug in ('plumbed', 'staffcloud', 'geoffy', 'vtex') then null else '2026-10-07T00:00:00Z'::timestamptz end
 from public.providers p
 where p.is_seed_data and p.seed_batch = 'commonwork-intelligence-v1'
 on conflict (provider_id) where provider_id is not null do update set
@@ -201,15 +358,26 @@ on conflict (provider_id) where provider_id is not null do update set
   retired_at = null,
   retired_by = null;
 
-insert into public.provider_publication_status (provider_product_id, status, public_disclosure_note, published_at)
-select pp.id, 'published', 'Local demo copy of a public Commerce Partners catalogue profile. Confirm current fit, evidence and dependencies before relying on it.', '2026-10-07T00:00:00Z'
+insert into public.provider_publication_status (provider_product_id, status, public_disclosure_note, published_at, retired_at)
+select pp.id,
+  case when pp.slug in ('begen', 'benext-ai') then 'retired'
+    when pp.slug in ('plumbed-integration-platform', 'staffcloud-managed-ecommerce-support', 'geoffy', 'vtex-commerce-platform') then 'draft'
+    else 'published' end,
+  case when pp.slug in ('begen', 'benext-ai')
+    then 'Retired: Begen is represented by AdMultify and Benext by Be.cited.'
+    when pp.slug in ('plumbed-integration-platform', 'staffcloud-managed-ecommerce-support', 'geoffy', 'vtex-commerce-platform')
+    then 'Draft: pending Commonwork review before public release.'
+    else 'Local demo copy of a public Commerce Partners catalogue profile. Confirm current fit, evidence and dependencies before relying on it.'
+  end,
+  case when pp.slug in ('plumbed-integration-platform', 'staffcloud-managed-ecommerce-support', 'geoffy', 'vtex-commerce-platform') then null else '2026-10-07T00:00:00Z'::timestamptz end,
+  case when pp.slug in ('begen', 'benext-ai') then now() end
 from public.provider_products pp
 where pp.is_seed_data and pp.seed_batch = 'commonwork-intelligence-v1'
 on conflict (provider_product_id) where provider_product_id is not null do update set
   status = excluded.status,
   public_disclosure_note = excluded.public_disclosure_note,
   published_at = excluded.published_at,
-  retired_at = null,
+  retired_at = excluded.retired_at,
   retired_by = null;
 
 commit;
@@ -231,18 +399,26 @@ from (values
   ('salesforce-order-management', 'systems-integration', 'related', 'Order data flows across commerce and service systems.'),
   ('rierino-commerce-platform', 'composable-commerce', 'expertise', 'Composable, API-led commerce capability.'),
   ('rierino-commerce-platform', 'commerce-architecture', 'related', 'Architecture and integration pattern fit.'),
+  ('vtex-commerce-platform', 'commerce-platforms', 'expertise', 'Integrated enterprise commerce platform capability.'),
+  ('vtex-commerce-platform', 'composable-commerce', 'related', 'Connected suite with modular, headless and API extension options.'),
+  ('vtex-commerce-platform', 'platform-assessment', 'related', 'Qualify geography, marketplace governance, integration limits and cost model.'),
   ('informatica-product-360', 'product-information-management', 'expertise', 'Product information governance and mastering.'),
   ('informatica-product-360', 'product-data-quality', 'common_need', 'Data completeness and consistency controls.'),
   ('catsy-pim-dam', 'product-information-management', 'expertise', 'PIM and DAM for product content.'),
   ('catsy-pim-dam', 'product-data-enrichment', 'expertise', 'Enrichment and channel distribution.'),
   ('adobe-experience-manager-assets', 'product-data-enrichment', 'related', 'Asset management supports product content enrichment.'),
-  ('begen', 'agentic-commerce', 'expertise', 'AI agent development for commerce workflows.'),
-  ('begen', 'ai-agent-governance', 'related', 'Permissions and escalation need validation.'),
-  ('benext-ai', 'agentic-commerce', 'related', 'Conversational and agent services.'),
-  ('benext-ai', 'ai-agent-governance', 'related', 'Hand-off and system permission controls.'),
+  ('admultify', 'agentic-commerce', 'related', 'Creative automation; validate rights, brand controls and approval.'),
+  ('be-cited', 'agentic-commerce', 'related', 'Generative-search visibility; validate sources and evidence.'),
+  ('geoffy', 'agentic-commerce', 'related', 'Product data prepared for AI shopping assistants; validate sources and measurement.'),
+  ('geoffy', 'product-data-enrichment', 'expertise', 'Structures and enriches product data for answer engines.'),
+  ('geoffy', 'product-data-quality', 'common_need', 'Needs a reasonably complete catalogue as input.'),
   ('bloomreach-discovery', 'product-discovery-optimization', 'expertise', 'Search and discovery capability.'),
   ('salesforce-personalization', 'customer-experience', 'related', 'Personalization depends on consented identity data.'),
   ('genesys-cloud', 'customer-experience', 'expertise', 'Contact-centre journeys and routing.'),
+  ('plumbed-integration-platform', 'systems-integration', 'expertise', 'Integration build, monitoring and repair.'),
+  ('plumbed-integration-platform', 'workflow-automation', 'related', 'Governed, AI-assisted repair workflows.'),
+  ('staffcloud-managed-ecommerce-support', 'retail-operations', 'expertise', 'Managed catalogue and back-office operations.'),
+  ('staffcloud-managed-ecommerce-support', 'product-data-quality', 'related', 'Catalogue quality audits and attribute maintenance.'),
   ('genesys-cloud', 'workflow-automation', 'related', 'Bounded service automation.'),
   ('zendesk', 'customer-experience', 'expertise', 'Service operations platform.'),
   ('zendesk', 'human-centered-automation', 'related', 'Automation with agent oversight.'),

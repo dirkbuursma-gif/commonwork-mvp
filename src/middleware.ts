@@ -4,8 +4,12 @@ import { validateIntelligenceReturnPath } from './lib/auth-return-path';
 
 const publicPaths = new Set([
   '/sign-in',
+  '/sign-in/code',
   '/auth/callback',
   '/api/auth/sign-in',
+  '/api/auth/resend-code',
+  '/api/auth/change-email',
+  '/api/auth/verify-code',
   '/api/auth/test-session',
   '/api/auth/end-test-session',
   '/api/internal/notifications/dispatch',

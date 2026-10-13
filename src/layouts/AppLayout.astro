@@ -1,6 +1,7 @@
 ---
 import AppNav from '../components/app/AppNav.astro';
 import ThemeToggle from '../components/app/ThemeToggle.astro';
+import SupportContact from '../components/app/SupportContact.astro';
 import '../styles/tokens.css';
 import '../styles/global.css';
 import '../styles/components.css';
@@ -50,6 +51,7 @@ const name =
           </div>
         </header>
         <main id="main-content"><slot /></main>
+        <SupportContact />
       </div>
     </div>
   </body>

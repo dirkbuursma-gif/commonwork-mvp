@@ -6,6 +6,8 @@ export interface MemberProfile {
   professional_summary: string;
   what_i_contribute: string;
   what_i_am_exploring: string;
+  base_country_code: string | null;
+  markets_served: string[];
   profile_visibility: 'private' | 'members';
   onboarding_completed: boolean;
   created_at: string;
@@ -18,6 +20,8 @@ export interface DiscoverableProfile {
   professional_summary: string;
   what_i_contribute: string;
   what_i_am_exploring: string;
+  base_country_code: string | null;
+  markets_served: string[];
 }
 
 export interface ProfileCompetence {
@@ -85,7 +89,7 @@ export async function getDiscoverableProfile(
 ): Promise<DiscoverableProfile | null> {
   const { data, error } = await client
     .from('discoverable_profiles')
-    .select('id, display_name, professional_summary, what_i_contribute, what_i_am_exploring')
+    .select('id, display_name, professional_summary, what_i_contribute, what_i_am_exploring, base_country_code, markets_served')
     .eq('id', profileId)
     .maybeSingle();
   if (error) throw error;

@@ -242,3 +242,15 @@ export async function getRelevantExperts(
     competencies: [...(competenciesByProfile.get(profile.id) ?? [])],
   })) as RelevantExpert[];
 }
+// Best-effort intent signal; a tracking failure must never break the page.
+export async function recordCatalogueView(
+  client: SupabaseClient,
+  subjectType: 'provider' | 'provider_product',
+  slug: string,
+): Promise<void> {
+  try {
+    await client.rpc('record_catalogue_view', { target_subject_type: subjectType, target_slug: slug });
+  } catch {
+    // ignored intentionally
+  }
+}

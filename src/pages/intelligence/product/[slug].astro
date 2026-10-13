@@ -2,7 +2,7 @@
 import AppLayout from '../../../layouts/AppLayout.astro';
 import EmptyState from '../../../components/app/EmptyState.astro';
 import { createSupabaseServerClient } from '../../../lib/supabase/server';
-import { getProviderProductBySlug } from '../../../lib/provider-intelligence';
+import { getProviderProductBySlug, recordCatalogueView } from '../../../lib/provider-intelligence';
 import '../../../styles/intelligence.css';
 
 const user = Astro.locals.user;
@@ -13,6 +13,7 @@ let loadError = false;
 if (supabase) {
   try {
     result = await getProviderProductBySlug(supabase, Astro.params.slug ?? '');
+    if (result) await recordCatalogueView(supabase, 'provider_product', Astro.params.slug ?? '');
   } catch {
     loadError = true;
   }

@@ -8,11 +8,12 @@ const configured = Boolean(
 const status = Astro.url.searchParams.get('status');
 const returnPath = validateIntelligenceReturnPath(Astro.url.searchParams.get('return_to'));
 const notices: Record<string, { text: string; error: boolean }> = {
-  sent: { text: 'If this address belongs to an invited member, a sign-in link is on its way.', error: false },
   'signed-out': { text: 'You have signed out.', error: false },
   invalid: { text: 'Enter a valid email address and try again.', error: true },
-  unavailable: { text: 'We could not send a sign-in link just now. Please try again shortly.', error: true },
-  'invalid-link': { text: 'That sign-in link is invalid or has expired. Request another one.', error: true },
+  unavailable: { text: 'We could not send a sign-in code just now. Please try again shortly.', error: true },
+  'rate-limited': { text: 'Too many sign-in codes have been requested. Please wait a while before requesting another.', error: true },
+  expired: { text: 'Your sign-in session has expired. Enter your email address to request a new code.', error: true },
+  'invalid-link': { text: 'That sign-in link is invalid or has expired. Request a sign-in code instead.', error: true },
   configuration: { text: 'Sign-in is not configured yet. Contact your Commonwork administrator.', error: true },
 };
 const notice = status ? notices[status] : undefined;
@@ -41,16 +42,16 @@ const notice = status ? notices[status] : undefined;
       <div class="auth-card">
         <div class="eyebrow">Invite-only access</div>
         <h2>Sign in to Commonwork</h2>
-        <p>Use the email address connected to your invitation. We’ll send you a secure sign-in link.</p>
+        <p>Use the email address connected to your invitation. We’ll email you a code to sign in.</p>
         {notice && <p class:list={['form-notice', { error: notice.error }]} role="status">{notice.text}</p>}
         {configured ? (
-          <form method="post" action="/api/auth/sign-in">
+          <form method="post" action="/api/auth/sign-in" data-submit-once>
             {returnPath && <input type="hidden" name="return_to" value={returnPath} />}
             <label class="field" for="email">
               Email address
               <input id="email" name="email" type="email" autocomplete="email" required maxlength="254" />
             </label>
-            <button class="btn primary" type="submit">Send sign-in link</button>
+            <button class="btn primary" type="submit">Email me a code</button>
             <p class="form-footnote">New accounts can only be created by invitation.</p>
           </form>
         ) : (
@@ -68,3 +69,8 @@ const notice = status ? notices[status] : undefined;
     </section>
   </main>
 </AuthLayout>
+
+<script>
+  import { enableSubmitOnce } from '../lib/submit-once';
+  enableSubmitOnce();
+</script>

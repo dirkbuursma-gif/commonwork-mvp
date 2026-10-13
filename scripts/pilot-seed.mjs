@@ -18,6 +18,7 @@ const organisations = [
   { slug: 'demo-catsy', name: 'Catsy (demo affiliation)', type: 'vendor', provider: 'catsy', summary: 'Demo organisation linked to the catalogue provider. Members are fictional.' },
   { slug: 'demo-genesys', name: 'Genesys (demo affiliation)', type: 'vendor', provider: 'genesys', summary: 'Demo organisation linked to the catalogue provider. Members are fictional.' },
   { slug: 'demo-begen', name: 'Begen (demo affiliation)', type: 'vendor', provider: 'begen', summary: 'Demo organisation linked to the catalogue provider. Members are fictional.' },
+  { slug: 'demo-benext', name: 'Benext (demo affiliation)', type: 'vendor', provider: 'benext', summary: 'Demo organisation linked to the catalogue provider. Members are fictional.' },
   {
     slug: 'meridian-commerce-partners', name: 'Meridian Commerce Partners (fictional)', type: 'si_gtm',
     summary: 'Fictional systems integrator for commerce replatforming and integration.',
@@ -59,6 +60,9 @@ const people = [
   ['Elena Rossi', 'demo-catsy', 'Customer Success Lead', ['product-information-management', 'product-data-enrichment', 'product-data-quality']],
   ['Yusuf Demir', 'demo-genesys', 'Service Automation Specialist', ['customer-experience', 'workflow-automation', 'human-centered-automation']],
   ['Clara Hoffmann', 'demo-begen', 'Agent Governance Lead', ['ai-agent-governance', 'agentic-commerce', 'workflow-automation']],
+  ['Mila Costa', 'demo-begen', 'Creative Automation Lead', ['workflow-automation', 'knowledge-sharing']],
+  ['Noor Janssen', 'demo-benext', 'Visibility Analyst', ['evidence-led-decision-making', 'knowledge-sharing']],
+  ['Daan Bakker', 'demo-benext', 'Content Strategy Lead', ['evidence-led-decision-making', 'stakeholder-alignment']],
   ['Anouk de Wit', 'meridian-commerce-partners', 'Principal Consultant', ['replatforming-strategy', 'commerce-platforms', 'program-leadership']],
   ['Kwame Mensah', 'meridian-commerce-partners', 'Integration Lead', ['systems-integration', 'commerce-architecture', 'composable-commerce']],
   ['Lena Fischer', 'lattice-data-studio', 'Data Practice Lead', ['product-data-enrichment', 'product-data-quality', 'product-information-management']],
@@ -66,6 +70,13 @@ const people = [
   ['Oliver Grant', 'orbit-gtm', 'GTM Strategist', ['go-to-market-design', 'partner-development', 'partner-ecosystems']],
   ['Greta Nilsson', 'nilsson-advisory', 'Independent Advisor', ['vendor-evaluation', 'enterprise-procurement', 'commercial-negotiation']],
   ['Commonwork Curator', null, 'Pilot curator and connector', ['platform-assessment', 'stakeholder-alignment', 'knowledge-sharing'], 'open', true],
+];
+
+const productAffiliations = [
+  { member: 'Clara Hoffmann', product: 'admultify' },
+  { member: 'Mila Costa', product: 'admultify' },
+  { member: 'Noor Janssen', product: 'be-cited' },
+  { member: 'Daan Bakker', product: 'be-cited' },
 ];
 
 const needs = [
@@ -259,6 +270,13 @@ async function seed(config) {
       ok('Link affiliation', await admin.from('profile_organisations').insert({
         profile_id: created.id, organisation_id: orgId.get(organisation), role_title: role,
         is_seed_data: true, seed_batch: batch,
+      }));
+    }
+    for (const affiliation of productAffiliations.filter((item) => item.member === name)) {
+      if (!productId.has(affiliation.product)) throw new Error(`Unknown product ${affiliation.product}.`);
+      ok('Link product affiliation', await admin.from('profile_product_affiliations').insert({
+        profile_id: created.id, provider_product_id: productId.get(affiliation.product), role_title: role,
+        consent_given: true, consented_at: new Date().toISOString(), is_seed_data: true, seed_batch: batch,
       }));
     }
     if (isConnector) {

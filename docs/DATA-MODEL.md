@@ -25,6 +25,10 @@
 | `introduction_feedback` | Relevance and conversation outcome after an introduction |
 | `notifications` | Recipient-only in-app introduction lifecycle updates |
 | `introduction_audit` | Private actor/action/state-transition audit history |
+| `providers` | Curated provider identity with a `provider_type` of `software_vendor`, `service_partner` or `organisation` |
+| `provider_products` | Provider-owned software products or packaged service records |
+| `provider_categories` | Curated catalogue categories and their definitions |
+| `provider_publication_status` | Curator-controlled draft, published or retired status for providers and products |
 
 ## Competence and evidence
 
@@ -42,7 +46,7 @@ Evidence records can reference projects, outcomes or peer validations. Private e
 
 ### Batch 2 implementation
 
-The first competence-profile migration implements these profile fields: `id`, `display_name`, `professional_summary`, `what_i_contribute`, `what_i_am_exploring`, `profile_visibility`, `onboarding_completed`, `created_at` and `updated_at`. Profile visibility is `private` or `members`, defaulting to `private`.
+The first competence-profile migration implements these profile fields: `id`, `display_name`, `professional_summary`, `what_i_contribute`, `what_i_am_exploring`, `profile_visibility`, `onboarding_completed`, `created_at` and `updated_at`. Profile visibility is `private` or `members`, defaulting to `private`. The geography migration adds optional, member-entered `base_country_code` and `markets_served` fields. Database and application validation use the same fixed ISO alpha-2 allowlist; markets are limited to 20 unique, non-null codes. Geography is not inferred and does not affect matching or ranking.
 
 Each profile competence has one canonical `competency_id`, a member-authored statement, an evidence status and an explicit `discoverable` flag. A unique constraint prevents duplicate assignments. Members may set only `declared` or `demonstrated`; peer-confirmed and outcome-verified states require future confirmation workflows.
 
@@ -50,14 +54,14 @@ Evidence has a title, context, contribution, outcome, optional HTTP(S) link and 
 
 Contact preferences default closed: all conversation-type booleans are false, availability is `unavailable`, and monthly conversation capacity is zero. Capacity must be non-negative. The owner-only `contact_preferences` table contains `commercial_approaches`; the public projection deliberately excludes it.
 
-Canonical competencies are seeded and changed through migrations. Members submit missing terms to `competency_suggestions`, where they remain `pending`; member roles cannot edit canonical vocabulary or approve suggestions.
+Canonical competencies are seeded and changed through migrations. Members submit missing terms to `competency_suggestions`, where they remain `pending`; member roles cannot edit canonical vocabulary or approve suggestions. Contact-centre automation impact evaluation, staffing-capacity planning and event coordination are practical-capability terms. Related vocabulary concepts are editorial context only; they do not assert proficiency, verification or matching weight.
 
 Onboarding completion is calculated in PostgreSQL from a non-empty display name, professional summary and contribution statement, at least one competence, at least one evidence item, and saved contact preferences. Clients cannot set the completion flag.
 
 ### Member-facing read boundaries
 
 - `get_my_profile()` returns profile details only for `auth.uid()`.
-- `discoverable_profiles` returns only `id`, `display_name`, `professional_summary`, `what_i_contribute` and `what_i_am_exploring`, and only for completed profiles marked `members`.
+- `discoverable_profiles` returns only `id`, `display_name`, `professional_summary`, `what_i_contribute`, `what_i_am_exploring`, `base_country_code` and `markets_served`, and only for completed profiles marked `members`.
 - `discoverable_contact_preferences` returns explicitly opted-in conversation types, availability and capacity for discoverable profiles; it excludes `commercial_approaches`.
 - `discoverable_member_competencies` returns only active competencies explicitly marked discoverable on completed member profiles.
 - `member_match_reasons` returns explanation fields only to the requester; `member_match_feedback` returns feedback only to its creator.
@@ -72,9 +76,17 @@ A need captures a business outcome, problem to solve, essential and useful compe
 
 `organisations` (type `retailer`, `vendor`, `si_gtm`, `advisor`, `other`; vendors may reference a catalogue `provider_id`) with `profile_organisations` (member, organisation, role title, one primary per member). Capability links: `product_competency_links`, `organisation_competency_links` and `organisation_product_links` (`implements`, `certified_on`, `integrates`). Needs gain `retailer_organisation_id` (the owner must belong to it, enforced by trigger), `retailer_segment`, `current_stack_note` and `project_context`; these are visible on `network` needs, so members should not enter confidential detail.
 
-Trust model: all organisation, affiliation and capability writes are service-role (curator) only, so members cannot self-declare vendor or partner affiliations. Affiliations are readable for the member's own row and for discoverable profiles; product and partner links only when the product and provider are published. `get_need_product_suggestions` and `get_need_partner_suggestions` return results to the need owner only. Matching never uses organisation membership as a relationship signal or a score input; it is shown as commercial-affiliation disclosure.
+Trust model: all organisation, affiliation and capability writes are service-role (curator) only, so members cannot self-declare vendor or partner affiliations. `profile_product_affiliations` records a member's affiliation with one specific provider product. It requires the member to also belong to the organisation that represents the product's provider, and it is shown to other members only when the member has consented and the product and provider are published. Each public provider is a separate identity with its own products; shared ownership between providers (for example Begen/AdMultify and Benext/Be.cited) is deliberately not modelled. Affiliations are readable for the member's own row and for discoverable profiles; product and partner links only when the product and provider are published. `get_need_product_suggestions` and `get_need_partner_suggestions` return results to the need owner only. Matching never uses organisation membership as a relationship signal or a score input; it is shown as commercial-affiliation disclosure.
 
-Local fictional demo data: `npm run pilot:seed` / `npm run pilot:clear` (`scripts/pilot-seed.mjs`) create about 20 synthetic members (`@pilot.example.test`), 14 organisations, 5 needs and 4 introductions through the real RPCs. The script refuses non-localhost Supabase hosts. Set `PILOT_SEED_PASSWORD` (12+ characters) for a known sign-in password; otherwise passwords are random.
+Provider catalogue: `providers.provider_type` distinguishes `software_vendor`, `service_partner` and `organisation`; existing providers default to `software_vendor`. `provider_products` holds provider offerings, which are software products or packaged managed-service records, with `operating_layer` and `deployment_model` clarifying the offer type. Publication is controlled per provider and per product through `provider_publication_status`, and draft or retired records are excluded from member-facing reads. Categories and their competency links are curator-managed seed data. `supabase/seed.sql` resets the publication status of every seeded record on each run, so it is a local and demo seed and must not be used to overwrite reviewed publication decisions in a shared environment.
+
+Staffcloud is a `service_partner` with a managed ecommerce support record; Plumbed is a `software_vendor` with an integration platform record. Both are seeded as drafts pending review, and provider-published performance figures are deliberately not reproduced. In local and demo seed data, `imported_at` may reflect the seed baseline used for catalogue rows rather than a literal automated upstream import event for every record. `source_system`, `source_record_id` and `source_url` record source provenance and remain distinct from Commonwork editorial review: `reviewed_at` and `reviewed_by` are set together only after that review is complete. The current `reviewed_by` field is a text identity, not a profile foreign key. Quid is deferred from the public catalogue as a future Finance Operations / Back-office Automation candidate.
+
+Local fictional demo data: `npm run pilot:seed` / `npm run pilot:clear` (`scripts/pilot-seed.mjs`) create about 23 synthetic members (`@pilot.example.test`), 14 organisations, 5 needs and 4 introductions through the real RPCs. The script refuses non-localhost Supabase hosts. Set `PILOT_SEED_PASSWORD` (12+ characters) for a known sign-in password; otherwise passwords are random.
+
+## Intent signals
+
+Internal-only `member_activity_events` plus the `member_intent_scores` and `organisation_intent_scores` views record that meaningful actions happened, never their content. See [INTENT-SIGNALS.md](./INTENT-SIGNALS.md).
 
 ## Matching
 
