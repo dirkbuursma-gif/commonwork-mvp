@@ -1,0 +1,108 @@
+---
+import AuthLayout from '../../layouts/AuthLayout.astro';
+import { validateIntelligenceReturnPath } from '../../lib/auth-return-path';
+import { readPendingSignIn, resendSecondsRemaining } from '../../lib/email-code-auth';
+
+const pending = readPendingSignIn(Astro.cookies);
+const returnPath = validateIntelligenceReturnPath(Astro.url.searchParams.get('return_to'));
+if (!pending) {
+  const target = new URL('/sign-in', Astro.url);
+  target.searchParams.set('status', 'expired');
+  if (returnPath) target.searchParams.set('return_to', returnPath);
+  return Astro.redirect(`${target.pathname}${target.search}`, 303);
+}
+
+const status = Astro.url.searchParams.get('status');
+const resendSeconds = resendSecondsRemaining(pending);
+const notices: Record<string, { text: string; error: boolean }> = {
+  sent: { text: 'If this address belongs to an invited member, a sign-in code is on its way.', error: false },
+  'invalid-code': { text: 'That code is invalid or has expired. Check it and try again, or request a new code.', error: true },
+  'invalid-format': { text: 'Enter the numeric code from your email.', error: true },
+  'rate-limited': { text: 'Too many attempts. Please wait a while before trying again.', error: true },
+  unavailable: { text: 'We could not complete that just now. Please try again shortly.', error: true },
+  wait: { text: 'Please wait a moment before requesting another code.', error: true },
+};
+const notice = status ? notices[status] : undefined;
+---
+
+<AuthLayout title="Enter your code">
+  <main class="auth-page">
+    <section class="auth-intro" aria-label="Commonwork">
+      <a class="brand" href="/sign-in">
+        <svg class="brand-mark" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+          <path d="M7 10.5 16 5l9 5.5v11L16 27l-9-5.5v-11Z" stroke="currentColor" stroke-width="2" />
+          <path d="m7.5 10.7 8.5 5.1 8.5-5.1M16 15.8V27" stroke="currentColor" stroke-width="2" />
+          <circle cx="16" cy="16" r="2.5" fill="currentColor" />
+        </svg>
+        <span>Commonwork</span>
+      </a>
+      <div class="auth-copy">
+        <div class="eyebrow">Competence, in good company</div>
+        <h1>Make useful work visible.</h1>
+        <p>Connect what you know with what someone needs, through an introduction that makes sense to both of you.</p>
+      </div>
+      <p class="auth-note">A private professional network for thoughtful work and trusted introductions.</p>
+    </section>
+
+    <section class="auth-side">
+      <div class="auth-card">
+        <div class="eyebrow">Invite-only access</div>
+        <h2>Enter your sign-in code</h2>
+        <p>Open the email we sent to {pending.email} and enter the code below.</p>
+        {notice && <p class:list={['form-notice', { error: notice.error }]} role="status">{notice.text}</p>}
+        <form method="post" action="/api/auth/verify-code" data-submit-once>
+          {returnPath && <input type="hidden" name="return_to" value={returnPath} />}
+          <label class="field" for="code">
+            Sign-in code
+            <input
+              id="code"
+              name="code"
+              type="text"
+              inputmode="numeric"
+              autocomplete="one-time-code"
+              autocapitalize="off"
+              spellcheck="false"
+              required
+              maxlength="32"
+            />
+          </label>
+          <button class="btn primary" type="submit">Sign in</button>
+        </form>
+        <form method="post" action="/api/auth/resend-code" data-submit-once>
+          {returnPath && <input type="hidden" name="return_to" value={returnPath} />}
+          <button class="btn" type="submit" data-resend data-cooldown-seconds={resendSeconds} disabled={resendSeconds > 0}>
+            {resendSeconds > 0 ? `Request a new code in ${resendSeconds}s` : 'Request a new code'}
+          </button>
+        </form>
+        <form method="post" action="/api/auth/change-email">
+          {returnPath && <input type="hidden" name="return_to" value={returnPath} />}
+          <button class="btn" type="submit">Use a different email address</button>
+        </form>
+      </div>
+    </section>
+  </main>
+</AuthLayout>
+
+<script>
+  import { enableSubmitOnce } from '../../lib/submit-once';
+  enableSubmitOnce();
+
+  const resend = document.querySelector<HTMLButtonElement>('button[data-resend]');
+  const seconds = Number(resend?.dataset.cooldownSeconds ?? 0);
+  if (resend && seconds > 0) {
+    const until = Date.now() + seconds * 1000;
+    resend.dataset.cooldownUntil = String(until);
+    const tick = () => {
+      const left = Math.ceil((until - Date.now()) / 1000);
+      if (left <= 0) {
+        delete resend.dataset.cooldownUntil;
+        resend.disabled = false;
+        resend.textContent = 'Request a new code';
+        return;
+      }
+      resend.textContent = `Request a new code in ${left}s`;
+      setTimeout(tick, 1000);
+    };
+    tick();
+  }
+</script>
