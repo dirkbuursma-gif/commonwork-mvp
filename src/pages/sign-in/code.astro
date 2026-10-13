@@ -74,7 +74,10 @@ const notice = status ? notices[status] : undefined;
             {resendSeconds > 0 ? `Request a new code in ${resendSeconds}s` : 'Request a new code'}
           </button>
         </form>
-        <p class="form-footnote"><a href="/sign-in">Use a different email address</a></p>
+        <form method="post" action="/api/auth/change-email">
+          {returnPath && <input type="hidden" name="return_to" value={returnPath} />}
+          <button class="btn" type="submit">Use a different email address</button>
+        </form>
       </div>
     </section>
   </main>

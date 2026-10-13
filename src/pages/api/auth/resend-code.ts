@@ -15,6 +15,7 @@ export const POST: APIRoute = async (context) => {
   const returnPath = validateIntelligenceReturnPath(formData.get('return_to'));
   const pending = readPendingSignIn(context.cookies);
   if (!pending) return context.redirect(signInPath('/sign-in', 'expired', returnPath), 303);
+  // UX guard against accidental double requests only; the cookie is client-controlled (see email-code-auth.ts).
   if (resendSecondsRemaining(pending) > 0) {
     return context.redirect(signInPath('/sign-in/code', 'wait', returnPath), 303);
   }

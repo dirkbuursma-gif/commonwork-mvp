@@ -1,3 +1,7 @@
+// The pending cookie is unsigned and client-controlled: a modified cookie can change the resend target
+// and its send time. The resend cooldown only prevents ordinary accidental retries; it is not an
+// abuse-prevention boundary. Supabase enforces the upstream rate limits, and the initial sign-in
+// endpoint has no application-level cooldown.
 export const PENDING_SIGN_IN_COOKIE = 'cw_signin_pending';
 export const PENDING_SIGN_IN_MAX_AGE_SECONDS = 15 * 60;
 export const RESEND_COOLDOWN_SECONDS = 60;
@@ -25,7 +29,8 @@ export function normalizeEmail(value: unknown): string | null {
   return email;
 }
 
-// Pasted codes often carry spaces or hyphens; the length is left to Supabase's configured OTP length.
+// Codes stay strings so leading zeros survive. Pasted spaces or hyphens are stripped; the exact length
+// is left to Supabase's configured OTP length (8 on staging), so a 6-10 digit range is accepted.
 export function normalizeCode(value: unknown): string | null {
   if (typeof value !== 'string' || value.length > 32) return null;
   const code = value.replace(/[\s-]/g, '');

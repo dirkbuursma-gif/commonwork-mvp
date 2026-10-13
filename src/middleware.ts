@@ -8,6 +8,7 @@ const publicPaths = new Set([
   '/auth/callback',
   '/api/auth/sign-in',
   '/api/auth/resend-code',
+  '/api/auth/change-email',
   '/api/auth/verify-code',
   '/api/auth/test-session',
   '/api/auth/end-test-session',

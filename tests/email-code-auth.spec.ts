@@ -155,6 +155,12 @@ test('pending sign-in cookie round-trips only the email and send time and reject
   expect(options[0]).toMatchObject({ httpOnly: true, sameSite: 'lax', secure: true, path: '/' });
 });
 
+test('resend cooldown is a UX guard on an unsigned cookie, so a modified send time is accepted by design', () => {
+  const forged = decodePendingSignIn(encodePendingSignIn({ email: 'other@example.test', sentAt: 0 }));
+  expect(forged).toEqual({ email: 'other@example.test', sentAt: 0 });
+  expect(resendSecondsRemaining(forged!, 1_000_000)).toBe(0);
+});
+
 test('resend cooldown counts down and never goes negative', () => {
   const pending = { email: 'a@b.co', sentAt: 1_000_000 };
   expect(resendSecondsRemaining(pending, 1_000_000)).toBe(RESEND_COOLDOWN_SECONDS);
@@ -304,4 +310,42 @@ test('a wrong code and a non-invited address give generic, safe outcomes', async
 test('protected routes still redirect unauthenticated members to sign-in', async ({ page }) => {
   await page.goto('/today');
   await expect(page).toHaveURL(/\/sign-in$/);
+});
+
+test('use a different email clears only the pending cookie and requests no email', async ({ page, context }) => {
+  await withPendingCookie(context);
+  await context.addCookies([{ name: 'unrelated_cookie', value: 'keep', url: baseURL }]);
+  let supabaseRequests = 0;
+  await page.route('**/auth/v1/**', async (route) => {
+    supabaseRequests += 1;
+    await route.abort();
+  });
+
+  await page.goto('/sign-in/code?return_to=%2Fintelligence');
+  await expect(page.getByText('synthetic.member@example.test')).toBeVisible();
+  await page.getByRole('button', { name: 'Use a different email address' }).click();
+  await expect(page).toHaveURL(/\/sign-in\?return_to=%2Fintelligence$/);
+
+  const cookies = await context.cookies(baseURL);
+  expect(cookies.find((c) => c.name === 'cw_signin_pending')).toBeUndefined();
+  expect(cookies.find((c) => c.name === 'unrelated_cookie')?.value).toBe('keep');
+
+  await page.goto('/sign-in/code');
+  await expect(page).toHaveURL(/\/sign-in\?status=expired$/);
+  await expect(page.getByText('synthetic.member@example.test')).toHaveCount(0);
+  expect(supabaseRequests).toBe(0);
+});
+
+test('change-email endpoint expires the cookie header and drops hostile return_to', async ({ page }) => {
+  const response = await page.request.post('/api/auth/change-email', {
+    form: { return_to: '//evil.test' },
+    maxRedirects: 0,
+    headers: { origin: baseURL },
+  });
+  expect(response.status()).toBe(303);
+  expect(response.headers().location).toBe('/sign-in');
+  const setCookie = response.headers()['set-cookie'] ?? '';
+  expect(setCookie).toContain('cw_signin_pending=');
+  expect(setCookie).toMatch(/Expires=Thu, 01 Jan 1970/);
+  expect(setCookie).not.toContain('auth-token');
 });
