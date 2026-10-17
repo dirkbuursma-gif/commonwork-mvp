@@ -1,6 +1,28 @@
 ---
 import AppLayout from '../../layouts/AppLayout.astro';
 import EmptyState from '../../components/app/EmptyState.astro';
+import { createSupabaseServerClient } from '../../lib/supabase/server';
+import { listPublishedEvents, formatEventDate, lisbonPreviewEvent, type EventSummary } from '../../lib/events';
+import '../../styles/events.css';
+
+export const prerender = false;
+
+const user = Astro.locals.user;
+const localPreview = user?.isLocalTestUser === true;
+const supabase = localPreview ? null : createSupabaseServerClient(Astro);
+
+let events: EventSummary[] = [];
+let loadError = false;
+if (supabase) {
+  try {
+    events = await listPublishedEvents(supabase);
+  } catch {
+    loadError = true;
+  }
+}
+if (import.meta.env.DEV && events.length === 0 && !loadError) {
+  events = [lisbonPreviewEvent];
+}
 ---
 
 <AppLayout title="Events" section="events">
@@ -11,11 +33,38 @@ import EmptyState from '../../components/app/EmptyState.astro';
       <p class="subtitle">A shared setting for practical conversations and relevant introductions.</p>
     </div>
   </div>
-  <section class="panel panel-pad">
-    <EmptyState
-      symbol="◇"
-      title="No events to show"
-      description="Invited events will appear here, with your objectives and relevant people in context."
-    />
-  </section>
+
+  {localPreview ? (
+    <section class="panel panel-pad">
+      <EmptyState
+        symbol="◇"
+        title="Sign in with a local member account"
+        description="The local preview identity is read-only and cannot access events."
+      />
+    </section>
+  ) : loadError ? (
+    <p class="form-notice error" role="alert">We could not load events. Please try again shortly.</p>
+  ) : events.length === 0 ? (
+    <section class="panel panel-pad">
+      <EmptyState
+        symbol="◇"
+        title="No events to show"
+        description="Invited events will appear here, with your objectives and relevant people in context."
+      />
+    </section>
+  ) : (
+    <ul class="event-list">
+      {events.map((event) => (
+        <li class="event-list-item">
+          {import.meta.env.DEV && event.id === lisbonPreviewEvent.id && (
+            <span class="event-card-desk">Local content preview</span>
+          )}
+          <span class="event-list-when">{formatEventDate(event.starts_at)}</span>
+          <a class="event-list-title" href={`/events/${event.slug}`}>{event.title}</a>
+          <p class="event-card-summary">{event.summary}</p>
+          {event.location && <span class="event-card-desk">{event.location}</span>}
+        </li>
+      ))}
+    </ul>
+  )}
 </AppLayout>

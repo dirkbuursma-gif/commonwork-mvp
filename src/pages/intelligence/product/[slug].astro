@@ -10,10 +10,25 @@ const localPreview = user?.isLocalTestUser === true;
 const supabase = localPreview ? null : createSupabaseServerClient(Astro);
 let result = null;
 let loadError = false;
+type ProductAffiliation = {
+  verification_status: 'self_declared' | 'approved' | 'legacy_curated';
+  role_title: string;
+};
+
+let affiliation: ProductAffiliation | null = null;
 if (supabase) {
   try {
     result = await getProviderProductBySlug(supabase, Astro.params.slug ?? '');
     if (result) await recordCatalogueView(supabase, 'provider_product', Astro.params.slug ?? '');
+    if (result && user) {
+      const { data } = await supabase
+        .from('profile_product_affiliations')
+        .select('verification_status, role_title')
+        .eq('profile_id', user.id)
+        .eq('provider_product_id', result.product.id)
+        .maybeSingle();
+      affiliation = data as ProductAffiliation | null;
+    }
   } catch {
     loadError = true;
   }
@@ -41,6 +56,33 @@ if (supabase) {
       {result.product.boundary_and_dependencies && <section class="panel panel-pad"><h2>Boundaries and dependencies</h2><p>{result.product.boundary_and_dependencies}</p></section>}
       {result.product.buyer_validation_questions.length > 0 && <section class="panel panel-pad"><h2>Questions to validate</h2><ul>{result.product.buyer_validation_questions.map((question) => <li>{question}</li>)}</ul></section>}
       {result.product.public_disclosure_note && <p class="intelligence-disclosure">{result.product.public_disclosure_note}</p>}
+      <section class="panel panel-pad">
+        <div class="eyebrow">Your relationship</div>
+        <h2>Product affiliation</h2>
+        {affiliation ? (
+          <>
+            <p>
+              <strong>{
+                affiliation.verification_status === 'approved'
+                  ? 'Approved affiliation'
+                  : affiliation.verification_status === 'legacy_curated'
+                    ? 'Curator-managed affiliation'
+                    : 'Self-declared affiliation'
+              }</strong>
+              {affiliation.role_title ? ` · ${affiliation.role_title}` : ''}
+            </p>
+            <p class="field-help">Affiliation is displayed with its source. It does not grant product or catalogue editing rights.</p>
+          </>
+        ) : (
+          <form class="stack" method="post" action="/api/intelligence/affiliation">
+            <input type="hidden" name="product_id" value={result.product.id} />
+            <input type="hidden" name="slug" value={result.product.slug} />
+            <label>Role or relationship<input name="role_title" maxlength="160" placeholder="For example: implementation partner" /></label>
+            <p class="field-help">This creates a self-declared affiliation. Approval is a separate operator decision.</p>
+            <button class="btn" type="submit">Declare affiliation</button>
+          </form>
+        )}
+      </section>
       <section class="panel panel-pad"><h2>Continue in Commonwork</h2><p>Use this provider context to describe a competence need and find relevant expertise.</p><a class="btn primary" href="/find">Find competence</a></section>
     </div>
   </AppLayout>

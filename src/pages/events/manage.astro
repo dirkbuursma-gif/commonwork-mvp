@@ -1,0 +1,79 @@
+---
+import AppLayout from '../../layouts/AppLayout.astro';
+import { createSupabaseServerClient } from '../../lib/supabase/server';
+import { formatEventDate, type EventSummary } from '../../lib/events';
+import '../../styles/events.css';
+
+export const prerender = false;
+
+const user = Astro.locals.user;
+if (!user || user.isLocalTestUser) return Astro.redirect('/sign-in', 303);
+
+const supabase = createSupabaseServerClient(Astro);
+if (!supabase) return new Response('Event management is not configured.', { status: 503 });
+
+const [{ data: permission }, { data: events }] = await Promise.all([
+  supabase.rpc('can_manage_events'),
+  supabase
+    .from('events')
+    .select('id, slug, title, summary, location, starts_at, ends_at, is_published, manager_profile_id')
+    .eq('manager_profile_id', user.id)
+    .order('created_at', { ascending: false }),
+]);
+
+const canManage = permission === true;
+const status = Astro.url.searchParams.get('status');
+---
+
+<AppLayout title="Event management" section="events">
+  <div class="page-head">
+    <div>
+      <div class="eyebrow">Event manager</div>
+      <h1>Event management</h1>
+      <p class="subtitle">Create an event, decide attendee access and attach protected presentation materials.</p>
+    </div>
+  </div>
+
+  {status === 'create-failed' && (
+    <p class="form-notice error" role="alert">The event could not be created. Check the URL name or your event-manager access.</p>
+  )}
+
+  {!canManage ? (
+    <section class="panel panel-pad">
+      <h2>Event-manager access required</h2>
+      <p>Your account has not been designated as an event manager. Attendee approval and profile completion do not grant this role.</p>
+    </section>
+  ) : (
+    <div class="stack">
+      <section class="panel panel-pad">
+        <h2>Create event</h2>
+        <form class="stack" method="post" action="/api/events/manage">
+          <input type="hidden" name="action" value="create-event" />
+          <label>Title<input name="title" required maxlength="160" /></label>
+          <label>URL name<input name="slug" required maxlength="80" pattern="[a-z0-9]+(?:-[a-z0-9]+)*" placeholder="lisbon-presentation" /></label>
+          <label>Summary<textarea name="summary" maxlength="2000" rows="5"></textarea></label>
+          <label>Location<input name="location" maxlength="200" /></label>
+          <p class="field-help">New events start as drafts. Publish only after public details are approved.</p>
+          <button class="btn primary" type="submit">Create draft event</button>
+        </form>
+      </section>
+
+      <section class="panel panel-pad">
+        <h2>Your events</h2>
+        {(events as EventSummary[] | null)?.length ? (
+          <ul class="event-list">
+            {(events as EventSummary[]).map((event) => (
+              <li class="event-list-item">
+                <span class="event-list-when">{event.is_published ? 'Published' : 'Draft'} · {formatEventDate(event.starts_at)}</span>
+                <a class="event-list-title" href={`/events/${event.slug}/manage`}>{event.title}</a>
+                <p class="event-card-summary">{event.summary}</p>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p class="event-note">You have not created any events yet.</p>
+        )}
+      </section>
+    </div>
+  )}
+</AppLayout>

@@ -1,6 +1,6 @@
 import { defineMiddleware } from 'astro:middleware';
 import { getCurrentUser } from './lib/auth';
-import { validateIntelligenceReturnPath } from './lib/auth-return-path';
+import { validateReturnPath } from './lib/auth-return-path';
 
 const publicPaths = new Set([
   '/sign-in',
@@ -23,6 +23,14 @@ const localTestUser: App.User = {
   isLocalTestUser: true,
 };
 
+const publicEditorialPath = /^\/(?:insights(?:\/[^/]+)?|about|events\/[a-z0-9]+(?:-[a-z0-9]+)*)$/;
+
+function hasSupabaseAuthCookie(request: Request): boolean {
+  return (request.headers.get('cookie') ?? '')
+    .split(';')
+    .some((cookie) => /^sb-.+-auth-token(?:\.\d+)?=/i.test(cookie.trim()));
+}
+
 export const onRequest = defineMiddleware(async (context, next) => {
   const { pathname } = new URL(context.request.url);
   const isAsset = pathname.startsWith('/_astro/') || pathname.startsWith('/favicon');
@@ -31,12 +39,30 @@ export const onRequest = defineMiddleware(async (context, next) => {
     return next();
   }
 
+  if (
+    (context.request.method === 'GET' || context.request.method === 'HEAD') &&
+    publicEditorialPath.test(pathname)
+  ) {
+    const hasLocalTestSession =
+      import.meta.env.DEV &&
+      context.cookies.get('commonwork_local_test_session')?.value === 'enabled';
+    const user = hasLocalTestSession
+      ? localTestUser
+      : hasSupabaseAuthCookie(context.request)
+        ? await getCurrentUser(context)
+        : null;
+    if (user) context.locals.user = user;
+    const response = await next();
+    response.headers.set('Cache-Control', 'private, no-store');
+    return response;
+  }
+
   const hasLocalTestSession =
     import.meta.env.DEV &&
     context.cookies.get('commonwork_local_test_session')?.value === 'enabled';
   const user = hasLocalTestSession ? localTestUser : await getCurrentUser(context);
   if (!user) {
-    const returnPath = validateIntelligenceReturnPath(`${pathname}${new URL(context.request.url).search}`);
+    const returnPath = validateReturnPath(`${pathname}${new URL(context.request.url).search}`);
     const signInUrl = new URL('/sign-in', context.request.url);
     if (returnPath) signInUrl.searchParams.set('return_to', returnPath);
     return context.redirect(`${signInUrl.pathname}${signInUrl.search}`, 303);

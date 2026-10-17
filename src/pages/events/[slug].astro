@@ -1,0 +1,226 @@
+---
+import { getCollection } from 'astro:content';
+import InsightsLayout from '../../layouts/InsightsLayout.astro';
+import { createSupabaseServerClient } from '../../lib/supabase/server';
+import {
+  getEventBySlug,
+  getMyAttendance,
+  listAccessibleMaterials,
+  materialLabels,
+  formatEventDate,
+  lisbonPreviewEvent,
+  type EventMaterial,
+  type AttendeeStatus,
+} from '../../lib/events';
+import '../../styles/events.css';
+
+export const prerender = false;
+
+const { slug } = Astro.params;
+const user = Astro.locals.user;
+const localPreview = user?.isLocalTestUser === true;
+const status = Astro.url.searchParams.get('status');
+
+const supabase = createSupabaseServerClient(Astro);
+
+let event = null;
+let loadError = false;
+if (import.meta.env.DEV && slug === lisbonPreviewEvent.slug) {
+  event = lisbonPreviewEvent;
+} else if (supabase) {
+  try {
+    event = slug ? await getEventBySlug(supabase, slug) : null;
+  } catch {
+    loadError = true;
+  }
+} else {
+  loadError = true;
+}
+
+if (!loadError && !event) {
+  return new Response('Event not found', { status: 404 });
+}
+
+let attendance: AttendeeStatus | null = null;
+let materials: EventMaterial[] = [];
+let isManager = false;
+
+if (event && user && !localPreview && supabase) {
+  isManager = event.manager_profile_id === user.id;
+  try {
+    attendance = await getMyAttendance(supabase, event.id, user.id);
+  } catch {
+    attendance = null;
+  }
+  try {
+    materials = await listAccessibleMaterials(supabase, event.id);
+  } catch {
+    materials = [];
+  }
+}
+
+const hasAccess = isManager || attendance === 'approved';
+
+// Real editorial content only; nothing is invented when the collection is empty.
+const articles = (await getCollection('insights'))
+  .sort((a, b) => b.data.publishDate.valueOf() - a.data.publishDate.valueOf())
+  .slice(0, 2);
+
+let catalogueEntries: Array<{ slug: string; name: string; summary: string; provider: string }> = [];
+if (user && !localPreview && supabase) {
+  const { data } = await supabase
+    .from('provider_products')
+    .select('slug, name, summary, providers!inner(name)')
+    .limit(3);
+  catalogueEntries = (data ?? []).map((row: any) => ({
+    slug: row.slug,
+    name: row.name,
+    summary: row.summary ?? '',
+    provider: Array.isArray(row.providers) ? row.providers[0]?.name ?? '' : row.providers?.name ?? '',
+  }));
+}
+if (import.meta.env.DEV && catalogueEntries.length === 0) {
+  catalogueEntries = [{
+    slug: 'adobe-commerce',
+    name: 'Adobe Commerce',
+    summary: 'Open the retained reviewed catalogue entry.',
+    provider: 'Adobe',
+  }];
+}
+
+const statusMessages: Record<string, string> = {
+  requested: 'Your access request has been sent to the event manager.',
+  'already-requested': 'You have already requested access to this event.',
+  'request-failed': 'We could not record your request. Please try again shortly.',
+};
+---
+
+<InsightsLayout
+  title={event?.title ?? 'Event'}
+  description={event?.summary ?? 'Commonwork event'}
+>
+  {loadError ? (
+    <p class="form-notice error" role="alert">We could not load this event. Please try again shortly.</p>
+  ) : event && (
+    <div class="event-page">
+      <header class="event-hero">
+        {import.meta.env.DEV && event.id === lisbonPreviewEvent.id && (
+          <p class="intelligence-disclosure" role="note">
+            Local content preview. Presentation and guide files have not yet been supplied.
+          </p>
+        )}
+        <div class="eyebrow">Commonwork event</div>
+        <h1>{event.title}</h1>
+        <p class="lede">{event.summary}</p>
+        <dl class="event-facts">
+          <div><dt>When</dt><dd>{formatEventDate(event.starts_at)}</dd></div>
+          <div><dt>Where</dt><dd>{event.location || 'Location to be confirmed'}</dd></div>
+        </dl>
+      </header>
+
+      {status && statusMessages[status] && (
+        <p class="form-notice" role="status">{statusMessages[status]}</p>
+      )}
+
+      <section class="event-access" aria-labelledby="access-heading">
+        <h2 id="access-heading">Attendee access</h2>
+
+        {!user ? (
+          <div class="event-access-body">
+            <p>Attendee materials are released to approved attendees only. Create an account or sign in, then request access.</p>
+            <a class="btn btn-primary" href={`/sign-in?return_to=/events/${event.slug}`}>Sign in or create an account</a>
+            <p class="event-note">An account on its own does not grant access to this event.</p>
+          </div>
+        ) : localPreview ? (
+          <p class="event-note">The local preview identity is read-only and cannot request event access.</p>
+        ) : isManager ? (
+          <div class="event-access-body">
+            <p class="event-badge event-badge-approved">You manage this event</p>
+            <a class="btn" href={`/events/${event.slug}/manage`}>Manage attendees and materials</a>
+          </div>
+        ) : attendance === 'approved' ? (
+          <p class="event-badge event-badge-approved">Your attendance is approved</p>
+        ) : attendance === 'requested' ? (
+          <p class="event-badge event-badge-pending">Your request is awaiting a decision by the event manager</p>
+        ) : attendance === 'revoked' ? (
+          <p class="event-badge event-badge-revoked">Your access to this event has been withdrawn</p>
+        ) : (
+          <form class="event-access-body" method="post" action="/api/events/attendance">
+            <input type="hidden" name="slug" value={event.slug} />
+            <input type="hidden" name="event_id" value={event.id} />
+            <p>Request access to the presentation and print guide for this event.</p>
+            <button class="btn btn-primary" type="submit">Request attendee access</button>
+          </form>
+        )}
+      </section>
+
+      <section class="event-materials" aria-labelledby="materials-heading">
+        <h2 id="materials-heading">Presentation and guide</h2>
+        {hasAccess ? (
+          materials.length ? (
+            <ul class="event-material-list">
+              {materials.map((material) => (
+                <li class="event-material">
+                  <div>
+                    <span class="event-material-kind">{materialLabels[material.kind]}</span>
+                    <p class="event-material-title">{material.title}</p>
+                  </div>
+                  <form method="post" action="/api/events/material">
+                    <input type="hidden" name="material_id" value={material.id} />
+                    <button class="btn" type="submit">
+                      {material.kind === 'replay' ? 'Open replay' : 'Download'}
+                    </button>
+                  </form>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p class="event-note">No materials have been attached to this event yet.</p>
+          )
+        ) : (
+          <p class="event-note">
+            Attendee materials appear here once the event manager approves your attendance. Sharing a link or code does not release them.
+          </p>
+        )}
+      </section>
+
+      {articles.length > 0 && (
+        <section class="event-related" aria-labelledby="reading-heading">
+          <h2 id="reading-heading">Related reading</h2>
+          <ul class="event-card-grid">
+            {articles.map((article) => (
+              <li class="event-card">
+                <span class="event-card-desk">{article.data.desk}</span>
+                <a class="event-card-title" href={`/insights/${article.id}`}>{article.data.title}</a>
+                <p class="event-card-summary">{article.data.deck}</p>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {catalogueEntries.length > 0 && (
+        <section class="event-related" aria-labelledby="catalogue-heading">
+          <h2 id="catalogue-heading">In the catalogue</h2>
+          <ul class="event-card-grid">
+            {catalogueEntries.map((entry) => (
+              <li class="event-card">
+                <span class="event-card-desk">{entry.provider}</span>
+                <a class="event-card-title" href={`/intelligence/product/${entry.slug}`}>{entry.name}</a>
+                <p class="event-card-summary">{entry.summary}</p>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      <section class="event-contact" aria-labelledby="contact-heading">
+        <h2 id="contact-heading">Questions about this event</h2>
+        <p>
+          Contact <a href="mailto:dirk.buursma@commerce-partners.com">dirk.buursma@commerce-partners.com</a>.
+          We aim to acknowledge pilot support and privacy requests within one business day.
+        </p>
+      </section>
+    </div>
+  )}
+</InsightsLayout>
