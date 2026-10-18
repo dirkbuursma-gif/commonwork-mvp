@@ -1,6 +1,7 @@
 ---
 import { getCollection, render } from 'astro:content';
 import InsightsLayout from '../../layouts/InsightsLayout.astro';
+import RetainedInsightContent from '../../components/RetainedInsightContent.astro';
 import { getInsightsByline, insightArticleSlugs } from '../../lib/insights-provenance';
 import { createSupabaseServerClient } from '../../lib/supabase/server';
 import { getEditorialInsight } from '../../lib/insights-data';
@@ -67,7 +68,9 @@ const formatDate = (date: Date) =>
           <p class="insight-article-byline">{getInsightsByline(article.data.author)}</p>
         </header>
         <div class="insight-prose">
-          {ArticleContent && <ArticleContent />}
+          <RetainedInsightContent>
+            {ArticleContent && <ArticleContent />}
+          </RetainedInsightContent>
         </div>
       </article>
 
