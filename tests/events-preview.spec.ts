@@ -7,13 +7,16 @@ test('Lisbon preview connects event, review and catalogue without exposing mater
   await expect(page.getByText('21 October 2026')).toBeVisible();
   await expect(page.getByText('Lisbon', { exact: true })).toBeVisible();
   await expect(page.getByText('An account on its own does not grant access to this event.')).toBeVisible();
-  await expect(page.getByText('Sharing a link or code does not release them.')).toBeVisible();
+  await expect(page.getByText('Attendee materials are released to approved attendees only. Create an account or sign in, then request access.', { exact: true })).toBeVisible();
 
   await expect(page.getByRole('link', { name: 'Product data is a margin line now, not an IT ticket' }))
     .toHaveAttribute('href', '/insights/product-data-is-a-margin-line');
   await expect(page.getByRole('link', { name: 'Adobe Commerce' }))
     .toHaveAttribute('href', '/intelligence/product/adobe-commerce');
 
+  await expect(page.getByRole('link', { name: 'Open presentation', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'Read guide online', exact: true })).toHaveCount(0);
+  await expect(page.locator('form[action="/api/events/material"]')).toHaveCount(0);
   await expect(page.getByRole('button', { name: /download|open replay/i })).toHaveCount(0);
 });
 

@@ -34,12 +34,26 @@ function sourceWords(markdown: string): string[] {
     .replace(/<[^>]*>/g, ' ')
     .replace(/[`*_>#]/g, ' ')
     .replace(/&(?:amp|nbsp|mdash|ndash|quot|#\d+);/g, ' ');
-  return plainText.match(/[a-z0-9]+(?:['’-][a-z0-9]+)*/gi)?.map((word) => word.toLowerCase()) ?? [];
+  return renderedWords(plainText);
 }
 
 function renderedWords(text: string): string[] {
-  return text.match(/[a-z0-9]+(?:['’-][a-z0-9]+)*/gi)?.map((word) => word.toLowerCase()) ?? [];
+  const normalized = text.replace(/’/g, "'");
+  return normalized.match(/[a-z0-9]+(?:['’-][a-z0-9]+)*/gi)?.map((word) => word.toLowerCase()) ?? [];
 }
+
+test('article comparison allows typographic apostrophes but rejects changed word sequences', () => {
+  const expected = sourceWords("Google's catalogue keeps the source words.");
+  expect(renderedWords('Google’s catalogue keeps the source words.')).toEqual(expected);
+  for (const altered of [
+    'Google’s catalogue keeps the words.',
+    'Google’s catalogue keeps all the source words.',
+    'Google’s source catalogue keeps the words.',
+    'Google’s catalogue replaces the source words.',
+  ]) {
+    expect(renderedWords(altered)).not.toEqual(expected);
+  }
+});
 
 test('editorial snapshots retain their source Git blobs and byline provenance', () => {
   expect(sourceRevision).toBe('b2ee4b427d9b1b455add456a9abea01b615070fc');
