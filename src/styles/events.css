@@ -279,3 +279,104 @@
     align-items: flex-start;
   }
 }
+
+/* In Retail, Brands & CX 2026 session header */
+.event-mark {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 10px;
+  margin-bottom: 1.5rem;
+}
+
+.event-title-original {
+  margin: 0.25rem 0 0;
+  font-style: italic;
+  color: var(--muted, #5b5b5b);
+}
+
+.event-topics {
+  margin: 1rem 0 0;
+  padding-left: 1.1rem;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.event-programme {
+  margin-top: 2rem;
+}
+
+.event-runsheet {
+  list-style: none;
+  margin: 1rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 1.25rem;
+}
+
+.event-runsheet > li {
+  display: flex;
+  gap: 1.25rem;
+  align-items: flex-start;
+}
+
+.event-runsheet-time {
+  font-family: var(--display);
+  font-variant-numeric: tabular-nums;
+  font-size: 1.1rem;
+  min-width: 4.5rem;
+}
+
+.event-runsheet-label {
+  margin: 0 0 0.35rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.78rem;
+  color: var(--muted, #5b5b5b);
+}
+
+.event-runsheet-people {
+  margin: 0 0 0.2rem;
+}
+
+.event-organisers {
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--rule, #e3e0da);
+}
+
+.event-organisers-label {
+  margin: 0 0 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.78rem;
+  color: var(--muted, #5b5b5b);
+}
+
+.event-organiser-marks {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.event-organiser-marks img {
+  height: 48px;
+  width: auto;
+}
+
+.event-programme-link {
+  display: inline-block;
+  margin-top: 1rem;
+}
+
+.event-hosting-note {
+  margin-top: 1.5rem;
+}
+
+@media (max-width: 640px) {
+  .event-runsheet > li {
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+}

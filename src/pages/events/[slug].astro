@@ -8,11 +8,16 @@ import {
   listAccessibleMaterials,
   materialLabels,
   formatEventDate,
+  formatEventDateTimeInZone,
+  formatEventTimeInZone,
   lisbonPreviewEvent,
   type EventMaterial,
   type AttendeeStatus,
 } from '../../lib/events';
+import { getEventIdentity } from '../../lib/events/inretail-2026';
 import '../../styles/events.css';
+
+const EVENT_TIME_ZONE = 'Europe/Lisbon';
 
 export const prerender = false;
 
@@ -93,11 +98,15 @@ const statusMessages: Record<string, string> = {
   'already-requested': 'You have already requested access to this event.',
   'request-failed': 'We could not record your request. Please try again shortly.',
 };
+
+const identity = getEventIdentity(event?.id);
+const pageTitle = identity ? `${identity.sessionTitleEn} — ${identity.parentEventName}` : event?.title ?? 'Event';
+const pageDescription = identity?.summary ?? event?.summary ?? 'Commonwork event';
 ---
 
 <InsightsLayout
-  title={event?.title ?? 'Event'}
-  description={event?.summary ?? 'Commonwork event'}
+  title={pageTitle}
+  description={pageDescription}
 >
   {loadError ? (
     <p class="form-notice error" role="alert">We could not load this event. Please try again shortly.</p>
@@ -109,13 +118,109 @@ const statusMessages: Record<string, string> = {
             Local content preview. Presentation and guide files have not yet been supplied.
           </p>
         )}
-        <div class="eyebrow">Commonwork event</div>
-        <h1>{event.title}</h1>
-        <p class="lede">{event.summary}</p>
-        <dl class="event-facts">
-          <div><dt>When</dt><dd>{formatEventDate(event.starts_at)}</dd></div>
-          <div><dt>Where</dt><dd>{event.location || 'Location to be confirmed'}</dd></div>
-        </dl>
+        {identity ? (
+          <>
+            <img
+              class="event-mark"
+              src={identity.eventMark.src}
+              alt={identity.eventMark.alt}
+              width={identity.eventMark.width}
+              height={identity.eventMark.height}
+            />
+            <div class="eyebrow">
+              {identity.parentEventName} · {identity.theme} · {identity.edition}
+            </div>
+            <h1>{identity.sessionTitleEn}</h1>
+            <p class="event-title-original" lang="pt">
+              Official programme title: “{identity.sessionTitlePt}”
+            </p>
+            <p class="lede">{identity.summary}</p>
+            <ul class="event-topics">
+              {identity.topics.map((topic) => <li>{topic}</li>)}
+            </ul>
+            <dl class="event-facts">
+              <div>
+                <dt>Session</dt>
+                <dd>
+                  {formatEventDateTimeInZone(identity.presentation.startsAt, EVENT_TIME_ZONE)}
+                  {' '}(Lisbon time) — {identity.programmeBlockLabel}
+                </dd>
+              </div>
+              <div>
+                <dt>Conference</dt>
+                <dd>{identity.datesLabel}</dd>
+              </div>
+              <div><dt>Venue</dt><dd>{identity.venue}</dd></div>
+              <div><dt>Track</dt><dd lang="pt">{identity.trackTitle}</dd></div>
+            </dl>
+
+            <section class="event-programme" aria-labelledby="programme-heading">
+              <h2 id="programme-heading">Programme</h2>
+              <ol class="event-runsheet">
+                <li>
+                  <span class="event-runsheet-time">
+                    {formatEventTimeInZone(identity.presentation.startsAt, EVENT_TIME_ZONE)}
+                  </span>
+                  <div>
+                    <p class="event-runsheet-label">{identity.presentation.label}</p>
+                    <p class="event-runsheet-people">
+                      <strong>{identity.presenter.name}</strong>, {identity.presenter.role}
+                    </p>
+                  </div>
+                </li>
+                <li>
+                  <span class="event-runsheet-time">
+                    {formatEventTimeInZone(identity.debate.startsAt, EVENT_TIME_ZONE)}
+                  </span>
+                  <div>
+                    <p class="event-runsheet-label">{identity.debate.label}</p>
+                    {identity.debaters.map((person) => (
+                      <p class="event-runsheet-people">
+                        <strong>{person.name}</strong>, {person.role}, {person.organisation}
+                      </p>
+                    ))}
+                    <p class="event-runsheet-people">
+                      Moderator: <strong>{identity.moderator.name}</strong>, {identity.moderator.role},
+                      {' '}{identity.moderator.organisation}
+                    </p>
+                  </div>
+                </li>
+              </ol>
+              <p class="event-note">
+                Session times are shown in Lisbon time. No end time is published for this block.
+              </p>
+            </section>
+
+            <div class="event-organisers">
+              <p class="event-organisers-label">Organisation</p>
+              <div class="event-organiser-marks">
+                {identity.organisers.map((logo) => (
+                  <img src={logo.src} alt={logo.alt} width={logo.width} height={logo.height} />
+                ))}
+              </div>
+              <a class="event-programme-link" href={identity.programmeUrl} rel="noopener noreferrer" target="_blank">
+                Official event programme
+              </a>
+            </div>
+
+            <p class="event-note event-hosting-note">
+              {identity.presenter.name} presents on behalf of Commerce Partners. The session
+              resources on this page — the browser presentation, the audience guide and the PDF
+              download — are hosted on Commonwork. Commonwork is not the conference organiser and
+              does not sell or register conference tickets.
+            </p>
+          </>
+        ) : (
+          <>
+            <div class="eyebrow">Commonwork event</div>
+            <h1>{event.title}</h1>
+            <p class="lede">{event.summary}</p>
+            <dl class="event-facts">
+              <div><dt>When</dt><dd>{formatEventDate(event.starts_at)}</dd></div>
+              <div><dt>Where</dt><dd>{event.location || 'Location to be confirmed'}</dd></div>
+            </dl>
+          </>
+        )}
       </header>
 
       {status && statusMessages[status] && (
@@ -162,6 +267,7 @@ const statusMessages: Record<string, string> = {
             <div class="event-material-list">
               <a class="btn btn-primary" href={`/events/${event.slug}/presentation`}>Open browser presentation</a>
               <a class="btn" href={`/events/${event.slug}/guide`}>Read audience guide</a>
+              <a class="btn" href={`/events/${event.slug}/guide/print`}>Print view and PDF download</a>
             </div>
             {materials.length ? (
               <ul class="event-material-list">

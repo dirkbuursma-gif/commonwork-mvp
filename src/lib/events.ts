@@ -102,3 +102,20 @@ export function formatEventDate(value: string | null): string {
     timeZone: 'UTC',
   }).format(new Date(value));
 }
+
+/**
+ * Formats an instant in the event's own time zone. The offset is resolved by
+ * Intl from the IANA zone, so daylight saving is handled rather than assumed.
+ */
+export function formatEventDateTimeInZone(
+  value: string | null,
+  timeZone: string,
+  options: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' },
+): string {
+  if (!value) return 'Date to be confirmed';
+  return new Intl.DateTimeFormat('en-GB', { ...options, timeZone, hourCycle: 'h23' }).format(new Date(value));
+}
+
+export function formatEventTimeInZone(value: string, timeZone: string): string {
+  return formatEventDateTimeInZone(value, timeZone, { hour: '2-digit', minute: '2-digit' });
+}
