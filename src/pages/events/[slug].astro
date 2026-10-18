@@ -95,7 +95,6 @@ const pageDescription = identity?.summary ?? event?.summary ?? 'Commonwork event
         )}
         {identity ? (
           <>
-            <img class="event-mark" src={identity.eventMark.src} alt={identity.eventMark.alt} width={identity.eventMark.width} height={identity.eventMark.height} />
             <div class="eyebrow">{identity.parentEventName} · {identity.theme} · {identity.edition}</div>
             <h1>{identity.sessionTitleEn}</h1>
             <p class="event-title-original" lang="pt">Official programme title: “{identity.sessionTitlePt}”</p>
@@ -217,7 +216,7 @@ const pageDescription = identity?.summary ?? event?.summary ?? 'Commonwork event
           </div>
           <div class="event-organisers">
             <p class="event-organisers-label">Organisation</p>
-            <div class="event-organiser-marks">{identity.organisers.map((logo) => <img src={logo.src} alt={logo.alt} width={logo.width} height={logo.height} />)}</div>
+            <p class="event-note">Distribuição Hoje · Skolae Formação</p>
             <a class="event-programme-link" href={identity.programmeUrl} rel="noopener noreferrer" target="_blank">Official event programme</a>
             <p class="event-note event-hosting-note">Presented by {identity.presenter.name} for Commerce Partners. Session resources hosted by Commonwork.</p>
           </div>
