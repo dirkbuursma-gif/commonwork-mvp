@@ -65,6 +65,9 @@ if (event && user && !localPreview && supabase) {
 }
 
 const hasAccess = isManager || attendance === 'approved';
+const presentationMaterial = materials.find((material) => material.kind === 'presentation');
+const guideMaterial = materials.find((material) => material.kind === 'guide');
+const replayMaterials = materials.filter((material) => material.kind === 'replay');
 
 // Real editorial content only; nothing is invented when the collection is empty.
 const articles = (await getCollection('insights'))
@@ -135,6 +138,36 @@ const pageDescription = identity?.summary ?? event?.summary ?? 'Commonwork event
               Official programme title: “{identity.sessionTitlePt}”
             </p>
             <p class="lede">{identity.summary}</p>
+            {hasAccess && (
+              <div class="event-actions" aria-label="Session materials">
+                <div class="event-actions-primary">
+                  <a class="btn btn-primary" href={`/events/${event.slug}/presentation`}>Open presentation</a>
+                  {guideMaterial ? (
+                    <form method="post" action="/api/events/material">
+                      <input type="hidden" name="material_id" value={guideMaterial.id} />
+                      <button class="btn" type="submit">Download retailer guide</button>
+                    </form>
+                  ) : (
+                    <a class="btn" href={`/events/${event.slug}/guide/print`}>Open retailer guide</a>
+                  )}
+                </div>
+                <div class="event-actions-secondary">
+                  <a href={`/events/${event.slug}/guide`}>Read guide online</a>
+                  {presentationMaterial && (
+                    <form method="post" action="/api/events/material">
+                      <input type="hidden" name="material_id" value={presentationMaterial.id} />
+                      <button class="event-link-button" type="submit">Download slides PDF</button>
+                    </form>
+                  )}
+                  {replayMaterials.map((material) => (
+                    <form method="post" action="/api/events/material">
+                      <input type="hidden" name="material_id" value={material.id} />
+                      <button class="event-link-button" type="submit">{materialLabels[material.kind]}</button>
+                    </form>
+                  ))}
+                </div>
+              </div>
+            )}
             <ul class="event-topics">
               {identity.topics.map((topic) => <li>{topic}</li>)}
             </ul>
@@ -153,68 +186,42 @@ const pageDescription = identity?.summary ?? event?.summary ?? 'Commonwork event
               <div><dt>Venue</dt><dd>{identity.venue}</dd></div>
               <div><dt>Track</dt><dd lang="pt">{identity.trackTitle}</dd></div>
             </dl>
-
-            <section class="event-programme" aria-labelledby="programme-heading">
-              <h2 id="programme-heading">Programme</h2>
-              <ol class="event-runsheet">
-                <li>
-                  <span class="event-runsheet-time">
-                    {formatEventTimeInZone(identity.presentation.startsAt, EVENT_TIME_ZONE)}
-                  </span>
-                  <div>
-                    <p class="event-runsheet-label">{identity.presentation.label}</p>
-                    <p class="event-runsheet-people">
-                      <strong>{identity.presenter.name}</strong>, {identity.presenter.role}
-                    </p>
-                  </div>
-                </li>
-                <li>
-                  <span class="event-runsheet-time">
-                    {formatEventTimeInZone(identity.debate.startsAt, EVENT_TIME_ZONE)}
-                  </span>
-                  <div>
-                    <p class="event-runsheet-label">{identity.debate.label}</p>
-                    {identity.debaters.map((person) => (
-                      <p class="event-runsheet-people">
-                        <strong>{person.name}</strong>, {person.role}, {person.organisation}
-                      </p>
-                    ))}
-                    <p class="event-runsheet-people">
-                      Moderator: <strong>{identity.moderator.name}</strong>, {identity.moderator.role},
-                      {' '}{identity.moderator.organisation}
-                    </p>
-                  </div>
-                </li>
-              </ol>
-              <p class="event-note">
-                Session times are shown in Lisbon time. No end time is published for this block.
-              </p>
-            </section>
-
-            <div class="event-organisers">
-              <p class="event-organisers-label">Organisation</p>
-              <div class="event-organiser-marks">
-                {identity.organisers.map((logo) => (
-                  <img src={logo.src} alt={logo.alt} width={logo.width} height={logo.height} />
-                ))}
-              </div>
-              <a class="event-programme-link" href={identity.programmeUrl} rel="noopener noreferrer" target="_blank">
-                Official event programme
-              </a>
-            </div>
-
-            <p class="event-note event-hosting-note">
-              {identity.presenter.name} presents on behalf of Commerce Partners. The session
-              resources on this page — the browser presentation, the audience guide and the PDF
-              download — are hosted on Commonwork. Commonwork is not the conference organiser and
-              does not sell or register conference tickets.
-            </p>
           </>
         ) : (
           <>
             <div class="eyebrow">Commonwork event</div>
             <h1>{event.title}</h1>
             <p class="lede">{event.summary}</p>
+            {hasAccess && (
+              <div class="event-actions" aria-label="Event materials">
+                <div class="event-actions-primary">
+                  <a class="btn btn-primary" href={`/events/${event.slug}/presentation`}>Open presentation</a>
+                  {guideMaterial ? (
+                    <form method="post" action="/api/events/material">
+                      <input type="hidden" name="material_id" value={guideMaterial.id} />
+                      <button class="btn" type="submit">Download retailer guide</button>
+                    </form>
+                  ) : (
+                    <a class="btn" href={`/events/${event.slug}/guide/print`}>Open retailer guide</a>
+                  )}
+                </div>
+                <div class="event-actions-secondary">
+                  <a href={`/events/${event.slug}/guide`}>Read guide online</a>
+                  {presentationMaterial && (
+                    <form method="post" action="/api/events/material">
+                      <input type="hidden" name="material_id" value={presentationMaterial.id} />
+                      <button class="event-link-button" type="submit">Download slides PDF</button>
+                    </form>
+                  )}
+                  {replayMaterials.map((material) => (
+                    <form method="post" action="/api/events/material">
+                      <input type="hidden" name="material_id" value={material.id} />
+                      <button class="event-link-button" type="submit">{materialLabels[material.kind]}</button>
+                    </form>
+                  ))}
+                </div>
+              </div>
+            )}
             <dl class="event-facts">
               <div><dt>When</dt><dd>{formatEventDate(event.starts_at)}</dd></div>
               <div><dt>Where</dt><dd>{event.location || 'Location to be confirmed'}</dd></div>
@@ -227,10 +234,16 @@ const pageDescription = identity?.summary ?? event?.summary ?? 'Commonwork event
         <p class="form-notice" role="status">{statusMessages[status]}</p>
       )}
 
-      <section class="event-access" aria-labelledby="access-heading">
-        <h2 id="access-heading">Attendee access</h2>
-
-        {!user ? (
+      {hasAccess ? (
+        <div class="event-access-status" role="status">
+          <span class="event-status-dot" aria-hidden="true"></span>
+          <span>{isManager ? 'Event manager access' : 'Attendee access approved'}</span>
+          {isManager && <a href={`/events/${event.slug}/manage`}>Manage event</a>}
+        </div>
+      ) : (
+        <section class="event-access" aria-labelledby="access-heading">
+          <h2 id="access-heading">Attendee access</h2>
+          {!user ? (
           <div class="event-access-body">
             <p>Attendee materials are released to approved attendees only. Create an account or sign in, then request access.</p>
             <a class="btn btn-primary" href={`/sign-in?return_to=/events/${event.slug}`}>Sign in or create an account</a>
@@ -238,13 +251,6 @@ const pageDescription = identity?.summary ?? event?.summary ?? 'Commonwork event
           </div>
         ) : localPreview ? (
           <p class="event-note">The local preview identity is read-only and cannot request event access.</p>
-        ) : isManager ? (
-          <div class="event-access-body">
-            <p class="event-badge event-badge-approved">You manage this event</p>
-            <a class="btn" href={`/events/${event.slug}/manage`}>Manage attendees and materials</a>
-          </div>
-        ) : attendance === 'approved' ? (
-          <p class="event-badge event-badge-approved">Your attendance is approved</p>
         ) : attendance === 'requested' ? (
           <p class="event-badge event-badge-pending">Your request is awaiting a decision by the event manager</p>
         ) : attendance === 'revoked' ? (
@@ -256,74 +262,106 @@ const pageDescription = identity?.summary ?? event?.summary ?? 'Commonwork event
             <p>Request access to the presentation and print guide for this event.</p>
             <button class="btn btn-primary" type="submit">Request attendee access</button>
           </form>
-        )}
-      </section>
-
-      <section class="event-materials" aria-labelledby="materials-heading">
-        <h2 id="materials-heading">Presentation and guide</h2>
-        {hasAccess ? (
-          <>
-            <p>Open the browser presentation or retailer guide for this event.</p>
-            <div class="event-material-list">
-              <a class="btn btn-primary" href={`/events/${event.slug}/presentation`}>Open browser presentation</a>
-              <a class="btn" href={`/events/${event.slug}/guide`}>Read audience guide</a>
-              <a class="btn" href={`/events/${event.slug}/guide/print`}>Print view and PDF download</a>
-            </div>
-            {materials.length ? (
-              <ul class="event-material-list">
-                {materials.map((material) => (
-                  <li class="event-material">
-                    <div>
-                      <span class="event-material-kind">{materialLabels[material.kind]}</span>
-                      <p class="event-material-title">{material.title}</p>
-                    </div>
-                    <form method="post" action="/api/events/material">
-                      <input type="hidden" name="material_id" value={material.id} />
-                      <button class="btn" type="submit">
-                        {material.kind === 'replay' ? 'Open replay' : material.kind === 'guide' ? 'Download print guide' : 'Download presentation'}
-                      </button>
-                    </form>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p class="event-note">No downloadable files are attached yet. Browser materials are available to approved attendees.</p>
-            )}
-          </>
-        ) : (
-          <p class="event-note">
-            Attendee materials appear here once the event manager approves your attendance. Sharing a link or code does not release them.
-          </p>
-        )}
-      </section>
-
-      {articles.length > 0 && (
-        <section class="event-related" aria-labelledby="reading-heading">
-          <h2 id="reading-heading">Related reading</h2>
-          <ul class="event-card-grid">
-            {articles.map((article) => (
-              <li class="event-card">
-                <span class="event-card-desk">{article.data.desk}</span>
-                <a class="event-card-title" href={`/insights/${article.id}`}>{article.data.title}</a>
-                <p class="event-card-summary">{article.data.deck}</p>
-              </li>
-            ))}
-          </ul>
+          )}
         </section>
       )}
 
-      {catalogueEntries.length > 0 && (
-        <section class="event-related" aria-labelledby="catalogue-heading">
-          <h2 id="catalogue-heading">In the catalogue</h2>
-          <ul class="event-card-grid">
-            {catalogueEntries.map((entry) => (
-              <li class="event-card">
-                <span class="event-card-desk">{entry.provider}</span>
-                <a class="event-card-title" href={`/intelligence/product/${entry.slug}`}>{entry.name}</a>
-                <p class="event-card-summary">{entry.summary}</p>
+      {identity && (
+        <section class="event-details" aria-label="Event programme and organisation">
+          <div class="event-programme">
+            <h2 id="programme-heading">Programme</h2>
+            <ol class="event-runsheet">
+              <li>
+                <span class="event-runsheet-time">
+                  {formatEventTimeInZone(identity.presentation.startsAt, EVENT_TIME_ZONE)}
+                </span>
+                <div>
+                  <p class="event-runsheet-label">{identity.presentation.label}</p>
+                  <p class="event-runsheet-people">
+                    <strong>{identity.presenter.name}</strong>, {identity.presenter.role}
+                  </p>
+                </div>
               </li>
-            ))}
-          </ul>
+              <li>
+                <span class="event-runsheet-time">
+                  {formatEventTimeInZone(identity.debate.startsAt, EVENT_TIME_ZONE)}
+                </span>
+                <div>
+                  <p class="event-runsheet-label">{identity.debate.label}</p>
+                  {identity.debaters.map((person) => (
+                    <p class="event-runsheet-people">
+                      <strong>{person.name}</strong>, {person.role}, {person.organisation}
+                    </p>
+                  ))}
+                  <p class="event-runsheet-people">
+                    Moderator: <strong>{identity.moderator.name}</strong>, {identity.moderator.role},
+                    {' '}{identity.moderator.organisation}
+                  </p>
+                </div>
+              </li>
+            </ol>
+            <p class="event-note">Times are shown in Lisbon time. No end time is published.</p>
+          </div>
+
+          <div class="event-organisers">
+            <p class="event-organisers-label">Organisation</p>
+            <div class="event-organiser-marks">
+              {identity.organisers.map((logo) => (
+                <img src={logo.src} alt={logo.alt} width={logo.width} height={logo.height} />
+              ))}
+            </div>
+            <a class="event-programme-link" href={identity.programmeUrl} rel="noopener noreferrer" target="_blank">
+              Official event programme
+            </a>
+            <p class="event-note event-hosting-note">
+              Presented by {identity.presenter.name} for Commerce Partners. Session resources hosted by Commonwork.
+            </p>
+          </div>
+        </section>
+      )}
+
+      {(articles.length > 0 || catalogueEntries.length > 0) && (
+        <section class="event-related event-explore" aria-labelledby="explore-heading">
+          <div class="event-section-heading">
+            <div>
+              <div class="eyebrow">From Commonwork</div>
+              <h2 id="explore-heading">Continue exploring</h2>
+            </div>
+            <nav class="event-explore-links" aria-label="Explore Commonwork">
+              <a href="/insights">All Insights</a>
+              <a href="/intelligence">Browse the catalogue</a>
+            </nav>
+          </div>
+
+          {articles.length > 0 && (
+            <div class="event-explore-group">
+              <h3>Insights</h3>
+              <ul class="event-card-grid">
+                {articles.map((article) => (
+                  <li class="event-card">
+                    <span class="event-card-desk">{article.data.desk}</span>
+                    <a class="event-card-title" href={`/insights/${article.id}`}>{article.data.title}</a>
+                    <p class="event-card-summary">{article.data.deck}</p>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {catalogueEntries.length > 0 && (
+            <div class="event-explore-group">
+              <h3>Catalogue</h3>
+              <ul class="event-card-grid">
+                {catalogueEntries.map((entry) => (
+                  <li class="event-card">
+                    <span class="event-card-desk">{entry.provider}</span>
+                    <a class="event-card-title" href={`/intelligence/product/${entry.slug}`}>{entry.name}</a>
+                    {entry.summary && <p class="event-card-summary">{entry.summary}</p>}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </section>
       )}
 
@@ -331,7 +369,6 @@ const pageDescription = identity?.summary ?? event?.summary ?? 'Commonwork event
         <h2 id="contact-heading">Questions about this event</h2>
         <p>
           Contact <a href="mailto:dirk.buursma@commerce-partners.com">dirk.buursma@commerce-partners.com</a>.
-          We aim to acknowledge pilot support and privacy requests within one business day.
         </p>
       </section>
     </div>

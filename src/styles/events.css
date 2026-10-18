@@ -1,7 +1,7 @@
 .event-page {
   display: flex;
   flex-direction: column;
-  gap: 2.5rem;
+  gap: 2.25rem;
   max-width: 68rem;
   margin: 0 auto;
   padding: 0 1.25rem 4rem;
@@ -133,6 +133,80 @@
   color: var(--coral);
 }
 
+.event-access-status {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  color: var(--green-strong);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.event-access-status a {
+  margin-left: 0.25rem;
+  font-weight: 500;
+}
+
+.event-status-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--green);
+}
+
+.event-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.9rem;
+  margin: 0.5rem 0 0.25rem;
+}
+
+.event-actions-primary,
+.event-actions-secondary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.event-actions-primary form,
+.event-actions-secondary form {
+  margin: 0;
+}
+
+.event-actions .btn-primary {
+  border-color: var(--green-strong);
+  background: var(--green-strong);
+  color: #fff;
+}
+
+.event-actions .btn-primary:hover {
+  border-color: var(--green);
+  background: var(--green);
+}
+
+.event-actions-secondary {
+  gap: 0.5rem 1.15rem;
+  font-size: 0.9rem;
+}
+
+.event-link-button {
+  appearance: none;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--green-strong);
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+  cursor: pointer;
+}
+
+.event-link-button:hover {
+  color: var(--green);
+}
+
 .event-material-list {
   list-style: none;
   margin: 0;
@@ -220,6 +294,40 @@
   color: var(--muted);
 }
 
+.event-section-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 1.5rem;
+}
+
+.event-section-heading .eyebrow {
+  margin-bottom: 0.35rem;
+  color: var(--green);
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.event-explore-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.25rem;
+  font-size: 0.9375rem;
+}
+
+.event-explore-group {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.event-explore-group h3 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 1rem;
+}
+
 .event-contact p {
   margin: 0;
   color: var(--muted);
@@ -283,10 +391,10 @@
 /* In Retail, Brands & CX 2026 session header */
 .event-mark {
   display: block;
-  width: 100%;
+  width: min(100%, 46rem);
   height: auto;
   border-radius: 10px;
-  margin-bottom: 1.5rem;
+  margin-bottom: 1rem;
 }
 
 .event-title-original {
@@ -303,7 +411,14 @@
 }
 
 .event-programme {
-  margin-top: 2rem;
+  margin: 0;
+}
+
+.event-programme h2 {
+  margin: 0;
+  color: var(--ink);
+  font-family: var(--display);
+  font-size: 1.5rem;
 }
 
 .event-runsheet {
@@ -340,9 +455,8 @@
 }
 
 .event-organisers {
-  margin-top: 2rem;
-  padding-top: 1.5rem;
-  border-top: 1px solid var(--rule, #e3e0da);
+  margin: 0;
+  padding: 0;
 }
 
 .event-organisers-label {
@@ -371,10 +485,40 @@
 }
 
 .event-hosting-note {
-  margin-top: 1.5rem;
+  margin-top: 1rem;
+}
+
+.event-details {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(15rem, 0.8fr);
+  gap: 2.5rem;
+  padding-top: 2rem;
+  border-top: 1px solid var(--line);
 }
 
 @media (max-width: 640px) {
+  .event-actions,
+  .event-actions-primary,
+  .event-actions-primary form,
+  .event-actions-primary .btn {
+    width: 100%;
+  }
+
+  .event-actions-primary .btn {
+    justify-content: center;
+    text-align: center;
+  }
+
+  .event-section-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .event-details {
+    grid-template-columns: 1fr;
+    gap: 2rem;
+  }
+
   .event-runsheet > li {
     flex-direction: column;
     gap: 0.35rem;
