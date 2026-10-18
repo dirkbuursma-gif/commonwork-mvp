@@ -157,26 +157,33 @@ const statusMessages: Record<string, string> = {
       <section class="event-materials" aria-labelledby="materials-heading">
         <h2 id="materials-heading">Presentation and guide</h2>
         {hasAccess ? (
-          materials.length ? (
-            <ul class="event-material-list">
-              {materials.map((material) => (
-                <li class="event-material">
-                  <div>
-                    <span class="event-material-kind">{materialLabels[material.kind]}</span>
-                    <p class="event-material-title">{material.title}</p>
-                  </div>
-                  <form method="post" action="/api/events/material">
-                    <input type="hidden" name="material_id" value={material.id} />
-                    <button class="btn" type="submit">
-                      {material.kind === 'replay' ? 'Open replay' : 'Download'}
-                    </button>
-                  </form>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p class="event-note">No materials have been attached to this event yet.</p>
-          )
+          <>
+            <p>Open the browser presentation or retailer guide for this event.</p>
+            <div class="event-material-list">
+              <a class="btn btn-primary" href={`/events/${event.slug}/presentation`}>Open browser presentation</a>
+              <a class="btn" href={`/events/${event.slug}/guide`}>Read audience guide</a>
+            </div>
+            {materials.length ? (
+              <ul class="event-material-list">
+                {materials.map((material) => (
+                  <li class="event-material">
+                    <div>
+                      <span class="event-material-kind">{materialLabels[material.kind]}</span>
+                      <p class="event-material-title">{material.title}</p>
+                    </div>
+                    <form method="post" action="/api/events/material">
+                      <input type="hidden" name="material_id" value={material.id} />
+                      <button class="btn" type="submit">
+                        {material.kind === 'replay' ? 'Open replay' : material.kind === 'guide' ? 'Download print guide' : 'Download presentation'}
+                      </button>
+                    </form>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p class="event-note">No downloadable files are attached yet. Browser materials are available to approved attendees.</p>
+            )}
+          </>
         ) : (
           <p class="event-note">
             Attendee materials appear here once the event manager approves your attendance. Sharing a link or code does not release them.

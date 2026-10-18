@@ -1,0 +1,143 @@
+---
+import { audienceGuidePages, audienceToolRoles, platformExampleSequences } from '../../lib/playbook/audience-guide';
+import { sourceById } from '../../lib/playbook/content';
+import { perplexityStrollerExample } from '../../lib/playbook/perplexity-stroller-example';
+
+interface Props {
+  mode?: 'audience' | 'print';
+  worksheetHref?: string;
+}
+
+const { mode = 'audience', worksheetHref } = Astro.props;
+---
+
+<div class:list={['pb-audience-guide', `pb-audience-guide-${mode}`]}>
+  {audienceGuidePages.map((page, index) => (
+    <section class="pb-guide-page" id={page.id} aria-labelledby={`${page.id}-title`}>
+      <p class="pb-eyebrow">Retailer guide · 0{index + 1} / 06</p>
+      <h2 id={`${page.id}-title`}>{page.title}</h2>
+      <p class="pb-lede">{page.summary}</p>
+
+      {page.id === 'what-changes' && (
+        <div class="pb-guide-sequences">
+          <article class="pb-guide-sequence pb-guide-recorded-example">
+            <h3>{perplexityStrollerExample.title}</h3>
+            <p class="pb-guide-sequence-note">{perplexityStrollerExample.editorialSummaryLabel}</p>
+            <p><strong>{perplexityStrollerExample.promptLabel}</strong></p>
+            <blockquote>{perplexityStrollerExample.requestSummary}</blockquote>
+            <p class="pb-guide-recommendation">“{perplexityStrollerExample.recommendation}”</p>
+            <div class="pb-guide-products">
+              {perplexityStrollerExample.products.map((product) => (
+                <article class="pb-guide-product">
+                  <h4>{product.name}</h4>
+                  <p>Retailer destination named in the supplied response: <strong>{product.destination}</strong></p>
+                  <div class="pb-guide-sources" aria-label={`Sources for ${product.name}`}>
+                    {product.sourceIds.map((sourceId) => {
+                      const source = perplexityStrollerExample.sources.find((item) => item.id === sourceId);
+                      return source && <a href={source.url} target="_blank" rel="noreferrer">[{source.id}] {source.label}</a>;
+                    })}
+                  </div>
+                </article>
+              ))}
+            </div>
+            <div class="pb-guide-retailer-questions">
+              {perplexityStrollerExample.visibilityQuestions.map((question) => <p>{question}</p>)}
+            </div>
+            <p class="pb-guide-boundary">{perplexityStrollerExample.stageFooter}</p>
+            <p class="pb-guide-boundary">{perplexityStrollerExample.publicLimitation}</p>
+            {mode === 'audience' && (
+              <>
+                <p><a href={perplexityStrollerExample.sharedThreadUrl} target="_blank" rel="noreferrer">Open the supplied Perplexity thread</a></p>
+                <details class="pb-supplied-prompt">
+                  <summary>Show the prepared demonstration prompt</summary>
+                  <p>{perplexityStrollerExample.prompt}</p>
+                </details>
+                <details class="pb-supplied-response">
+                  <summary>Read the full supplied response</summary>
+                  <pre>{perplexityStrollerExample.response}</pre>
+                  <h4>Sources cited in the response</h4>
+                  <nav class="pb-guide-sources" aria-label="Sources cited in the supplied Perplexity response">
+                    {perplexityStrollerExample.sources.map((source) => (
+                      <a href={source.url} target="_blank" rel="noreferrer">[{source.id}] {source.label}</a>
+                    ))}
+                  </nav>
+                </details>
+              </>
+            )}
+          </article>
+
+          {mode === 'audience' && platformExampleSequences.filter((sequence) => sequence.id === 'delegated-checkout').map((sequence) => (
+            <article class="pb-guide-sequence">
+              <h3>{sequence.title}</h3>
+              <p class="pb-guide-sequence-note">{sequence.note}</p>
+              <div class="pb-guide-examples">
+                {sequence.examples.map((example) => (
+                  <section class="pb-guide-example">
+                    <h4>{example.title}</h4>
+                    <p class="pb-guide-attribution">{example.publisher} · {example.publishedAt}</p>
+                    <p>{example.capability}</p>
+                    <p class="pb-muted">Market: {example.market}</p>
+                    <p class="pb-guide-boundary">{example.boundary}</p>
+                    <nav class="pb-guide-sources" aria-label={`Sources for ${example.title}`}>
+                      {example.sourceIds.map((sourceId) => (
+                        <a href={sourceById[sourceId].url} target="_blank" rel="noreferrer">
+                          {sourceById[sourceId].label}
+                        </a>
+                      ))}
+                    </nav>
+                  </section>
+                ))}
+              </div>
+            </article>
+          ))}
+        </div>
+      )}
+
+      {page.id === 'tools-by-job' ? (
+        <div class="pb-guide-tools">
+          {audienceToolRoles.map((tool) => (
+            <article class="pb-guide-tool">
+              <h3>{tool.provider} · {tool.offering}</h3>
+              <dl>
+                <div><dt>Challenge</dt><dd>{tool.challenge}</dd></div>
+                <div><dt>Documented capability</dt><dd>{tool.capability}</dd></div>
+                <div><dt>Expert user</dt><dd>{tool.expertUser}</dd></div>
+                <div><dt>Output</dt><dd>{tool.output}</dd></div>
+              </dl>
+              <p class="pb-guide-boundary">{tool.limitation}</p>
+              <nav class="pb-guide-sources" aria-label={`Vendor sources for ${tool.provider}`}>
+                {tool.sourceIds.map((sourceId) => (
+                  <a href={sourceById[sourceId].url} target="_blank" rel="noreferrer">
+                    {sourceById[sourceId].publisher} · {sourceById[sourceId].label}
+                  </a>
+                ))}
+              </nav>
+            </article>
+          ))}
+        </div>
+      ) : page.id !== 'what-changes' && (
+        <div class="pb-guide-blocks">
+          {page.blocks.map((block) => (
+            <article class="pb-guide-block">
+              <h3>{block.heading}</h3>
+              <p>{block.body}</p>
+              {block.sourceIds?.length ? (
+                <nav class="pb-guide-sources" aria-label={`Sources for ${block.heading}`}>
+                  {block.sourceIds.map((sourceId) => (
+                    <a href={sourceById[sourceId].url} target="_blank" rel="noreferrer">
+                      {sourceById[sourceId].publisher} · {sourceById[sourceId].label}
+                    </a>
+                  ))}
+                </nav>
+              ) : null}
+            </article>
+          ))}
+        </div>
+      )}
+
+      {page.id === 'first-month' && worksheetHref && (
+        <a class="pb-guide-worksheet-link" href={worksheetHref}>Optional exercise: open the visibility worksheet</a>
+      )}
+    </section>
+  ))}
+</div>

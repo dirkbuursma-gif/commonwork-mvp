@@ -1,0 +1,83 @@
+---
+import PlaybookLayout from '../../../layouts/PlaybookLayout.astro';
+import AudienceGuide from '../../../components/playbook/AudienceGuide.astro';
+import VisibilityWorksheet from '../../../components/playbook/VisibilityWorksheet.astro';
+import { audienceGuidePages } from '../../../lib/playbook/audience-guide';
+import { createSupabaseServerClient } from '../../../lib/supabase/server';
+import { getEventMaterialAccess } from '../../../lib/events/material-access';
+
+export const prerender = false;
+
+const user = Astro.locals.user;
+if (!user || user.isLocalTestUser) {
+  return new Response('Approved event attendee access is required.', {
+    status: user ? 403 : 401,
+    headers: { 'Cache-Control': 'private, no-store' },
+  });
+}
+
+const supabase = createSupabaseServerClient(Astro);
+if (!supabase) {
+  return new Response('Event materials are not configured.', {
+    status: 503,
+    headers: { 'Cache-Control': 'private, no-store' },
+  });
+}
+
+const access = await getEventMaterialAccess(supabase, Astro.params.slug ?? '', user.id);
+if (access.status !== 'available') {
+  return new Response(access.status === 'not-found' ? 'Event not found.' : 'Approved event attendee access is required.', {
+    status: access.status === 'not-found' ? 404 : 403,
+    headers: { 'Cache-Control': 'private, no-store' },
+  });
+}
+Astro.response.headers.set('Cache-Control', 'private, no-store');
+const eventHome = `/events/${access.event.slug}`;
+---
+
+<PlaybookLayout title={`${access.event.title} · retailer guide`} mode="audience">
+  <a class="pb-skip" href="#main">Skip to content</a>
+  <header class="pb-header">
+    <div class="pb-brand">
+      <span class="pb-wordmark">Commonwork</span>
+    </div>
+    <div class="pb-header-actions">
+      <a class="pb-btn" href={`${eventHome}/guide/print`}>Print or download retailer guide</a>
+      <a class="pb-btn pb-btn-primary" href={`${eventHome}/presentation`}>View presentation</a>
+    </div>
+  </header>
+
+  <div class="pb-layout">
+    <nav class="pb-toc" aria-label="Sections">
+      <p class="pb-toc-title">Retailer guide</p>
+      <ol>
+        {
+          audienceGuidePages.map((page) => (
+            <li>
+              <a href={`#${page.id}`}>{page.title}</a>
+            </li>
+          ))
+        }
+        <li><a href="#check-your-visibility">Optional visibility worksheet</a></li>
+      </ol>
+    </nav>
+
+    <main id="main" class="pb-main">
+      <div class="pb-intro">
+        <p class="pb-eyebrow">Commonwork · retailer guide · {access.event.title}</p>
+        <h1>The buying journey is changing before customers reach your shop.</h1>
+        <p class="pb-lede">See what assistants do today, what retailers can control, and how expert teams can respond with AI, governed product information and connected systems.</p>
+        <p class="pb-muted">Attendee material for {access.event.title}.</p>
+      </div>
+
+      <AudienceGuide worksheetHref={`${eventHome}/guide#check-your-visibility`} />
+
+      <section class="pb-section" id="check-your-visibility" aria-labelledby="worksheet-title">
+        <p class="pb-eyebrow">Optional exercise</p>
+        <h2 id="worksheet-title">Visibility worksheet</h2>
+        <p class="pb-lede">Record one response and check it against your actual offer. A dated observation is not a ranking or benchmark.</p>
+        <VisibilityWorksheet interactive />
+      </section>
+    </main>
+  </div>
+</PlaybookLayout>

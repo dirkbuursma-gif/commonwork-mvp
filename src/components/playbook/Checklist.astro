@@ -1,0 +1,57 @@
+---
+import { checklist } from '../../lib/playbook/content';
+
+interface Props {
+  interactive?: boolean;
+}
+
+const { interactive = false } = Astro.props;
+const total = checklist.reduce((sum, group) => sum + group.items.length, 0);
+---
+
+<div class="pb-checklist" data-checklist>
+  {
+    checklist.map((group) => (
+      <fieldset class="pb-check-group">
+        <legend>{group.title}</legend>
+        <ul>
+          {group.items.map((item) => (
+            <li>
+              {interactive ? (
+                <label>
+                  <input type="checkbox" name={item.id} data-check />
+                  <span>{item.text}</span>
+                </label>
+              ) : (
+                <span class="pb-check-static">
+                  <span class="pb-box" aria-hidden="true" />
+                  <span>{item.text}</span>
+                </span>
+              )}
+            </li>
+          ))}
+        </ul>
+      </fieldset>
+    ))
+  }
+  {
+    interactive && (
+      <p class="pb-check-count" aria-live="polite" data-check-count data-total={total}>
+        0 of {total} ticked. Ticks are not saved or sent anywhere.
+      </p>
+    )
+  }
+</div>
+
+<script>
+  const root = document.querySelector<HTMLElement>('[data-checklist]');
+  const counter = root?.querySelector<HTMLElement>('[data-check-count]');
+  if (root && counter) {
+    const total = Number(counter.dataset.total);
+    const update = () => {
+      const ticked = root.querySelectorAll('[data-check]:checked').length;
+      counter.textContent = `${ticked} of ${total} ticked. Ticks are not saved or sent anywhere.`;
+    };
+    root.addEventListener('change', update);
+  }
+</script>

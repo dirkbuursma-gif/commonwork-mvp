@@ -1,0 +1,65 @@
+---
+import PlaybookLayout from '../../../../layouts/PlaybookLayout.astro';
+import AudienceGuide from '../../../../components/playbook/AudienceGuide.astro';
+import { createSupabaseServerClient } from '../../../../lib/supabase/server';
+import { getEventMaterialAccess } from '../../../../lib/events/material-access';
+
+export const prerender = false;
+
+const user = Astro.locals.user;
+if (!user || user.isLocalTestUser) {
+  return new Response('Approved event attendee access is required.', {
+    status: user ? 403 : 401,
+    headers: { 'Cache-Control': 'private, no-store' },
+  });
+}
+
+const supabase = createSupabaseServerClient(Astro);
+if (!supabase) {
+  return new Response('Event materials are not configured.', {
+    status: 503,
+    headers: { 'Cache-Control': 'private, no-store' },
+  });
+}
+
+const access = await getEventMaterialAccess(supabase, Astro.params.slug ?? '', user.id);
+if (access.status !== 'available') {
+  return new Response(access.status === 'not-found' ? 'Event not found.' : 'Approved event attendee access is required.', {
+    status: access.status === 'not-found' ? 404 : 403,
+    headers: { 'Cache-Control': 'private, no-store' },
+  });
+}
+const guideMaterial = access.materials.find((material) => material.kind === 'guide');
+Astro.response.headers.set('Cache-Control', 'private, no-store');
+const eventHome = `/events/${access.event.slug}`;
+---
+
+<PlaybookLayout title="Retailer guide (print view)" mode="print">
+  <header class="pb-print-head">
+    <p class="pb-eyebrow">Commonwork · retailer guide · {access.event.title}</p>
+    <h1>The buying journey is changing before customers reach your shop.</h1>
+    <p class="pb-lede">Assistants, expert teams, governed product information and connected systems.</p>
+    <div class="pb-screen-only pb-print-actions">
+      <button class="pb-btn" type="button" data-print>Print retailer guide</button>
+      <a class="pb-btn" href={`${eventHome}/guide`}>Back to the browser guide</a>
+      {guideMaterial ? (
+        <form method="post" action="/api/events/material">
+          <input type="hidden" name="material_id" value={guideMaterial.id} />
+          <button class="pb-btn pb-btn-primary" type="submit">Download print-guide PDF</button>
+        </form>
+      ) : (
+        <p class="pb-muted">The print-guide PDF will be downloadable after the event manager attaches it.</p>
+      )}
+    </div>
+  </header>
+
+  <main>
+    <AudienceGuide mode="print" />
+  </main>
+</PlaybookLayout>
+
+<script>
+  document.querySelector<HTMLButtonElement>('[data-print]')?.addEventListener('click', () => {
+    window.print();
+  });
+</script>

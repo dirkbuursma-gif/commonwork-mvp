@@ -1,0 +1,43 @@
+---
+import { videoShortlist } from '../../lib/playbook/content';
+
+interface Props {
+  ids?: string[];
+}
+
+const { ids } = Astro.props;
+const clips = ids ? videoShortlist.filter((clip) => ids.includes(clip.id)) : videoShortlist;
+---
+
+<div class="pb-video-list">
+  {clips.map((clip) => (
+    <article class="pb-video-card">
+      <div class="pb-video-heading">
+        <div>
+          <p class="pb-eyebrow">{clip.state === 'official-source-link' ? 'Official source link' : 'Recording not made'}</p>
+          <h3>{clip.title}</h3>
+        </div>
+        {clip.sourceUrl && <a class="pb-btn" href={clip.sourceUrl} target="_blank" rel="noreferrer">Open original source</a>}
+      </div>
+      <dl class="pb-video-meta">
+        <div><dt>Publisher / date</dt><dd>{clip.publisher} · {clip.publishedAt}</dd></div>
+        <div><dt>Feature shown</dt><dd>{clip.platformFeature}</dd></div>
+        <div><dt>Market / account limits</dt><dd>{clip.marketLimits}</dd></div>
+        <div><dt>Proposed segment</dt><dd>{clip.proposedStart}–{clip.proposedEnd}</dd></div>
+        <div><dt>Reuse status</dt><dd>{clip.permission}</dd></div>
+      </dl>
+      <p>{clip.purpose}</p>
+      <p class="pb-video-notice">{clip.notice}</p>
+      <details class="pb-video-fallback">
+        <summary>Static fallback and explanation</summary>
+        <p><strong>Fallback:</strong> {clip.fallback}</p>
+        <p>{clip.explanatoryText}</p>
+      </details>
+      {
+        clip.state === 'official-source-link'
+          ? <p class="pb-muted">No autoplay. Use the source publisher’s page and playback controls. No third-party video is downloaded or re-hosted.</p>
+          : <p class="pb-muted">Recording unavailable; use the static worksheet fallback only. No recording or player is available.</p>
+      }
+    </article>
+  ))}
+</div>

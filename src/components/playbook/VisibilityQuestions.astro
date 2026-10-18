@@ -1,0 +1,19 @@
+---
+import { sourceById, visibilityQuestions } from '../../lib/playbook/content';
+---
+
+<div class="pb-visibility-questions">
+  {visibilityQuestions.map((item, index) => {
+    const source = sourceById[item.sourceId];
+    return (
+      <article class="pb-visibility-question">
+        <span class="pb-influence-index">0{index + 1}</span>
+        <h3>{item.question}</h3>
+        <p>{item.example}</p>
+        <a href={source.url} target="_blank" rel="noreferrer">{source.publisher} source</a>
+        <span class="pb-badges"><span class="pb-badge pb-kind-official">Platform statement</span></span>
+      </article>
+    );
+  })}
+</div>
+<p class="pb-muted">These are three different observations. None is a guaranteed recommendation or a measured retailer result.</p>

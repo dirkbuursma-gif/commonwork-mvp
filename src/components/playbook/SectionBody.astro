@@ -1,0 +1,158 @@
+---
+import { contactPlaceholder, resources, sourceById, tools, toolStages } from '../../lib/playbook/content';
+import type { PlaybookSection } from '../../lib/playbook/content';
+import Badges from './Badges.astro';
+import Checklist from './Checklist.astro';
+import ClaimTable from './ClaimTable.astro';
+import VideoShortlist from './VideoShortlist.astro';
+import VisibilityModel from './VisibilityModel.astro';
+import VisibilityQuestions from './VisibilityQuestions.astro';
+import VisibilityWorksheet from './VisibilityWorksheet.astro';
+
+interface Props {
+  section: PlaybookSection;
+  interactive?: boolean;
+  expandNotes?: boolean;
+}
+
+const { section, interactive = false, expandNotes = false } = Astro.props;
+---
+
+<div class="pb-body">
+  {section.explanation.map((paragraph) => <p>{paragraph}</p>)}
+
+  <ul class="pb-points">
+    {
+      section.points.map((point) => (
+        <li>
+          <span>{point.text}</span>
+          <span class="pb-badges">
+            <Badges kind={point.kind} status={point.status} />
+          </span>
+          {point.sourceIds && (
+            <span class="pb-point-sources">
+              {point.sourceIds.map((sourceId) => (
+                <a href={sourceById[sourceId].url} target="_blank" rel="noreferrer">Source: {sourceById[sourceId].publisher}</a>
+              ))}
+            </span>
+          )}
+        </li>
+      ))
+    }
+  </ul>
+
+  {
+    section.demo && (
+      <aside class="pb-demo" aria-label="Demonstration placeholder">
+        <p class="pb-demo-label">
+          <Badges kind={section.demo.kind} status={section.demo.status} />
+        </p>
+        <h3>{section.demo.title}</h3>
+        <p>{section.demo.description}</p>
+        {section.demo.sourceUrl && <a href={section.demo.sourceUrl} target="_blank" rel="noreferrer">Open the original publisher page</a>}
+        <p class="pb-demo-fallback">{section.demo.fallback}</p>
+      </aside>
+    )
+  }
+
+  {section.showChecklist && <Checklist interactive={interactive} />}
+
+  {
+    section.showTools && (
+      <div class="pb-tools">
+        <h3>Featured tools</h3>
+        <p class="pb-muted">Names, roles, links and demonstration permissions are all unverified.</p>
+        <div class="pb-tool-stages">
+          {toolStages.map((stage) => {
+            const stageTools = tools.filter((tool) => tool.job === stage.job);
+            return (
+              <section class="pb-tool-stage">
+                <h4>{stage.job}</h4>
+                <p>{stage.method}</p>
+                {stageTools.length > 0 ? (
+                  <ul>
+                    {stageTools.map((tool) => (
+                      <li>
+                        <strong>{tool.name}</strong>
+                        <span class="pb-badges"><Badges kind={tool.kind} status={tool.status} /></span>
+                        <p>{tool.intendedRole}</p>
+                        <p class="pb-muted">{tool.caveat} {tool.demoPermission}</p>
+                        {tool.url && <a href={tool.url} target="_blank" rel="noreferrer">Vendor source</a>}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p class="pb-stage-empty">No named product is assigned to this stage in this draft.</p>
+                )}
+              </section>
+            );
+          })}
+        </div>
+      </div>
+    )
+  }
+
+  {section.showVisibilityModel && <VisibilityModel />}
+
+  {section.showVisibilityQuestions && <VisibilityQuestions />}
+
+  {section.showWorksheet && <VisibilityWorksheet />}
+
+  {section.videoIds && <VideoShortlist ids={section.videoIds} />}
+
+  {section.showClaimTable && (
+    <div class="pb-claim-register">
+      <h3>Claim-to-source register</h3>
+      <ClaimTable />
+    </div>
+  )}
+
+  {
+    section.showResources && (
+      <div class="pb-resources">
+        <h3>Resources</h3>
+        <ul>
+          {resources.map((resource) => (
+            <li>
+              <strong>{resource.label}</strong>
+              <span class="pb-badges">
+                <Badges status={resource.status} />
+              </span>
+              <span class="pb-muted">{resource.note}</span>
+              <a href={resource.url} target="_blank" rel="noreferrer">Open source</a>
+            </li>
+          ))}
+        </ul>
+        <div class="pb-contact">
+          <h3>{contactPlaceholder.heading}</h3>
+          <p>{contactPlaceholder.body}</p>
+        </div>
+      </div>
+    )
+  }
+
+  <div class="pb-sources">
+    <h3>Sources</h3>
+    <ul>
+      {
+        section.sources.map((source) => (
+          <li>
+            <a href={source.url} target="_blank" rel="noreferrer">{source.label}</a>
+            <span class="pb-source-publisher">{source.publisher} · {source.publishedAt}</span>
+            <span class="pb-source-note">{source.note}</span>
+            <span class="pb-badges">
+              <Badges status={source.status} />
+            </span>
+          </li>
+        ))
+      }
+    </ul>
+  </div>
+
+  {section.speakerNotes.length > 0 && (
+    <details class="pb-speaker-notes" open={expandNotes}>
+      <summary>Presenter notes</summary>
+      <ul>{section.speakerNotes.map((note) => <li>{note}</li>)}</ul>
+    </details>
+  )}
+</div>
