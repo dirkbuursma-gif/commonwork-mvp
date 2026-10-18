@@ -1,9 +1,8 @@
 import type { APIRoute } from 'astro';
 import { createSupabaseServerClient } from '../../../lib/supabase/server';
 import { getEventMaterialAccess } from '../../../lib/events/material-access';
+import { getLisbonEventContextBySlug } from '../../../lib/events/lisbon-context';
 
-const eventSlug = 'commonwork-lisbon-preview';
-const eventId = '00000000-0000-4000-8000-00000000e001';
 const clips: Record<string, string> = {
   geoffy: 'Geoffy-in-60-seconds-EN-1080p.mp4',
   begen: 'AdMultify by Begen Video Teaser.mp4',
@@ -24,21 +23,24 @@ export const GET: APIRoute = async (context) => {
     return unavailable('Approved event attendee access is required.', user ? 403 : 401);
   }
   const requestedEvent = context.url.searchParams.get('event_slug');
+  const eventContext = getLisbonEventContextBySlug(requestedEvent);
   const clip = context.url.searchParams.get('clip') ?? '';
-  if (requestedEvent !== eventSlug) return unavailable('Event video not found.', 404);
+  if (!eventContext) return unavailable('Event video not found.', 404);
   if (!Object.prototype.hasOwnProperty.call(clips, clip)) return unavailable('Event video not found.', 404);
 
   const supabase = createSupabaseServerClient(context);
   if (!supabase) return unavailable('Event video is not configured.', 503);
 
   try {
-    const access = await getEventMaterialAccess(supabase, eventSlug, user.id);
+    const access = await getEventMaterialAccess(supabase, eventContext.eventSlug, user.id);
     if (access.status !== 'available') {
       return unavailable('This video is not available for your account.', access.status === 'not-found' ? 404 : 403);
     }
-    if (access.event.id !== eventId) return unavailable('Event video not found.', 404);
+    if (access.event.id !== eventContext.eventId || access.event.slug !== eventContext.eventSlug) {
+      return unavailable('Event video not found.', 404);
+    }
 
-    const path = `${eventId}/videos/${clips[clip]}`;
+    const path = `${eventContext.eventId}/videos/${clips[clip]}`;
     const { data, error } = await supabase.storage.from('event-materials').createSignedUrl(path, 300);
     if (error || !data?.signedUrl) return unavailable('This video is not available. Please reload and try again.', 404);
 

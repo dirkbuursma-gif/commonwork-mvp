@@ -8,6 +8,7 @@
  * information lives here as page content rather than as extra tables. Nothing
  * in this file is inferred: every string is taken from the official programme.
  */
+import { getLisbonEventContextById } from './lisbon-context';
 
 export interface SessionPerson {
   name: string;
@@ -117,12 +118,7 @@ export const inretail2026: EventIdentity = {
   ],
 };
 
-/** Event records whose landing page renders the INRETAIL session identity. */
-const identityByEventId: Record<string, EventIdentity> = {
-  '00000000-0000-4000-8000-00000000e001': inretail2026,
-};
-
+/** Branding only: material access is independently enforced by the server. */
 export function getEventIdentity(eventId: string | undefined): EventIdentity | null {
-  if (!eventId) return null;
-  return identityByEventId[eventId] ?? null;
+  return getLisbonEventContextById(eventId) ? inretail2026 : null;
 }

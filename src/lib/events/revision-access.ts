@@ -1,6 +1,7 @@
 import type { APIContext } from 'astro';
 import { createSupabaseServerClient } from '../supabase/server';
 import { getEventMaterialAccess } from './material-access';
+import { matchesLisbonEventContext } from './lisbon-context';
 type Context = Pick<APIContext, 'locals' | 'cookies' | 'request' | 'params'>;
 type Page = { eventHome: string; title: string; videoSources: Record<string, string> };
 export async function requireRevisionAccess(context: Context): Promise<Response | Page> {
@@ -12,6 +13,6 @@ export async function requireRevisionAccess(context: Context): Promise<Response 
   const access = await getEventMaterialAccess(client, context.params.slug ?? '', user.id);
   if (access.status !== 'available') return denied(access.status === 'not-found' ? 'Event not found.' : 'Approved event attendee access is required.', access.status === 'not-found' ? 404 : 403);
   const clip = (key: string) => '/api/events/video?' + new URLSearchParams({ event_slug: access.event.slug, clip: key }).toString();
-  const videoSources: Record<string, string> = access.event.slug === 'commonwork-lisbon-preview' ? { geoffy: clip('geoffy'), begen: clip('begen') } : {};
+  const videoSources: Record<string, string> = matchesLisbonEventContext(access.event.id, access.event.slug) ? { geoffy: clip('geoffy'), begen: clip('begen') } : {};
   return { eventHome: `/events/${access.event.slug}`, title: access.event.title, videoSources };
 }
