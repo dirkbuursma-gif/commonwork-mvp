@@ -15,6 +15,7 @@ import {
   type AttendeeStatus,
 } from '../../lib/events';
 import { getEventIdentity } from '../../lib/events/inretail-2026';
+import { getEventCatalogueSelection } from '../../lib/event-catalogue';
 import '../../styles/events.css';
 
 const EVENT_TIME_ZONE = 'Europe/Lisbon';
@@ -74,20 +75,25 @@ const articles = (await getCollection('insights'))
   .sort((a, b) => b.data.publishDate.valueOf() - a.data.publishDate.valueOf())
   .slice(0, 2);
 
-let catalogueEntries: Array<{ slug: string; name: string; summary: string; provider: string }> = [];
+const catalogueSelection = getEventCatalogueSelection(event?.id);
+let catalogueEntries: Array<{ slug: string; name: string; summary: string; provider: string; relevance?: string }> = [];
 if (user && !localPreview && supabase) {
-  const { data } = await supabase
+  let catalogueQuery = supabase
     .from('provider_products')
-    .select('slug, name, summary, providers!inner(name)')
-    .limit(3);
+    .select('slug, name, summary, providers!inner(name)');
+  catalogueQuery = catalogueSelection
+    ? catalogueQuery.eq('slug', catalogueSelection.productSlug)
+    : catalogueQuery.limit(3);
+  const { data } = await catalogueQuery;
   catalogueEntries = (data ?? []).map((row: any) => ({
     slug: row.slug,
     name: row.name,
     summary: row.summary ?? '',
     provider: Array.isArray(row.providers) ? row.providers[0]?.name ?? '' : row.providers?.name ?? '',
+    relevance: catalogueSelection?.relevance,
   }));
 }
-if (import.meta.env.DEV && catalogueEntries.length === 0) {
+if (import.meta.env.DEV && catalogueEntries.length === 0 && !catalogueSelection) {
   catalogueEntries = [{
     slug: 'adobe-commerce',
     name: 'Adobe Commerce',
@@ -355,7 +361,13 @@ const pageDescription = identity?.summary ?? event?.summary ?? 'Commonwork event
                 {catalogueEntries.map((entry) => (
                   <li class="event-card">
                     <span class="event-card-desk">{entry.provider}</span>
-                    <a class="event-card-title" href={`/intelligence/product/${entry.slug}`}>{entry.name}</a>
+                    <a
+                      class="event-card-title"
+                      href={`/intelligence/product/${entry.slug}${catalogueSelection ? `?from_event=${encodeURIComponent(event.slug)}` : ''}`}
+                    >
+                      {entry.name}
+                    </a>
+                    {entry.relevance && <p class="event-card-relevance"><strong>Why it relates:</strong> {entry.relevance}</p>}
                     {entry.summary && <p class="event-card-summary">{entry.summary}</p>}
                   </li>
                 ))}
