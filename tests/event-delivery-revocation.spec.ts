@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { expect, test } from '@playwright/test';
 import { createLocalAdminClient, createLocalAnonymousClient, createLocalMember, type LocalMember } from './helpers/local-supabase';
+import { assertPublicVideo } from './helpers/public-event-video';
 
 test('same attendee session and application URL warm successfully, then deny immediately after manager revocation', async ({ page }) => {
   test.setTimeout(90_000);
@@ -60,12 +61,13 @@ test('same attendee session and application URL warm successfully, then deny imm
   }
 });
 
-
-test('allowlisted video delivers ranges through the same app URL and denies the same session after revocation', async ({ page }) => {
+test('public video redirects anonymously and retains access after attendee revocation, including Storage ranges', async ({ page }) => {
   test.setTimeout(90_000);
   const admin = createLocalAdminClient(); const people: LocalMember[] = [];
   const eventId = 'c3118b54-7568-4ef6-9159-124dc86e7971';
-  const path = `${eventId}/videos/Geoffy-in-60-seconds-EN-1080p.mp4`;
+  const filename = 'Geoffy-in-60-seconds-EN-1080p.mp4';
+  const path = `${eventId}/videos/${filename}`;
+  const bytes = new Uint8Array([0, 1, 2, 3, 4, 5, 6, 7]);
   let createdEvent = false; let uploaded = false;
   try {
     const manager = await createLocalMember('Local video manager'); people.push(manager);
@@ -73,30 +75,24 @@ test('allowlisted video delivers ranges through the same app URL and denies the 
     expect((await admin.from('profiles').insert({ id: manager.id, display_name: 'Local video manager' })).error).toBeNull();
     const event = await admin.from('events').insert({ id: eventId, slug: 'agentic-commerce-lisbon-2026', title: 'Local video fixture only', manager_profile_id: manager.id, is_published: true });
     expect(event.error, 'Do not overwrite an existing configured local event').toBeNull(); createdEvent = !event.error;
-    const upload = await manager.client.storage.from('event-materials').upload(path, new Uint8Array([0, 1, 2, 3, 4, 5, 6, 7]), { contentType: 'video/mp4', upsert: false });
+    const upload = await manager.client.storage.from('event-materials').upload(path, bytes, { contentType: 'video/mp4', upsert: false });
     expect(upload.error).toBeNull(); uploaded = !upload.error;
+    const allowed = () => assertPublicVideo(page.request, 'agentic-commerce-lisbon-2026', eventId, 'geoffy', filename, bytes, true);
+    await allowed();
     await page.context().addCookies(attendee.cookies.map(({ name, value, url }) => ({ name, value, url })));
-    const url = '/api/events/video?event_slug=agentic-commerce-lisbon-2026&clip=geoffy';
     const token = (await attendee.client.auth.getSession()).data.session?.access_token;
-    expect((await page.request.get(url, { maxRedirects: 0 })).status()).toBe(403);
+    await allowed();
     expect((await attendee.client.rpc('request_event_attendance', { target_event_id: eventId })).error).toBeNull();
-    expect((await page.request.get(url, { maxRedirects: 0 })).status()).toBe(403);
+    await allowed();
     expect((await manager.client.from('event_attendees').update({ status: 'approved', decided_at: new Date().toISOString(), decided_by: manager.id }).eq('event_id', eventId).eq('profile_id', attendee.id).select('status').single()).error).toBeNull();
-    for (let i = 0; i < 3; i++) {
-      const response = await page.request.get(url, { maxRedirects: 0 });
-      expect(response.status()).toBe(200); expect([...await response.body()]).toEqual([0, 1, 2, 3, 4, 5, 6, 7]);
-      expect(response.headers()['cache-control']).toBe('private, no-store'); expect(response.headers().location).toBeUndefined();
-    }
-    const partial = await page.request.get(url, { headers: { range: 'bytes=2-4' }, maxRedirects: 0 });
-    expect(partial.status()).toBe(206); expect(partial.headers()['content-range']).toBe('bytes 2-4/8'); expect([...await partial.body()]).toEqual([2, 3, 4]);
-    const invalid = await page.request.get(url, { headers: { range: 'bytes=20-' }, maxRedirects: 0 });
-    expect(invalid.status()).toBe(416); expect(invalid.headers()['content-range']).toBe('bytes */8');
+    await allowed();
     expect((await attendee.client.storage.from('event-materials').download(path)).error).toBeTruthy();
     expect((await attendee.client.storage.from('event-materials').createSignedUrl(path, 300)).error).toBeTruthy();
     expect((await manager.client.from('event_attendees').update({ status: 'revoked', decided_at: new Date().toISOString(), decided_by: manager.id }).eq('event_id', eventId).eq('profile_id', attendee.id).select('status').single()).error).toBeNull();
-    const denied = await page.request.get(url, { headers: { range: 'bytes=2-4' }, maxRedirects: 0 });
-    expect(denied.status()).toBe(403); expect(await denied.text()).not.toContain('video/mp4'); expect(denied.headers().location).toBeUndefined();
+    await allowed();
     expect((await attendee.client.auth.getSession()).data.session?.access_token).toBe(token);
+    await page.context().clearCookies();
+    await allowed();
   } finally {
     if (uploaded) await admin.storage.from('event-materials').remove([path]);
     if (createdEvent) await admin.from('events').delete().eq('id', eventId);
