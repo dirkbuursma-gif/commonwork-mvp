@@ -51,13 +51,13 @@ for (const line of status.split(/\r?\n/)) {
   if (separator < 1) continue;
   const key = line.slice(0, separator).trim();
   const rawValue = line.slice(separator + 1).trim();
-  if (key === 'API_URL' || key === 'ANON_KEY') {
+  if (key === 'API_URL' || key === 'ANON_KEY' || key === 'SERVICE_ROLE_KEY') {
     values[key] = rawValue.startsWith('"') ? JSON.parse(rawValue) : rawValue;
   }
 }
 
-if (!values.API_URL || !values.ANON_KEY) {
-  console.error('Local Supabase status did not provide its URL and anon key.');
+if (!values.API_URL || !values.ANON_KEY || !values.SERVICE_ROLE_KEY || !/^http:\/\/(127\.0\.0\.1|localhost):[0-9]+\/?$/.test(values.API_URL)) {
+  console.error('Local Supabase status did not provide loopback-only generated credentials.');
   stopSupabase();
   process.exit(1);
 }
@@ -66,6 +66,8 @@ const serverEnv = { ...process.env };
 for (const key of Object.keys(serverEnv)) {
   if (/SERVICE_ROLE|SECRET_KEY/i.test(key)) delete serverEnv[key];
 }
+// Only the freshly generated local key crosses this boundary; inherited hosted keys were removed above.
+serverEnv.SUPABASE_SERVICE_ROLE_KEY = values.SERVICE_ROLE_KEY;
 serverEnv.PUBLIC_SUPABASE_URL = values.API_URL;
 serverEnv.PUBLIC_SUPABASE_ANON_KEY = values.ANON_KEY;
 serverEnv.CRON_SECRET = 'local-test-cron-secret';

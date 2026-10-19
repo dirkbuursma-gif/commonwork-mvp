@@ -2,58 +2,27 @@ import type { APIRoute } from 'astro';
 import { createSupabaseServerClient } from '../../../lib/supabase/server';
 import { getEventMaterialAccess } from '../../../lib/events/material-access';
 import { getLisbonEventContextBySlug } from '../../../lib/events/lisbon-context';
+import { deliveryError, streamEventObject } from '../../../lib/events/object-delivery';
 
 const clips: Record<string, string> = {
   geoffy: 'Geoffy-in-60-seconds-EN-1080p.mp4',
   begen: 'AdMultify by Begen Video Teaser.mp4',
 };
-
-function unavailable(message: string, status: number): Response {
-  return new Response(message, {
-    status,
-    headers: { 'Cache-Control': 'private, no-store', Vary: 'Cookie', 'Content-Type': 'text/plain; charset=utf-8' },
-  });
-}
-
 export const prerender = false;
-
 export const GET: APIRoute = async (context) => {
   const user = context.locals.user;
-  if (!user || user.isLocalTestUser) {
-    return unavailable('Approved event attendee access is required.', user ? 403 : 401);
-  }
-  const requestedEvent = context.url.searchParams.get('event_slug');
-  const eventContext = getLisbonEventContextBySlug(requestedEvent);
+  if (!user || user.isLocalTestUser) return deliveryError('Approved event attendee access is required.', user ? 403 : 401);
+  const eventContext = getLisbonEventContextBySlug(context.url.searchParams.get('event_slug'));
   const clip = context.url.searchParams.get('clip') ?? '';
-  if (!eventContext) return unavailable('Event video not found.', 404);
-  if (!Object.prototype.hasOwnProperty.call(clips, clip)) return unavailable('Event video not found.', 404);
-
+  if (!eventContext || !Object.prototype.hasOwnProperty.call(clips, clip)) return deliveryError('Event video not found.', 404);
   const supabase = createSupabaseServerClient(context);
-  if (!supabase) return unavailable('Event video is not configured.', 503);
-
+  if (!supabase) return deliveryError('Event video is not configured.', 503);
   try {
-    const access = await getEventMaterialAccess(supabase, eventContext.eventSlug, user.id);
-    if (access.status !== 'available') {
-      return unavailable('This video is not available for your account.', access.status === 'not-found' ? 404 : 403);
-    }
-    if (access.event.id !== eventContext.eventId || access.event.slug !== eventContext.eventSlug) {
-      return unavailable('Event video not found.', 404);
-    }
-
-    const path = `${eventContext.eventId}/videos/${clips[clip]}`;
-    const { data, error } = await supabase.storage.from('event-materials').createSignedUrl(path, 300);
-    if (error || !data?.signedUrl) return unavailable('This video is not available. Please reload and try again.', 404);
-
-    return new Response(null, {
-      status: 307,
-      headers: {
-        Location: data.signedUrl,
-        'Cache-Control': 'private, no-store',
-        Vary: 'Cookie',
-        'Referrer-Policy': 'no-referrer',
-      },
-    });
-  } catch {
-    return unavailable('We could not load this video. Please try again shortly.', 503);
-  }
+    const { data: identity, error } = await supabase.auth.getUser();
+    if (error || !identity.user?.email_confirmed_at || identity.user.id !== user.id) return deliveryError('Verified authentication is required.', 401);
+    const access = await getEventMaterialAccess(supabase, eventContext.eventSlug, identity.user.id);
+    if (access.status !== 'available') return deliveryError('This video is not available for your account.', access.status === 'not-found' ? 404 : 403);
+    if (access.event.id !== eventContext.eventId || access.event.slug !== eventContext.eventSlug) return deliveryError('Event video not found.', 404);
+    return streamEventObject({ request: context.request, eventId: eventContext.eventId, path: `${eventContext.eventId}/videos/${clips[clip]}`, video: true });
+  } catch { return deliveryError('We could not load this video. Please try again shortly.', 503); }
 };
