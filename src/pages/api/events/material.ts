@@ -18,9 +18,9 @@ export const GET: APIRoute = () => {
     } });
   } catch {
     const input = {
-      publicUrl: import.meta.env.PUBLIC_SUPABASE_URL,
+      publicUrl: import.meta.env?.PUBLIC_SUPABASE_URL,
       privateKey: process.env.SUPABASE_SERVICE_ROLE_KEY,
-      development: Boolean(import.meta.env.DEV),
+      development: Boolean(import.meta.env?.DEV),
       server: typeof window === 'undefined',
     };
     const code = describeDeliveryConfigurationFailure(input);
