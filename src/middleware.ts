@@ -15,6 +15,7 @@ const localTestUser: App.User = {
   user_metadata: { full_name: 'Local Test Member' }, isLocalTestUser: true,
 };
 const publicEditorialPath = /^\/(?:insights(?:\/[^/]+)?|about|events\/[a-z0-9]+(?:-[a-z0-9]+)*)$/;
+const eventJoinPath = /^\/events\/(?!manage\/)[a-z0-9]+(?:-[a-z0-9]+)*\/join$/;
 function hasSupabaseAuthCookie(request: Request): boolean {
   return (request.headers.get('cookie') ?? '').split(';').some((cookie) => /^sb-.+-auth-token(?:\.\d+)?=/i.test(cookie.trim()));
 }
@@ -22,9 +23,10 @@ export const onRequest = defineMiddleware(async (context, next) => {
   const { pathname } = new URL(context.request.url);
   if (publicPaths.has(pathname) || pathname.startsWith('/_astro/') || pathname.startsWith('/favicon')) return next();
   const local = import.meta.env.DEV && context.cookies.get('commonwork_local_test_session')?.value === 'enabled';
+  const join = eventJoinPath.test(pathname) && ['GET', 'HEAD', 'POST'].includes(context.request.method);
   const editorial = (context.request.method === 'GET' || context.request.method === 'HEAD')
     && pathname !== '/events/manage' && pathname !== '/insights/editor' && publicEditorialPath.test(pathname);
-  if (editorial) {
+  if (editorial || join) {
     const user = local ? localTestUser : hasSupabaseAuthCookie(context.request) ? await getCurrentUser(context) : null;
     if (user) context.locals.user = user;
     const response = await next();
