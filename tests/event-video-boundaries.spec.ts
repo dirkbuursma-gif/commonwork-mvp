@@ -26,7 +26,7 @@ test('video endpoint rejects other events before storage access', async () => {
 });
 
 test('video endpoint rejects unknown clips and object-path injection', async () => {
-  for (const clip of ['rierino', 'becited', '../other.mp4', 'toString', 'https://example.test/video.mp4']) {
+  for (const clip of ['unknown-clip', 'becited', '../other.mp4', 'toString', 'https://example.test/video.mp4']) {
     const query = new URLSearchParams({ event_slug: 'commonwork-lisbon-preview', clip });
     const response = await GET(context(query.toString(), { id: 'boundary-test' }));
     expect(response.status).toBe(404);
