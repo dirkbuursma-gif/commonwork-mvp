@@ -1,5 +1,20 @@
+import { execFileSync } from 'node:child_process';
 import { expect, request, type APIRequestContext } from '@playwright/test';
-import { createLocalAdminClient } from './local-supabase';
+
+function localStorageOrigin(): URL {
+  const output = execFileSync('npx', ['supabase', 'status', '-o', 'env'], { cwd: process.cwd(), encoding: 'utf8' });
+  const line = output.split(/\r?\n/).find((line) => line.startsWith('API_URL='));
+  if (!line) throw new Error('Local Supabase API URL is missing.');
+  const value = line.slice('API_URL='.length).trim();
+  const apiUrl: unknown = value.startsWith('"') ? JSON.parse(value) : value;
+  if (typeof apiUrl !== 'string') throw new Error('Invalid local Supabase API URL.');
+  const local = new URL(apiUrl);
+  if (local.protocol !== 'http:' || !['127.0.0.1', 'localhost'].includes(local.hostname) ||
+      local.username || local.password || local.pathname !== '/' || local.search || local.hash) {
+    throw new Error('Video fixture requests must use loopback-only local Supabase.');
+  }
+  return local;
+}
 
 export async function assertPublicVideo(client: APIRequestContext, slug: string, eventId: string, clip: string, filename: string, bytes: Uint8Array, ranges = false): Promise<void> {
   const response = await client.get('/api/events/video?' + new URLSearchParams({ event_slug: slug, clip }), { maxRedirects: 0 });
@@ -11,9 +26,7 @@ export async function assertPublicVideo(client: APIRequestContext, slug: string,
   expect(headers['referrer-policy']).toBe('no-referrer');
   expect(headers.location).toBeTruthy();
   const target = new URL(headers.location);
-  const local = new URL(createLocalAdminClient().supabaseUrl);
-  expect(['127.0.0.1', 'localhost']).toContain(local.hostname);
-  expect(local.protocol).toBe('http:');
+  const local = localStorageOrigin();
   expect(target.origin).toBe(local.origin);
   expect(target.username).toBe(''); expect(target.password).toBe('');
   expect(target.hash).toBe('');
