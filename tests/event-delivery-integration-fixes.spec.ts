@@ -9,11 +9,12 @@ function privacy(headers: Record<string, string>) {
   expect(headers['vercel-cdn-cache-control']).toBe('no-store');
   expect(headers.location).toBeUndefined();
 }
-test('real middleware preserves anonymous delivery API 401 and no-store instead of sign-in redirects', async ({ request }) => {
+test('middleware preserves document authentication and lets anonymous video validation run without sign-in redirects', async ({ request }) => {
   const document = await request.post('/api/events/material', { form: { material_id: eventId }, headers: { origin: 'http://127.0.0.1:4322' }, maxRedirects: 0 });
   expect(document.status()).toBe(401); privacy(document.headers());
-  const video = await request.get('/api/events/video?event_slug=agentic-commerce-lisbon-2026&clip=geoffy', { maxRedirects: 0 });
-  expect(video.status()).toBe(401); privacy(video.headers());
+  // No uploaded fixture is needed: a forbidden clip must be rejected by the video route itself.
+  const video = await request.get('/api/events/video?event_slug=agentic-commerce-lisbon-2026&clip=not-an-allowed-video', { maxRedirects: 0 });
+  expect(video.status()).toBe(404); privacy(video.headers());
   const preflight = await request.get('/api/events/material', { maxRedirects: 0 });
   expect([401, 404, 503]).toContain(preflight.status()); privacy(preflight.headers());
 });

@@ -3,13 +3,14 @@ import { expect, test, type BrowserContext } from '@playwright/test';
 import { getLisbonEventContextById, getLisbonEventContextBySlug, matchesLisbonEventContext } from '../src/lib/events/lisbon-context';
 import { getEventCatalogueSelections, getCatalogueJourneyContext } from '../src/lib/event-catalogue';
 import { getEventIdentity } from '../src/lib/events/inretail-2026';
-import { GET } from '../src/pages/api/events/video';
+import { GET, publicVideoResponse } from '../src/pages/api/events/video';
 import { createLocalAdminClient, createLocalMember, type LocalMember } from './helpers/local-supabase';
+import { assertPublicVideo } from './helpers/public-event-video';
 
 const staging = { id: '00000000-0000-4000-8000-00000000e001', slug: 'commonwork-lisbon-preview' };
 const production = { id: 'c3118b54-7568-4ef6-9159-124dc86e7971', slug: 'agentic-commerce-lisbon-2026' };
 const products = ['geoffy', 'admultify', 'rierino-commerce-platform', 'be-cited'];
-const clips = { geoffy: 'Geoffy-in-60-seconds-EN-1080p.mp4', begen: 'AdMultify by Begen Video Teaser.mp4' };
+const clips = { geoffy: 'Geoffy-in-60-seconds-EN-1080p.mp4', begen: 'AdMultify by Begen Video Teaser.mp4', rierino: 'Rierino_Agentic_Commerce_InRetail_2026_music.mp4' };
 const fixtureContent = (filename: string) => `local-only ${production.id} ${filename}`;
 test.setTimeout(60_000);
 
@@ -43,33 +44,38 @@ test('crossed, missing and prototype-like identities cannot acquire an event con
 });
 
 type VideoContext = Parameters<typeof GET>[0];
-function videoContext(query: string, user?: Record<string, unknown>): VideoContext {
-  return { url: new URL(`https://example.test/api/events/video?${query}`), locals: { user } } as unknown as VideoContext;
+function videoContext(query: string): VideoContext {
+  return { url: new URL(`https://example.test/api/events/video?${query}`), locals: {} } as unknown as VideoContext;
 }
 
-test('production identity does not bypass authentication or preview-identity denial', async () => {
-  const query = new URLSearchParams({ event_slug: production.slug, clip: 'geoffy' }).toString();
-  const anonymous = await GET(videoContext(query));
-  expect(anonymous.status).toBe(401);
-  expect(anonymous.headers.get('Location')).toBeNull();
-  const preview = await GET(videoContext(query, { id: 'local-preview', isLocalTestUser: true }));
-  expect(preview.status).toBe(403);
-  expect(preview.headers.get('Location')).toBeNull();
+test('each configured event can sign all three public clips without an attendee identity', async () => {
+  for (const event of [staging, production]) {
+    for (const [clip, filename] of Object.entries(clips)) {
+      const url = videoContext(new URLSearchParams({ event_slug: event.slug, clip }).toString()).url;
+      const path = `/object/sign/event-materials/${event.id}/videos/${encodeURIComponent(filename)}`;
+      const fetcher = (async (input) => {
+        expect(String(input)).toBe(`https://unit.invalid/storage/v1${path}`);
+        return Response.json({ signedURL: `${path}?token=unit-fixture` });
+      }) as typeof fetch;
+      const response = await publicVideoResponse(url, { configuration: () => ({ origin: 'https://unit.invalid', key: 'sb_secret_unit_fixture_only' }), fetcher });
+      expect(response.status).toBe(307);
+      expect(decodeURIComponent(new URL(response.headers.get('location')!).pathname)).toBe(`/storage/v1/object/sign/event-materials/${event.id}/videos/${filename}`);
+    }
+  }
 });
 
 test('production video request rejects unknown clips and path injection before storage', async () => {
-  for (const clip of ['rierino', 'becited', '../other.mp4', 'toString', 'https://example.test/video.mp4']) {
-    const query = new URLSearchParams({ event_slug: production.slug, clip }).toString();
-    const response = await GET(videoContext(query, { id: 'boundary-test' }));
+  for (const clip of ['becited', '../other.mp4', 'toString', 'presentation.pdf', 'https://example.test/video.mp4']) {
+    const response = await GET(videoContext(new URLSearchParams({ event_slug: production.slug, clip }).toString()));
     expect(response.status).toBe(404);
     expect(response.headers.get('Location')).toBeNull();
   }
-  const unknown = await GET(videoContext('event_slug=agentic-commerce-lisbon-2026-other&clip=geoffy', { id: 'boundary-test' }));
+  const unknown = await GET(videoContext('event_slug=agentic-commerce-lisbon-2026-other&clip=geoffy'));
   expect(unknown.status).toBe(404);
   expect(unknown.headers.get('Location')).toBeNull();
 });
 
-test.describe('production-pair authorization against local Supabase only', () => {
+test.describe('production-pair public videos against local Supabase only', () => {
   let admin: ReturnType<typeof createLocalAdminClient> | undefined;
   let manager: LocalMember | undefined;
   let visitor: LocalMember | undefined;
@@ -93,7 +99,6 @@ test.describe('production-pair authorization against local Supabase only', () =>
     eventCreated = true;
     for (const filename of Object.values(clips)) {
       const path = `${production.id}/videos/${filename}`;
-      // Distinct synthetic bytes prove both event and clip identity, not real playback.
       const { error } = await admin.storage.from('event-materials').upload(path, Buffer.from(fixtureContent(filename)), { contentType: 'video/mp4' });
       if (error) throw error;
       uploadedPaths.push(path);
@@ -108,60 +113,31 @@ test.describe('production-pair authorization against local Supabase only', () =>
     await Promise.all([manager?.remove(), visitor?.remove()]);
   });
 
-  test('owner and approved attendee receive only production clip bytes; unapproved and revoked attendees are denied', async ({ browser }) => {
-    if (!admin || !manager || !visitor) throw new Error('Local authorization fixtures were not created.');
-    let managerContext: BrowserContext | undefined;
-    let visitorContext: BrowserContext | undefined;
+  test('anonymous, owner, unapproved, approved and revoked visitors receive the exact public clip bytes', async ({ browser }) => {
+    if (!admin || !manager || !visitor) throw new Error('Local fixtures were not created.');
+    const contexts: BrowserContext[] = [];
     try {
-      managerContext = await browser.newContext({ baseURL: 'http://127.0.0.1:4322' });
-      visitorContext = await browser.newContext({ baseURL: 'http://127.0.0.1:4322' });
-      await managerContext.addCookies(manager.cookies.map(({ name, value, url }) => ({ name, value, url })));
-      await visitorContext.addCookies(visitor.cookies.map(({ name, value, url }) => ({ name, value, url })));
-      const requestPath = (clip: string) => '/api/events/video?' + new URLSearchParams({ event_slug: production.slug, clip }).toString();
-      const assertAllowed = async (client: BrowserContext, clip: string, filename: string) => {
-        const response = await client.request.get(requestPath(clip), { maxRedirects: 0 });
-        expect(response.status()).toBe(200);
-        expect(response.headers()['cache-control']).toBe('private, no-store');
-        expect(response.headers()['cdn-cache-control']).toBe('no-store');
-        expect(response.headers()['vercel-cdn-cache-control']).toBe('no-store');
-        expect(response.headers()['referrer-policy']).toBe('no-referrer');
-        expect(response.headers()['content-type']).toBe('video/mp4');
-        expect(response.headers().location).toBeUndefined();
-        expect(JSON.stringify(response.headers())).not.toMatch(/storage\/v1|token=|sb_secret_/);
-        expect(await response.text()).toBe(fixtureContent(filename));
+      const anonymous = await browser.newContext({ baseURL: 'http://127.0.0.1:4322' }); contexts.push(anonymous);
+      const owner = await browser.newContext({ baseURL: 'http://127.0.0.1:4322' }); contexts.push(owner);
+      const attendee = await browser.newContext({ baseURL: 'http://127.0.0.1:4322' }); contexts.push(attendee);
+      await owner.addCookies(manager.cookies.map(({ name, value, url }) => ({ name, value, url })));
+      await attendee.addCookies(visitor.cookies.map(({ name, value, url }) => ({ name, value, url })));
+      const allowed = async (client: BrowserContext) => {
+        for (const [clip, filename] of Object.entries(clips)) {
+          await assertPublicVideo(client.request, production.slug, production.id, clip, filename, Buffer.from(fixtureContent(filename)));
+        }
       };
-      for (const [clip, filename] of Object.entries(clips)) {
-        await assertAllowed(managerContext, clip, filename);
-        const denied = await visitorContext.request.get(requestPath(clip), { maxRedirects: 0 });
-        expect(denied.status()).toBe(403);
-        expect(denied.headers().location).toBeUndefined();
-        expect(await denied.text()).not.toContain(fixtureContent(filename));
-      }
-      const { error: approveError } = await admin.from('event_attendees').insert({
-        event_id: production.id, profile_id: visitor.id, status: 'approved',
-        decided_at: new Date().toISOString(), decided_by: manager.id,
-      });
-      expect(approveError).toBeNull();
-      for (const [clip, filename] of Object.entries(clips)) {
-        await assertAllowed(visitorContext, clip, filename);
-        await assertAllowed(visitorContext, clip, filename);
+      await allowed(anonymous); await allowed(owner); await allowed(attendee);
+      expect((await admin.from('event_attendees').insert({ event_id: production.id, profile_id: visitor.id, status: 'approved', decided_at: new Date().toISOString(), decided_by: manager.id })).error).toBeNull();
+      await allowed(attendee);
+      for (const filename of Object.values(clips)) {
         const direct = await visitor.client.storage.from('event-materials').download(`${production.id}/videos/${filename}`);
         expect(direct.error).toBeTruthy(); expect(direct.data).toBeNull();
         const signed = await visitor.client.storage.from('event-materials').createSignedUrl(`${production.id}/videos/${filename}`, 300);
         expect(signed.error).toBeTruthy(); expect(signed.data).toBeNull();
       }
-      const { error: revokeError } = await admin.from('event_attendees').update({ status: 'revoked', decided_at: new Date().toISOString() })
-        .eq('event_id', production.id).eq('profile_id', visitor.id);
-      expect(revokeError).toBeNull();
-      for (const [clip, filename] of Object.entries(clips)) {
-        const denied = await visitorContext.request.get(requestPath(clip), { maxRedirects: 0 });
-        expect(denied.status()).toBe(403);
-        expect(denied.headers().location).toBeUndefined();
-        expect(denied.headers()['cache-control']).toBe('private, no-store');
-        expect(await denied.text()).not.toContain(fixtureContent(filename));
-      }
-    } finally {
-      await Promise.all([managerContext?.close(), visitorContext?.close()]);
-    }
+      expect((await admin.from('event_attendees').update({ status: 'revoked', decided_at: new Date().toISOString() }).eq('event_id', production.id).eq('profile_id', visitor.id)).error).toBeNull();
+      await allowed(attendee); await allowed(anonymous);
+    } finally { await Promise.all(contexts.map((context) => context.close())); }
   });
 });
