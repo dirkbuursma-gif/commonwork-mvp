@@ -4,5 +4,10 @@
       "path": "/api/internal/notifications/dispatch",
       "schedule": "*/5 * * * *"
     }
-  ]
+  ],
+  "git": {
+    "deploymentEnabled": {
+      "copilot/fix-299158769-1406095422-2673dbc5-8968-4e40-9a83-73638f7231fe": false
+    }
+  }
 }

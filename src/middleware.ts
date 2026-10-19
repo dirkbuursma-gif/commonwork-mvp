@@ -3,6 +3,7 @@ import { getCurrentUser } from './lib/auth';
 import { validateReturnPath } from './lib/auth-return-path';
 import { createSupabaseServerClient } from './lib/supabase/server';
 import { isEventResourceRequest, isOwnAccountRequest, readWorkspaceAccess } from './lib/workspace-access';
+import { deliveryHeaders } from './lib/events/object-delivery';
 
 const publicPaths = new Set([
   '/sign-in', '/sign-in/code', '/auth/callback', '/api/auth/sign-in',
@@ -23,6 +24,15 @@ export const onRequest = defineMiddleware(async (context, next) => {
   const { pathname } = new URL(context.request.url);
   if (publicPaths.has(pathname) || pathname.startsWith('/_astro/') || pathname.startsWith('/favicon')) return next();
   const local = import.meta.env.DEV && context.cookies.get('commonwork_local_test_session')?.value === 'enabled';
+  // These exact APIs own their verified-caller/event authorization and JSON-free errors.
+  // Do not redirect anonymous API callers or the Preview configuration preflight.
+  if (pathname === '/api/events/material' || pathname === '/api/events/video') {
+    const deliveryUser = local ? localTestUser : hasSupabaseAuthCookie(context.request) ? await getCurrentUser(context) : null;
+    if (deliveryUser) context.locals.user = deliveryUser;
+    const response = await next();
+    for (const [name, value] of Object.entries(deliveryHeaders)) response.headers.set(name, value);
+    return response;
+  }
   const join = eventJoinPath.test(pathname) && ['GET', 'HEAD', 'POST'].includes(context.request.method);
   const editorial = (context.request.method === 'GET' || context.request.method === 'HEAD')
     && pathname !== '/events/manage' && pathname !== '/insights/editor' && publicEditorialPath.test(pathname);
