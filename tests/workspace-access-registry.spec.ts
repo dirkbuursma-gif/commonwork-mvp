@@ -8,8 +8,8 @@ test('workspace registry rejects self-escalation and isolates operator grants an
   let first: LocalMember | undefined;
   let second: LocalMember | undefined;
   try {
-    first = await createLocalMember('Local workspace registry first');
-    second = await createLocalMember('Local workspace registry second');
+    first = await createLocalMember('Local workspace registry first', { workspaceAccess: false });
+    second = await createLocalMember('Local workspace registry second', { workspaceAccess: false });
 
     for (const member of [first, second]) {
       const { data, error } = await member.client.rpc('can_access_member_workspace');
