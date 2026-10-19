@@ -10,3 +10,10 @@ export function isEventResourceRequest(path: string, method: string): boolean {
   if (method === 'GET' || method === 'HEAD') return resourcePath.test(path) || path === '/api/events/video';
   return method === 'POST' && posts.has(path);
 }
+
+// Authentication is still required; these handlers target only auth.uid().
+export function isOwnAccountRequest(path: string, method: string): boolean {
+  const read = method === 'GET' || method === 'HEAD';
+  return (read && (path === '/account' || path === '/api/account'))
+    || (method === 'POST' && path === '/api/account');
+}

@@ -2,7 +2,7 @@ import { defineMiddleware } from 'astro:middleware';
 import { getCurrentUser } from './lib/auth';
 import { validateReturnPath } from './lib/auth-return-path';
 import { createSupabaseServerClient } from './lib/supabase/server';
-import { isEventResourceRequest, readWorkspaceAccess } from './lib/workspace-access';
+import { isEventResourceRequest, isOwnAccountRequest, readWorkspaceAccess } from './lib/workspace-access';
 
 const publicPaths = new Set([
   '/sign-in', '/sign-in/code', '/auth/callback', '/api/auth/sign-in',
@@ -39,7 +39,8 @@ export const onRequest = defineMiddleware(async (context, next) => {
     return context.redirect(`${target.pathname}${target.search}`, 303);
   }
   context.locals.user = user;
-  if (!local && !isEventResourceRequest(pathname, context.request.method)) {
+  const ownAccount = isOwnAccountRequest(pathname, context.request.method);
+  if (!local && !ownAccount && !isEventResourceRequest(pathname, context.request.method)) {
     const client = createSupabaseServerClient(context);
     if (!client || !await readWorkspaceAccess(client)) {
       return new Response('Workspace membership is required. Event requests and approved event resources remain available.', {
@@ -47,5 +48,10 @@ export const onRequest = defineMiddleware(async (context, next) => {
       });
     }
   }
-  return next();
+  const response = await next();
+  if (ownAccount) {
+    response.headers.set('Cache-Control', 'private, no-store');
+    response.headers.append('Vary', 'Cookie');
+  }
+  return response;
 });
