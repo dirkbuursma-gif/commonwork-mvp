@@ -1,0 +1,98 @@
+---
+import { getCollection } from 'astro:content';
+import InsightsLayout from '../../layouts/InsightsLayout.astro';
+import { getInsightTopic, getInsightsByline, insightTopics } from '../../lib/insights-provenance';
+import { getInsightPreviewSummary } from '../../lib/insights-editorial-metadata';
+import { createSupabaseServerClient } from '../../lib/supabase/server';
+import { listEditorialInsights, type EditorialInsight } from '../../lib/insights-data';
+
+export const prerender = false;
+
+const selectedTopic = getInsightTopic(Astro.url.searchParams.get('topic')?.toLowerCase() ?? null);
+const articles = (await getCollection('insights'))
+  .filter((article) => !selectedTopic || article.data.desk === selectedTopic.desk)
+  .sort((a, b) => b.data.publishDate.valueOf() - a.data.publishDate.valueOf());
+let editorialArticles: EditorialInsight[] = [];
+const supabase = createSupabaseServerClient(Astro);
+if (supabase) {
+  try {
+    editorialArticles = (await listEditorialInsights(supabase))
+      .filter((article) =>
+        article.status === 'published' &&
+        !articles.some((retained) => retained.id === article.slug) &&
+        (!selectedTopic || article.desk === selectedTopic.desk)
+      );
+  } catch {
+    editorialArticles = [];
+  }
+}
+const formatDate = (date: Date) =>
+  new Intl.DateTimeFormat('en-GB', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'UTC',
+  }).format(date);
+---
+
+<InsightsLayout title="Insights" description="Reviews and perspectives from Commerce Partners.">
+  <div class="insights-page">
+    <header class="insights-heading">
+      <h1>Insights</h1>
+      <p class="lede">Reviews and perspectives from Commerce Partners.</p>
+    </header>
+
+    <nav class="insights-topics" aria-label="Filter reviews by topic">
+      <a
+        class="insights-topic"
+        href="/insights"
+        aria-current={selectedTopic ? undefined : 'page'}
+      >All reviews</a>
+      {insightTopics.map((topic) => (
+        <a
+          class="insights-topic"
+          href={`/insights?topic=${topic.slug}`}
+          aria-current={selectedTopic?.slug === topic.slug ? 'page' : undefined}
+        >{topic.label}</a>
+      ))}
+    </nav>
+
+    <section class="insights-feed" aria-label="Reviews">
+      {articles.map((article) => (
+        <article class="insight-card">
+          <div class="insight-meta">
+            <span class="insight-topic-label">{article.data.desk}</span>
+            <span>{article.data.format}</span>
+            <time datetime={article.data.publishDate.toISOString().slice(0, 10)}>
+              {formatDate(article.data.publishDate)}
+            </time>
+          </div>
+          <h2>{article.data.title}</h2>
+          <p class="insight-summary">{getInsightPreviewSummary(article.id)}</p>
+          <p class="insight-byline">By {getInsightsByline(article.data.author)}</p>
+          <a class="insight-read-link" href={`/insights/${article.id}`}>Read review</a>
+        </article>
+      ))}
+      {editorialArticles.map((article) => (
+        <article class="insight-card">
+          <div class="insight-meta">
+            <span class="insight-topic-label">{article.desk}</span>
+            <span>{article.format}</span>
+            {article.published_at && (
+              <time datetime={article.published_at.slice(0, 10)}>
+                {formatDate(new Date(article.published_at))}
+              </time>
+            )}
+          </div>
+          <h2>{article.title}</h2>
+          <p class="insight-summary">{article.summary || article.deck}</p>
+          <p class="insight-byline">By Commonwork Insights</p>
+          <a class="insight-read-link" href={`/insights/${article.slug}`}>Read review</a>
+        </article>
+      ))}
+      {!articles.length && !editorialArticles.length && (
+        <p class="insight-empty">There are no reviews in this topic yet.</p>
+      )}
+    </section>
+  </div>
+</InsightsLayout>

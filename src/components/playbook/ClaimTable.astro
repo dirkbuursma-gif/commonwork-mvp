@@ -1,0 +1,24 @@
+---
+import { claimEvidence, sourceById } from '../../lib/playbook/content';
+---
+
+<div class="pb-claim-table-wrap">
+  <table class="pb-claim-table">
+    <thead>
+      <tr><th scope="col">Claim</th><th scope="col">Evidence type</th><th scope="col">Source</th><th scope="col">Caveat</th></tr>
+    </thead>
+    <tbody>
+      {claimEvidence.map((entry) => {
+        const source = sourceById[entry.sourceId];
+        return (
+          <tr>
+            <td>{entry.claim}</td>
+            <td>{entry.kind.replaceAll('-', ' ')}</td>
+            <td><a href={source.url} target="_blank" rel="noreferrer">{source.label}</a><br /><span class="pb-muted">{source.publisher} · {source.publishedAt}</span></td>
+            <td>{entry.caveat}</td>
+          </tr>
+        );
+      })}
+    </tbody>
+  </table>
+</div>

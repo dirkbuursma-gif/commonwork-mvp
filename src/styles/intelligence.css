@@ -67,6 +67,32 @@
   background: var(--surface, #fff);
 }
 
+.intelligence-person-list {
+  display: grid;
+  gap: var(--space-3, 0.75rem);
+  margin-top: var(--space-4, 1rem);
+}
+
+.intelligence-person {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4, 1rem);
+  padding: 1rem;
+  border: 1px solid var(--border, #d7ded9);
+  border-radius: 6px;
+  background: var(--surface, #fff);
+}
+
+.intelligence-person h3,
+.intelligence-person p {
+  margin-top: 0;
+}
+
+.intelligence-person .btn {
+  flex: 0 0 auto;
+}
+
 .intelligence-disclosure {
   padding: 0.875rem 1rem;
   border-left: 3px solid var(--accent, #197454);
@@ -77,6 +103,14 @@
   .intelligence-grid {
     grid-template-columns: 1fr;
   }
+
+  .intelligence-person {
+    flex-direction: column;
+  }
+
+  .intelligence-person .btn {
+    width: 100%;
+  }
 }
 
 [data-theme='dark'] .intelligence-meta {
@@ -84,7 +118,8 @@
 }
 
 [data-theme='dark'] .intelligence-table-wrap,
-[data-theme='dark'] .intelligence-expert {
+[data-theme='dark'] .intelligence-expert,
+[data-theme='dark'] .intelligence-person {
   background: var(--surface, #1d2621);
 }
 

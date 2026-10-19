@@ -1,0 +1,24 @@
+---
+import '../styles/playbook.css';
+
+interface Props {
+  title: string;
+  mode: 'audience' | 'present' | 'print';
+}
+
+const { title, mode } = Astro.props;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex, nofollow" />
+    <meta name="description" content="Draft playbook on agentic commerce for retailers." />
+    <title>{title} · Commonwork</title>
+  </head>
+  <body class={`pb pb-${mode}`}>
+    <slot />
+  </body>
+</html>

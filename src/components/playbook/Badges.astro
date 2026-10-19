@@ -1,0 +1,14 @@
+---
+import { kindLabels, statusLabels } from '../../lib/playbook/content';
+import type { ContentKind, VerificationStatus } from '../../lib/playbook/content';
+
+interface Props {
+  kind?: ContentKind;
+  status?: VerificationStatus;
+}
+
+const { kind, status } = Astro.props;
+---
+
+{kind && <span class={`pb-badge pb-kind-${kind}`}>{kindLabels[kind]}</span>}
+{status && <span class={`pb-badge pb-status-${status}`}>{statusLabels[status]}</span>}

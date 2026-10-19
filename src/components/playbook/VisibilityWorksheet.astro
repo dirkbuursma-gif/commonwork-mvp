@@ -1,0 +1,30 @@
+---
+import { worksheetFields, worksheetPrompts } from '../../lib/playbook/content';
+---
+
+<div class="pb-worksheet" aria-label="AI shopping visibility worksheet">
+  <p class="pb-caveat">A dated observation—not a ranking or benchmark.</p>
+  <p>Choose one real customer or operational task. Record one response with its context, check the offer, and assign an owner to any evidenced follow-up.</p>
+  <div class="pb-prompt-list">
+    {worksheetPrompts.map((item, index) => (
+      <details class="pb-prompt">
+        <summary>Example {index + 1}: {item.id.replace('-', ' ')}</summary>
+        <blockquote>{item.prompt}</blockquote>
+        <p class="pb-muted">{item.note}</p>
+      </details>
+    ))}
+  </div>
+  <fieldset class="pb-observation-fields">
+    <legend>Observation record</legend>
+    <div class="pb-worksheet-grid">
+      {worksheetFields.map((field) => (
+        <label class={`pb-worksheet-field pb-field-${field.id}`} for={`worksheet-${field.id}`}>
+          <span class="pb-field-label">{field.label}</span>
+          <span class="pb-muted">{field.guidance}</span>
+          <textarea id={`worksheet-${field.id}`} name={field.id} rows={field.id === 'exact-request' || field.id === 'gap' ? 3 : 2}></textarea>
+        </label>
+      ))}
+    </div>
+    <p class="pb-muted">This worksheet is not submitted or saved. Do not enter personal data, customer data or credentials.</p>
+  </fieldset>
+</div>

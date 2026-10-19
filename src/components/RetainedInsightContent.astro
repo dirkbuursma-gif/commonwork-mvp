@@ -1,0 +1,9 @@
+---
+// Only wrap trusted, rendered Git-backed article content, never submitted HTML.
+const html = await Astro.slots.render('default');
+const resolvedHtml = html.replace(
+  /(<a\b[^>]*\s)href=(["'])\.\.\/editorial-policy\.html\2/g,
+  '$1href=$2https://www.commerce-partners.com/editorial-policy.html$2',
+);
+---
+<Fragment set:html={resolvedHtml} />

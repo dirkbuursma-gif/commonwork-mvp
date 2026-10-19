@@ -1,0 +1,68 @@
+---
+import { slides as fullSlides, fields, sources, type Slide } from '../../lib/playbook/lisbon-revision';
+import { perplexityStrollerExample as supplied } from '../../lib/playbook/perplexity-stroller-example';
+import { panelDebatePrompts } from '../../lib/playbook/content';
+import '../../styles/lisbon-revision.css';
+import '../../styles/lisbon-stage-fit.css';
+interface Props { mode: 'presentation' | 'guide' | 'print'; eventHome: string; videoSources: Record<string, string>; }
+const { mode, eventHome, videoSources } = Astro.props;
+const presenting = mode === 'presentation';
+const stageCopy: Record<string, Partial<Slide>> = {
+  'decision-before-visit': { title: 'AI shapes the shortlist before the store visit.', intro: 'One supplied response names products, recommends one and links to sellers.' },
+  'shopper-assistant-today': { title: 'From advice to authorized action', intro: 'Assistants and agents can help research, compare and—where supported—act.', takeaway: 'The shift: from product advice to supported, authorized action.' },
+  'three-visibility-questions': { title: 'Product visibility is not seller visibility.', intro: 'Check product consideration, seller visibility and where the journey continues.', example: 'Illustration: a stroller is recommended accurately, but the answer links to another seller.' },
+  'recommendation-influence': { title: 'Who controls what?' },
+  'check-your-visibility': { intro: 'An expert owns the task; AI has a defined role and clear approval.' },
+  'from-observation-to-correction': { title: 'Build the foundation around the task.' },
+  'tools-by-job': { intro: 'Four capabilities for four different gaps.', takeaway: 'Supplier descriptions and videos · sources and evaluation questions in the guide.' },
+  'next-retailer-test': { title: 'Take one customer question back to work.', intro: 'Try one category, three questions and an evidence-led next step.', takeaway: 'One observation · one evidenced gap (or none) · one owner · one repeat date.' },
+};
+const slides: Slide[] = presenting ? fullSlides.map((slide) => ({ ...slide, ...stageCopy[slide.id] })) : fullSlides;
+const videoSrc = (key?: string) => key && videoSources[key]?.startsWith('/api/events/video?') ? videoSources[key] : undefined;
+---
+<div class="lr" data-lr-mode={mode}>
+  <header class="lr-header"><span class="lr-brand">Commonwork</span><nav aria-label="Material navigation">
+    {presenting ? <button type="button" data-lr-full hidden>Full screen</button> : <button type="button" data-lr-print>Print / save guide and worksheet as PDF</button>}
+    <a href={`${eventHome}/${presenting ? 'guide' : 'presentation'}`}>{presenting ? 'Audience guide' : 'Presentation'}</a><a href={eventHome}>Back to event</a>
+  </nav></header>
+  <main class="lr-main" id="main">
+    {slides.map((slide, index) => (
+      <section class:list={['lr-slide', `lr-section-${index}`]} id={slide.id} data-lr-slide aria-labelledby={`${slide.id}-title`}>
+        {index > 0 && <p class="lr-eyebrow">Lisbon · Section {index} of 8</p>}
+        <h1 id={`${slide.id}-title`}>{slide.title}</h1><p class="lr-intro">{slide.intro}</p>
+        {index === 1 && <div class="lr-shopper">
+          <article><p class="lr-eyebrow">Request summary</p><h2>A lightweight, compact toddler stroller</h2><p>Portugal · €400–€700 demonstration budget</p></article>
+          <article><p class="lr-eyebrow">Excerpt from supplied response</p><blockquote>“{supplied.recommendation}”</blockquote><div class="lr-products">{supplied.products.map((product) => <article><h3>{product.name}</h3><p>{product.destination}</p>{product.sourceIds.map((id) => { const source = supplied.sources.find((item) => item.id === id); return source && <a href={source.url} title={source.label} aria-label={`Open source: ${source.label}`} target="_blank" rel="noopener noreferrer">{presenting ? source.label.split('—')[0].trim() : `Source: ${source.label}`}</a>; })}</article>)}</div></article>
+        </div>}
+        {slide.steps && index !== 5 && <ol class="lr-steps">{slide.steps.map((step) => <li>{step}</li>)}</ol>}
+        {index === 4 ? <div class="lr-influence"><div class="lr-inputs">{slide.panels.map((panel) => <article><h2>{panel.title}</h2><p>{panel.text}</p><small>Potential input →</small></article>)}</div><article class="lr-platform"><p class="lr-eyebrow">Assistant platform</p><h2>Retrieves, selects and presents</h2><p>Interprets information and presents products, reasons and links. Enables actions within supported tools and permissions.</p><p>Its design and rules shape the output. External information providers do not control the final answer.</p></article></div> :
+          <div class:list={['lr-cards', `lr-cols-${slide.panels.length}`, { 'lr-tools': index === 7, 'lr-workflows': index === 5 }]}>
+            {slide.panels.map((panel) => <article class="lr-card"><div><p class="lr-role">{panel.role}</p><h2>{panel.title}</h2><p>{panel.text}</p>{panel.stages && <ol class="lr-stages">{panel.stages.map((stage, i) => <li><strong>{slide.steps?.[i]}</strong><p>{stage}</p></li>)}</ol>}{panel.note && <p class="lr-note-line">{panel.note}</p>}</div>
+              {panel.clip && <div class="lr-media">{presenting && videoSrc(panel.clip) ? <><video controls playsinline preload="none" aria-label={`${panel.title} supplier video`} src={videoSrc(panel.clip)}></video><button type="button" data-lr-reload hidden>Reload video</button><p class="lr-playback-status" role="status"></p></> : videoSrc(panel.clip) ? <div class="lr-video-summary">Supplier video available in the protected online presentation.</div> : <div class="lr-pending"><strong>Video pending</strong><span>Expected by Tuesday</span></div>}{!presenting && <><a href={`${eventHome}/presentation#tools-by-job`}>Open online video section</a><a href={panel.source} target="_blank" rel="noopener noreferrer">Provider source</a></>}</div>}
+            </article>)}
+          </div>
+        }
+        {slide.example && <p class="lr-example">{slide.example}</p>}{slide.takeaway && <p class:list={['lr-takeaway', { 'lr-attribution': presenting && index === 7 }]}>{slide.takeaway}</p>}
+        {index === 1 && <p class="lr-small">One supplied response—not a product test, visibility benchmark or purchase. Current facts and offers require verification.</p>}
+        {index === 4 && <p class="lr-small">Illustrative responsibility map—not a technical architecture or ranking formula.</p>}
+        {index === 5 && <p class="lr-small">Dirk’s recommended operating model. Illustrative workflows; measures to test, not achieved results.</p>}
+        {index === 8 && <div class="lr-resources"><div><h2>Your take-home pack</h2>{!presenting && <p>A guided exercise, illustrative example and blank worksheet. No tool purchase or meeting required.</p>}</div><nav><a href={`${eventHome}/guide#take-home-exercise`}>Open the exercise online</a><a href={`${eventHome}/guide/print#take-home-exercise`}>Print / save guide and worksheet</a></nav><p>For the discussion: which is your first gap—product information, seller visibility, operating capability or team expertise?</p></div>}
+      </section>
+    ))}
+    {!presenting && <section class="lr-exercise" id="take-home-exercise" aria-labelledby="exercise-title"><p class="lr-eyebrow">Take-home exercise · suggested 30–45 minutes</p><h1 id="exercise-title">One category. Three questions. One evidence-led next step.</h1>
+      <ol><li>Choose a category and internal owner. Use one available assistant; record its name, date, market/language and session context.</li><li>Adapt the three prompts below. Record each response and its sources before interpreting it.</li><li>Verify against current authoritative records. Repeat selected prompts with context recorded; one answer is not a ranking.</li><li>Agree one correction and a repeat date—or record no correction identified. No confidential or customer data is needed.</li></ol>
+      <h2>Three adaptable prompts</h2><ul><li>Choosing: “I am shopping in [market] for [category] to solve [need], with [constraints]. Compare suitable options and explain trade-offs. Link sources and flag what needs checking.”</li><li>Comparing: “Compare [product A] and [product B] for [use case]. Separate documented facts from assessment and link supporting sources.”</li><li>Finding a seller: “Where can I buy [exact product/variant] for delivery to [market]? Compare seller, current price, availability, delivery and returns. Flag anything you cannot verify.”</li></ul>
+      <h2>Illustrative completed example—not a recorded result</h2><p>A fictional assistant answer says a stroller includes a rain cover. The current retailer offer lists it separately. Gap: conflicting accessory information. Owner: product-data manager. Action: inspect the authoritative accessory record and correct the retailer-controlled source if needed. Repeat: record another response after the approved correction. Do not assume that source caused the answer or claim an improvement.</p>
+      <h2>Blank observation and action record</h2><p class="lr-small">One response per sheet. Fields are not submitted or saved; print before leaving if you need a durable copy. Never enter credentials, personal or customer data.</p><div class="lr-worksheet">{fields.map((field, index) => <label for={`lr-field-${index}`}><span>{field}</span><textarea id={`lr-field-${index}`} rows={index === 0 || index === 6 ? 3 : 2}></textarea></label>)}</div>
+      <h2>Who can act on the finding?</h2><ul><li>Product fact → product-data/category owner: inspect the authoritative record and published source.</li><li>Price, stock or delivery → ecommerce/operations owner: inspect the live offer and update path.</li><li>Your store not offered → marketing/ecommerce owner: record destinations and investigate before assigning a cause.</li></ul><p class="lr-takeaway">A useful output can be “no correction identified.” The exercise does not require a problem, a score or a purchase.</p>
+      <details><summary>Supplied stroller response and evidence context</summary><p>{supplied.promptLabel}</p><p>{supplied.prompt}</p><p>Exact prompt-to-response correspondence is not independently confirmed.</p><p>{supplied.publicLimitation}</p><pre>{supplied.response}</pre><a href={supplied.sharedThreadUrl} target="_blank" rel="noopener noreferrer">Supplied Perplexity thread</a></details>
+      <h2>Sources and scope</h2><p>Platform examples are publisher descriptions. Product examples are provider descriptions; distinguish Be.Cited services from the Ibope partnership. Confirm market, service and module availability. These are not Commonwork integrations or measured retailer outcomes.</p><ul>{sources.map(([label, url]) => <li><a href={url} target="_blank" rel="noopener noreferrer">{label}</a></li>)}</ul>
+    </section>}
+  </main>
+  {presenting && <footer class="lr-controls"><button type="button" data-lr-prev>Previous</button><nav aria-label="Slides">{slides.map((slide, index) => <a href={`#${slide.id}`} data-lr-dot aria-label={index === 0 ? 'Title slide' : `Section ${index}: ${slide.title}`}>{index === 0 ? 'Title' : index}</a>)}</nav><button type="button" data-lr-next>Next</button><details class="lr-debate"><summary>Presenter debate prompts</summary>{panelDebatePrompts.map((prompt) => <article><h3>{prompt.topic}</h3><p>{prompt.statement}</p><p>{prompt.question}</p></article>)}</details><p class="lr-fit-status" data-lr-fit-status role="status" hidden>Content exceeds this window. Use Full screen or the audience guide.</p></footer>}
+  <p class="lr-sr" aria-live="polite" data-lr-announce></p>
+</div>
+<script>
+import { initializePlaybook } from '../../lib/playbook/stage-controller';
+initializePlaybook();
+</script>

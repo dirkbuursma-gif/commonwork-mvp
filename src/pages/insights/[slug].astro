@@ -1,0 +1,135 @@
+---
+import { getCollection, render } from 'astro:content';
+import InsightsLayout from '../../layouts/InsightsLayout.astro';
+import RetainedInsightContent from '../../components/RetainedInsightContent.astro';
+import { getInsightsByline, insightArticleSlugs } from '../../lib/insights-provenance';
+import { createSupabaseServerClient } from '../../lib/supabase/server';
+import { getEditorialInsight } from '../../lib/insights-data';
+
+export const prerender = false;
+
+const { slug } = Astro.params;
+const articles = await getCollection('insights');
+const article = articles.find((entry) => entry.id === slug && insightArticleSlugs.includes(entry.id));
+const renderedArticle = article ? await render(article) : null;
+const ArticleContent = renderedArticle?.Content;
+let editorialArticle = null;
+if (!article && slug) {
+  const supabase = createSupabaseServerClient(Astro);
+  if (supabase) {
+    try {
+      editorialArticle = await getEditorialInsight(supabase, slug);
+      if (editorialArticle?.status === 'draft' && Astro.url.searchParams.get('preview') !== 'draft') {
+        editorialArticle = null;
+      }
+    } catch {
+      editorialArticle = null;
+    }
+  }
+}
+
+if (!article && !editorialArticle) {
+  Astro.response.status = 404;
+}
+
+const related = article
+  ? articles
+      .filter((entry) => entry.id !== article.id)
+      .sort((a, b) => b.data.publishDate.valueOf() - a.data.publishDate.valueOf())
+  : [];
+
+const formatDate = (date: Date) =>
+  new Intl.DateTimeFormat('en-GB', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'UTC',
+  }).format(date);
+---
+
+<InsightsLayout
+  title={article?.data.title ?? editorialArticle?.title ?? 'Review not found'}
+  description={article?.data.summary ?? editorialArticle?.summary ?? 'This review could not be found.'}
+>
+  {article ? (
+    <>
+      <article class="insight-article">
+        <a class="insight-back" href="/insights">← Back to Insights</a>
+        <header class="insight-article-head">
+          <div class="insight-meta">
+            <span class="insight-topic-label">{article.data.desk}</span>
+            <span>{article.data.format}</span>
+            <time datetime={article.data.publishDate.toISOString().slice(0, 10)}>
+              {formatDate(article.data.publishDate)}
+            </time>
+          </div>
+          <h1>{article.data.title}</h1>
+          <p class="insight-deck">{article.data.deck}</p>
+          <p class="insight-article-byline">{getInsightsByline(article.data.author)}</p>
+        </header>
+        <div class="insight-prose">
+          <RetainedInsightContent>
+            {ArticleContent && <ArticleContent />}
+          </RetainedInsightContent>
+        </div>
+      </article>
+
+      <section class="insight-related" aria-labelledby="related-heading">
+        <h2 id="related-heading">Related reviews</h2>
+        <div class="insight-related-list">
+          {related.map((entry) => (
+            <article class="insight-related-card">
+              <span>{entry.data.desk} · {formatDate(entry.data.publishDate)}</span>
+              <a href={`/insights/${entry.id}`}>{entry.data.title}</a>
+            </article>
+          ))}
+        </div>
+        <aside class="insight-about-callout" aria-label="About Commonwork">
+          <div>
+            <h2>Commonwork connects people and useful work.</h2>
+            <p>Learn about the network, or sign in if you already have an invitation.</p>
+          </div>
+          <a href="/about">About Commonwork</a>
+        </aside>
+      </section>
+    </>
+  ) : editorialArticle ? (
+    <article class="insight-article">
+      <a class="insight-back" href="/insights">← Back to Insights</a>
+      <header class="insight-article-head">
+        <div class="insight-meta">
+          <span class="insight-topic-label">{editorialArticle.desk}</span>
+          <span>{editorialArticle.format}</span>
+          {editorialArticle.status === 'draft' ? (
+            <span>Draft preview</span>
+          ) : editorialArticle.published_at && (
+            <time datetime={editorialArticle.published_at.slice(0, 10)}>
+              {formatDate(new Date(editorialArticle.published_at))}
+            </time>
+          )}
+        </div>
+        <h1>{editorialArticle.title}</h1>
+        <p class="insight-deck">{editorialArticle.deck}</p>
+        <p class="insight-article-byline">Commonwork Insights</p>
+      </header>
+      <div class="insight-prose">
+        {editorialArticle.body.split(/\n\s*\n/).filter(Boolean).map((paragraph) => <p>{paragraph}</p>)}
+      </div>
+      {editorialArticle.linked_product_slug && (
+        <aside class="insight-about-callout" aria-label="Related catalogue entry">
+          <div>
+            <h2>Related catalogue entry</h2>
+            <p>Continue from this review into the relevant company and product context.</p>
+          </div>
+          <a href={`/intelligence/product/${editorialArticle.linked_product_slug}`}>Open catalogue entry</a>
+        </aside>
+      )}
+    </article>
+  ) : (
+    <section class="insights-page insight-empty" aria-labelledby="not-found-heading">
+      <h1 id="not-found-heading">Review not found</h1>
+      <p>This review may have moved or is not available.</p>
+      <a class="insight-back" href="/insights">Back to Insights</a>
+    </section>
+  )}
+</InsightsLayout>

@@ -3,6 +3,8 @@ import AppLayout from '../../layouts/AppLayout.astro';
 import NeedForm from '../../components/matching/NeedForm.astro';
 import { getCanonicalCompetencies, type CanonicalCompetence } from '../../lib/competence-data';
 import { getOwnRetailerOrganisations, type MemberOrganisation } from '../../lib/need-data';
+import { getEligibleProductAffiliates, getProviderProductBySlug } from '../../lib/provider-intelligence';
+import { getCatalogueJourneyContext } from '../../lib/event-catalogue';
 import { createSupabaseServerClient } from '../../lib/supabase/server';
 
 const user = Astro.locals.user;
@@ -10,12 +12,60 @@ const localPreview = user?.isLocalTestUser === true;
 const supabase = localPreview ? null : createSupabaseServerClient(Astro);
 let competencies: CanonicalCompetence[] = [];
 let retailerOrganisations: MemberOrganisation[] = [];
+let prefill: {
+  sourceLabel: string;
+  title: string;
+  businessOutcome: string;
+  problemStatement: string;
+  relevantContext: string;
+  projectContext: string;
+  essentialCompetencySlugs: string[];
+} | null = null;
 let loadError = false;
 
 if (supabase && !localPreview) {
   try {
     competencies = await getCanonicalCompetencies(supabase);
     if (user) retailerOrganisations = await getOwnRetailerOrganisations(supabase, user.id);
+    const journeyContext = getCatalogueJourneyContext(
+      Astro.url.searchParams.get('from_event'),
+      Astro.url.searchParams.get('product') ?? undefined,
+    );
+    const requestedPersonId = Astro.url.searchParams.get('person');
+    if (journeyContext && requestedPersonId) {
+      const productResult = await getProviderProductBySlug(supabase, journeyContext.productSlug);
+      if (productResult) {
+        const eligibleAffiliates = await getEligibleProductAffiliates(
+          supabase,
+          productResult.product.id,
+          productResult.provider.id,
+        );
+        const person = eligibleAffiliates.find((candidate) => candidate.profile_id === requestedPersonId);
+        if (person) {
+          const affiliationLabel = person.affiliation_status === 'approved'
+            ? 'approved'
+            : person.affiliation_status === 'self_declared'
+              ? 'self-declared'
+              : 'curator-managed';
+          prefill = {
+            sourceLabel: `${journeyContext.eventTitle} and the ${productResult.product.name} catalogue record`,
+            title: 'Assess product visibility in AI-assisted shopping',
+            businessOutcome:
+              `Following ${journeyContext.eventTitle}, understand how our products are represented and cited in AI-assisted shopping journeys, then define a measurable retailer test. `
+              + `${productResult.product.name} is one reviewed catalogue reference for that assessment, not a predetermined product selection.`,
+            problemStatement:
+              'We need to identify where product data and content are missing, inconsistent or not being cited across generative-search and shopping-assistant surfaces.',
+            relevantContext:
+              `Event: ${journeyContext.eventTitle}. Catalogue product: ${productResult.product.name} by ${productResult.provider.name}. `
+              + `${person.display_name} has a consented, ${affiliationLabel} product affiliation with ${person.organisation_name}; `
+              + 'that affiliation is context only and is not treated as proof of expertise.',
+            projectContext:
+              'This need started from the Commonwork event-to-catalogue path. Preserve the event and product context when evaluating competence fit and any introduction request.',
+            essentialCompetencySlugs: [journeyContext.competencySlug],
+          };
+        }
+      }
+    }
   } catch {
     loadError = true;
   }
@@ -31,7 +81,7 @@ if (supabase && !localPreview) {
   ) : loadError ? (
     <p class="form-notice error" role="alert">The competence vocabulary could not be loaded. Please try again shortly.</p>
   ) : supabase ? (
-    <NeedForm competencies={competencies} retailerOrganisations={retailerOrganisations} />
+    <NeedForm competencies={competencies} retailerOrganisations={retailerOrganisations} prefill={prefill} />
   ) : (
     <p class="form-notice error" role="alert">Supabase is not configured. Need creation is unavailable.</p>
   )}

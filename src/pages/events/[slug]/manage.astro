@@ -1,0 +1,128 @@
+---
+import AppLayout from '../../../layouts/AppLayout.astro';
+import { createSupabaseServerClient } from '../../../lib/supabase/server';
+import { getEventBySlug, listAccessibleMaterials, materialLabels } from '../../../lib/events';
+import '../../../styles/events.css';
+
+export const prerender = false;
+
+const user = Astro.locals.user;
+if (!user || user.isLocalTestUser) {
+  return Astro.redirect('/sign-in', 303);
+}
+
+const slug = Astro.params.slug ?? '';
+const supabase = createSupabaseServerClient(Astro);
+if (!supabase) return new Response('Event management is not configured.', { status: 503 });
+const event = await getEventBySlug(supabase, slug);
+if (!event) return new Response('Event not found', { status: 404 });
+if (event.manager_profile_id !== user.id) return new Response('Event manager access required.', { status: 403 });
+
+const [{ data: attendees, error: attendeeError }, materials] = await Promise.all([
+  supabase.rpc('get_managed_event_attendees', { target_event_id: event.id }),
+  listAccessibleMaterials(supabase, event.id),
+]);
+
+const status = Astro.url.searchParams.get('status');
+const messages: Record<string, string> = {
+  'event-updated': 'Event details updated.',
+  'attendee-updated': 'Attendee access updated.',
+  'material-added': 'Material metadata attached.',
+  'update-failed': 'The event could not be updated.',
+  'decision-failed': 'The attendee decision could not be saved.',
+  'material-failed': 'The material could not be attached.',
+  'invalid-material-path': `The protected object path must start with ${event.id}/.`,
+};
+---
+
+<AppLayout title={`Manage ${event.title}`} section="events">
+  <div class="page-head">
+    <div>
+      <div class="eyebrow">Event manager</div>
+      <h1>{event.title}</h1>
+      <p class="subtitle">Manage public details, approved attendees and protected materials.</p>
+    </div>
+    <a class="btn" href={`/events/${event.slug}`}>View event page</a>
+  </div>
+
+  {status && messages[status] && <p class="form-notice" role="status">{messages[status]}</p>}
+
+  <div class="stack">
+    <section class="panel panel-pad">
+      <h2>Event details</h2>
+      <form class="stack" method="post" action="/api/events/manage">
+        <input type="hidden" name="action" value="update-event" />
+        <input type="hidden" name="event_id" value={event.id} />
+        <input type="hidden" name="slug" value={event.slug} />
+        <label>Title<input name="title" required maxlength="160" value={event.title} /></label>
+        <label>Summary<textarea name="summary" maxlength="2000" rows="5">{event.summary}</textarea></label>
+        <label>Location<input name="location" maxlength="200" value={event.location} /></label>
+        <label><input type="checkbox" name="is_published" checked={event.is_published} /> Publish public event information</label>
+        <button class="btn primary" type="submit">Save event</button>
+      </form>
+    </section>
+
+    <section class="panel panel-pad">
+      <h2>Attendee access</h2>
+      {attendeeError ? (
+        <p class="form-notice error" role="alert">Attendees could not be loaded.</p>
+      ) : attendees?.length ? (
+        <ul class="event-material-list">
+          {attendees.map((attendee: any) => (
+            <li class="event-material">
+              <div>
+                <span class="event-material-kind">{attendee.status}</span>
+                <p class="event-material-title">{attendee.display_name || 'Member'}</p>
+              </div>
+              <form method="post" action="/api/events/manage">
+                <input type="hidden" name="action" value="decide-attendee" />
+                <input type="hidden" name="event_id" value={event.id} />
+                <input type="hidden" name="slug" value={event.slug} />
+                <input type="hidden" name="profile_id" value={attendee.profile_id} />
+                <button class="btn" name="decision" value="approved" type="submit">Approve</button>
+                <button class="btn" name="decision" value="revoked" type="submit">Revoke</button>
+              </form>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p class="event-note">No attendee requests yet.</p>
+      )}
+    </section>
+
+    <section class="panel panel-pad">
+      <h2>Protected materials</h2>
+      {materials.length > 0 && (
+        <ul class="event-material-list">
+          {materials.map((material) => (
+            <li class="event-material">
+              <div>
+                <span class="event-material-kind">{materialLabels[material.kind]}</span>
+                <p class="event-material-title">{material.title}</p>
+              </div>
+              <span class="event-note">Protected object attached</span>
+            </li>
+          ))}
+        </ul>
+      )}
+      <form class="stack" method="post" action="/api/events/manage">
+        <input type="hidden" name="action" value="add-material" />
+        <input type="hidden" name="event_id" value={event.id} />
+        <input type="hidden" name="slug" value={event.slug} />
+        <label>Material type
+          <select name="kind">
+            <option value="presentation">Presentation</option>
+            <option value="guide">Print guide</option>
+            <option value="replay">Browser replay</option>
+          </select>
+        </label>
+        <label>Title<input name="title" required maxlength="160" /></label>
+        <label>Protected object path
+          <input name="storage_path" required value={`${event.id}/`} />
+          <span class="field-help">Upload the approved file to the private event-materials bucket first. Do not attach a public URL.</span>
+        </label>
+        <button class="btn" type="submit">Attach existing protected object</button>
+      </form>
+    </section>
+  </div>
+</AppLayout>

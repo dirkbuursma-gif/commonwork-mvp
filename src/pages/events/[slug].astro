@@ -1,0 +1,259 @@
+---
+import { getCollection } from 'astro:content';
+import InsightsLayout from '../../layouts/InsightsLayout.astro';
+import { createSupabaseServerClient } from '../../lib/supabase/server';
+import {
+  getEventBySlug, getMyAttendance, listAccessibleMaterials, materialLabels,
+  formatEventDate, formatEventDateTimeInZone, formatEventTimeInZone,
+  lisbonPreviewEvent, type EventMaterial, type AttendeeStatus,
+} from '../../lib/events';
+import { getEventIdentity } from '../../lib/events/inretail-2026';
+import { getEventCatalogueSelections } from '../../lib/event-catalogue';
+import '../../styles/events.css';
+
+const EVENT_TIME_ZONE = 'Europe/Lisbon';
+export const prerender = false;
+const { slug } = Astro.params;
+const user = Astro.locals.user;
+const localPreview = user?.isLocalTestUser === true;
+const status = Astro.url.searchParams.get('status');
+const supabase = createSupabaseServerClient(Astro);
+
+let event = null;
+let loadError = false;
+if (import.meta.env.DEV && slug === lisbonPreviewEvent.slug) {
+  event = lisbonPreviewEvent;
+} else if (supabase) {
+  try { event = slug ? await getEventBySlug(supabase, slug) : null; }
+  catch { loadError = true; }
+} else { loadError = true; }
+if (!loadError && !event) return new Response('Event not found', { status: 404 });
+
+let attendance: AttendeeStatus | null = null;
+let materials: EventMaterial[] = [];
+let isManager = false;
+if (event && user && !localPreview && supabase) {
+  isManager = event.manager_profile_id === user.id;
+  try { attendance = await getMyAttendance(supabase, event.id, user.id); }
+  catch { attendance = null; }
+  try { materials = await listAccessibleMaterials(supabase, event.id); }
+  catch { materials = []; }
+}
+const hasAccess = isManager || attendance === 'approved';
+const presentationMaterial = materials.find((material) => material.kind === 'presentation');
+const guideMaterial = materials.find((material) => material.kind === 'guide');
+const replayMaterials = materials.filter((material) => material.kind === 'replay');
+const articles = (await getCollection('insights'))
+  .sort((a, b) => b.data.publishDate.valueOf() - a.data.publishDate.valueOf())
+  .slice(0, 2);
+
+const catalogueSelections = getEventCatalogueSelections(event?.id);
+const hasCuratedCatalogue = catalogueSelections.length > 0;
+let catalogueLoadError = false;
+let catalogueEntries: Array<{ slug: string; name: string; summary: string; provider: string; relevance?: string }> = [];
+if (user && !localPreview && supabase) {
+  try {
+    let query = supabase.from('provider_products').select('slug, name, summary, providers!inner(name)');
+    query = hasCuratedCatalogue
+      ? query.in('slug', catalogueSelections.map((selection) => selection.productSlug))
+      : query.limit(3);
+    const { data, error } = await query;
+    if (error) throw error;
+    const entries = (data ?? []).map((row: any) => ({
+      slug: row.slug,
+      name: row.name,
+      summary: row.summary ?? '',
+      provider: Array.isArray(row.providers) ? row.providers[0]?.name ?? '' : row.providers?.name ?? '',
+      relevance: catalogueSelections.find((selection) => selection.productSlug === row.slug)?.relevance,
+    }));
+    catalogueEntries = hasCuratedCatalogue
+      ? catalogueSelections.flatMap((selection) => entries.filter((entry) => entry.slug === selection.productSlug))
+      : entries;
+  } catch { catalogueLoadError = true; }
+}
+if (import.meta.env.DEV && catalogueEntries.length === 0 && !hasCuratedCatalogue) {
+  catalogueEntries = [{ slug: 'adobe-commerce', name: 'Adobe Commerce', summary: 'Open the retained reviewed catalogue entry.', provider: 'Adobe' }];
+}
+const statusMessages: Record<string, string> = {
+  requested: 'Your access request has been sent to the event manager.',
+  'already-requested': 'You have already requested access to this event.',
+  'request-failed': 'We could not record your request. Please try again shortly.',
+};
+const identity = getEventIdentity(event?.id);
+const pageTitle = identity ? `${identity.sessionTitleEn} — ${identity.parentEventName}` : event?.title ?? 'Event';
+const pageDescription = identity?.summary ?? event?.summary ?? 'Commonwork event';
+---
+
+<InsightsLayout title={pageTitle} description={pageDescription}>
+  {loadError ? (
+    <p class="form-notice error" role="alert">We could not load this event. Please try again shortly.</p>
+  ) : event && (
+    <div class="event-page">
+      <header class="event-hero">
+        {import.meta.env.DEV && event.id === lisbonPreviewEvent.id && (
+          <p class="intelligence-disclosure" role="note">Local content preview. Presentation and guide files have not yet been supplied.</p>
+        )}
+        {identity ? (
+          <>
+            <div class="eyebrow">{identity.parentEventName} · {identity.theme} · {identity.edition}</div>
+            <h1>{identity.sessionTitleEn}</h1>
+            <p class="event-title-original" lang="pt">Official programme title: “{identity.sessionTitlePt}”</p>
+            <p class="lede">{identity.summary}</p>
+            {hasAccess && (
+              <div class="event-actions" aria-label="Session materials">
+                <div class="event-actions-primary">
+                  <a class="btn btn-primary" href={`/events/${event.slug}/presentation`}>Open presentation</a>
+                  {guideMaterial ? (
+                    <form method="post" action="/api/events/material">
+                      <input type="hidden" name="material_id" value={guideMaterial.id} />
+                      <button class="btn" type="submit">Download retailer guide</button>
+                    </form>
+                  ) : <a class="btn" href={`/events/${event.slug}/guide/print`}>Open retailer guide</a>}
+                </div>
+                <div class="event-actions-secondary">
+                  <a href={`/events/${event.slug}/guide`}>Read guide online</a>
+                  {presentationMaterial && (
+                    <form method="post" action="/api/events/material">
+                      <input type="hidden" name="material_id" value={presentationMaterial.id} />
+                      <button class="event-link-button" type="submit">Download slides PDF</button>
+                    </form>
+                  )}
+                  {replayMaterials.map((material) => (
+                    <form method="post" action="/api/events/material">
+                      <input type="hidden" name="material_id" value={material.id} />
+                      <button class="event-link-button" type="submit">{materialLabels[material.kind]}</button>
+                    </form>
+                  ))}
+                </div>
+              </div>
+            )}
+            <ul class="event-topics">{identity.topics.map((topic) => <li>{topic}</li>)}</ul>
+            <dl class="event-facts">
+              <div><dt>Session</dt><dd>{formatEventDateTimeInZone(identity.presentation.startsAt, EVENT_TIME_ZONE)}{' '}(Lisbon time) — {identity.programmeBlockLabel}</dd></div>
+              <div><dt>Conference</dt><dd>{identity.datesLabel}</dd></div>
+              <div><dt>Venue</dt><dd>{identity.venue}</dd></div>
+              <div><dt>Track</dt><dd lang="pt">{identity.trackTitle}</dd></div>
+            </dl>
+          </>
+        ) : (
+          <>
+            <div class="eyebrow">Commonwork event</div>
+            <h1>{event.title}</h1><p class="lede">{event.summary}</p>
+            {hasAccess && (
+              <div class="event-actions" aria-label="Event materials">
+                <div class="event-actions-primary">
+                  <a class="btn btn-primary" href={`/events/${event.slug}/presentation`}>Open presentation</a>
+                  {guideMaterial ? (
+                    <form method="post" action="/api/events/material">
+                      <input type="hidden" name="material_id" value={guideMaterial.id} />
+                      <button class="btn" type="submit">Download retailer guide</button>
+                    </form>
+                  ) : <a class="btn" href={`/events/${event.slug}/guide/print`}>Open retailer guide</a>}
+                </div>
+                <div class="event-actions-secondary">
+                  <a href={`/events/${event.slug}/guide`}>Read guide online</a>
+                  {presentationMaterial && (
+                    <form method="post" action="/api/events/material">
+                      <input type="hidden" name="material_id" value={presentationMaterial.id} />
+                      <button class="event-link-button" type="submit">Download slides PDF</button>
+                    </form>
+                  )}
+                  {replayMaterials.map((material) => (
+                    <form method="post" action="/api/events/material">
+                      <input type="hidden" name="material_id" value={material.id} />
+                      <button class="event-link-button" type="submit">{materialLabels[material.kind]}</button>
+                    </form>
+                  ))}
+                </div>
+              </div>
+            )}
+            <dl class="event-facts"><div><dt>When</dt><dd>{formatEventDate(event.starts_at)}</dd></div><div><dt>Where</dt><dd>{event.location || 'Location to be confirmed'}</dd></div></dl>
+          </>
+        )}
+      </header>
+
+      {status && statusMessages[status] && <p class="form-notice" role="status">{statusMessages[status]}</p>}
+      {hasAccess ? (
+        <div class="event-access-status" role="status">
+          <span class="event-status-dot" aria-hidden="true"></span>
+          <span>{isManager ? 'Event manager access' : 'Attendee access approved'}</span>
+          {isManager && <a href={`/events/${event.slug}/manage`}>Manage event</a>}
+        </div>
+      ) : (
+        <section class="event-access" aria-labelledby="access-heading">
+          <h2 id="access-heading">Attendee access</h2>
+          {!user ? (
+            <div class="event-access-body">
+              <p>Attendee materials are released to approved attendees only. Create an account or sign in, then request access.</p>
+              <a class="btn btn-primary" href={`/sign-in?return_to=/events/${event.slug}`}>Sign in or create an account</a>
+              <p class="event-note">An account on its own does not grant access to this event.</p>
+            </div>
+          ) : localPreview ? (
+            <p class="event-note">The local preview identity is read-only and cannot request event access.</p>
+          ) : attendance === 'requested' ? (
+            <p class="event-badge event-badge-pending">Your request is awaiting a decision by the event manager</p>
+          ) : attendance === 'revoked' ? (
+            <p class="event-badge event-badge-revoked">Your access to this event has been withdrawn</p>
+          ) : (
+            <form class="event-access-body" method="post" action="/api/events/attendance">
+              <input type="hidden" name="slug" value={event.slug} /><input type="hidden" name="event_id" value={event.id} />
+              <p>Request access to the presentation and print guide for this event.</p>
+              <button class="btn btn-primary" type="submit">Request attendee access</button>
+            </form>
+          )}
+        </section>
+      )}
+
+      {identity && (
+        <section class="event-details" aria-label="Event programme and organisation">
+          <div class="event-programme">
+            <h2 id="programme-heading">Programme</h2>
+            <ol class="event-runsheet">
+              <li><span class="event-runsheet-time">{formatEventTimeInZone(identity.presentation.startsAt, EVENT_TIME_ZONE)}</span><div><p class="event-runsheet-label">{identity.presentation.label}</p><p class="event-runsheet-people"><strong>{identity.presenter.name}</strong>, {identity.presenter.role}</p></div></li>
+              <li><span class="event-runsheet-time">{formatEventTimeInZone(identity.debate.startsAt, EVENT_TIME_ZONE)}</span><div><p class="event-runsheet-label">{identity.debate.label}</p>{identity.debaters.map((person) => <p class="event-runsheet-people"><strong>{person.name}</strong>, {person.role}, {person.organisation}</p>)}<p class="event-runsheet-people">Moderator: <strong>{identity.moderator.name}</strong>, {identity.moderator.role},{' '}{identity.moderator.organisation}</p></div></li>
+            </ol>
+            <p class="event-note">Times are shown in Lisbon time. No end time is published.</p>
+          </div>
+          <div class="event-organisers">
+            <p class="event-organisers-label">Organisation</p>
+            <p class="event-note">Distribuição Hoje · Skolae Formação</p>
+            <a class="event-programme-link" href={identity.programmeUrl} rel="noopener noreferrer" target="_blank">Official event programme</a>
+            <p class="event-note event-hosting-note">Presented by {identity.presenter.name} for Commerce Partners. Session resources hosted by Commonwork.</p>
+          </div>
+        </section>
+      )}
+
+      {(articles.length > 0 || catalogueEntries.length > 0 || catalogueLoadError || (hasCuratedCatalogue && user && !localPreview)) && (
+        <section class="event-related event-explore" aria-labelledby="explore-heading">
+          <div class="event-section-heading">
+            <div><div class="eyebrow">From Commonwork</div><h2 id="explore-heading">Continue exploring</h2></div>
+            <nav class="event-explore-links" aria-label="Explore Commonwork"><a href="/insights">All Insights</a><a href="/intelligence">Browse the catalogue</a></nav>
+          </div>
+          {articles.length > 0 && (
+            <div class="event-explore-group"><h3>Insights</h3><ul class="event-card-grid">{articles.map((article) => <li class="event-card"><span class="event-card-desk">{article.data.desk}</span><a class="event-card-title" href={`/insights/${article.id}`}>{article.data.title}</a><p class="event-card-summary">{article.data.deck}</p></li>)}</ul></div>
+          )}
+          {catalogueLoadError && <p class="form-notice error" role="alert">We could not load the catalogue entries. The event materials above are unaffected.</p>}
+          {!catalogueLoadError && hasCuratedCatalogue && user && !localPreview && catalogueEntries.length === 0 && <p class="event-note" role="status">The curated catalogue entries are not available in this preview yet.</p>}
+          {catalogueEntries.length > 0 && (
+            <div class="event-explore-group">
+              <h3>Catalogue</h3>
+              {hasCuratedCatalogue && <p class="event-note">These offerings address different jobs. Inclusion is not sponsorship, endorsement, a ranking or evidence of integration with Commonwork. Capabilities are attributed to their publishers; suitability and outcomes require validation.</p>}
+              {hasCuratedCatalogue && catalogueEntries.length < catalogueSelections.length && <p class="event-note" role="status">{catalogueEntries.length} of {catalogueSelections.length} curated entries available in this preview.</p>}
+              <ul class="event-card-grid">
+                {catalogueEntries.map((entry) => (
+                  <li class="event-card">
+                    <span class="event-card-desk">{entry.provider}</span>
+                    <a class="event-card-title" href={`/intelligence/product/${entry.slug}${hasCuratedCatalogue ? `?from_event=${encodeURIComponent(event.slug)}` : ''}`}>{entry.name}</a>
+                    {entry.relevance && <p class="event-card-relevance"><strong>Why it relates:</strong> {entry.relevance}</p>}
+                    {entry.summary && <p class="event-card-summary">{entry.summary}</p>}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </section>
+      )}
+      <section class="event-contact" aria-labelledby="contact-heading"><h2 id="contact-heading">Questions about this event</h2><p>Contact <a href="mailto:dirk.buursma@commerce-partners.com">dirk.buursma@commerce-partners.com</a>.</p></section>
+    </div>
+  )}
+</InsightsLayout>

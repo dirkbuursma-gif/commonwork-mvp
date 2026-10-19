@@ -1,0 +1,13 @@
+---
+import PlaybookLayout from '../../../layouts/PlaybookLayout.astro';
+import RevisedPlaybook from '../../../components/playbook/RevisedPlaybook.astro';
+import { requireRevisionAccess } from '../../../lib/events/revision-access';
+export const prerender = false;
+const page = await requireRevisionAccess(Astro);
+if (page instanceof Response) return page;
+Astro.response.headers.set('Cache-Control', 'private, no-store');
+Astro.response.headers.set('Vary', 'Cookie');
+---
+<PlaybookLayout title={`${page.title} · retailer guide and worksheet`} mode="audience">
+  <RevisedPlaybook mode="guide" eventHome={page.eventHome} videoSources={page.videoSources} />
+</PlaybookLayout>

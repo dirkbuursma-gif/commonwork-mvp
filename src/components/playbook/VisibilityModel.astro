@@ -1,0 +1,17 @@
+---
+import { influenceActors } from '../../lib/playbook/content';
+---
+
+<div class="pb-influence-model" aria-label="Influences on a shopping recommendation">
+  {influenceActors.map((actor, index) => (
+    <div class="pb-influence-step">
+      <article class="pb-influence-actor">
+        <span class="pb-influence-index">0{index + 1}</span>
+        <h3>{actor.label}</h3>
+        <p>{actor.detail}</p>
+      </article>
+      {index < influenceActors.length - 1 && <span class="pb-influence-arrow" aria-hidden="true">→</span>}
+    </div>
+  ))}
+</div>
+<p class="pb-caveat">Influence is not control. No role shown here can guarantee that a product or seller is recommended.</p>

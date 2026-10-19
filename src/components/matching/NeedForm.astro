@@ -7,10 +7,30 @@ interface Props {
   need?: CompetenceNeed | null;
   needCompetencies?: NeedCompetence[];
   retailerOrganisations?: MemberOrganisation[];
+  prefill?: {
+    sourceLabel: string;
+    title: string;
+    businessOutcome: string;
+    problemStatement: string;
+    relevantContext: string;
+    projectContext: string;
+    essentialCompetencySlugs: string[];
+  } | null;
 }
 
-const { competencies, need = null, needCompetencies = [], retailerOrganisations = [] } = Astro.props;
-const essential = new Set(needCompetencies.filter((item) => item.importance === 'essential').map((item) => item.competency_id));
+const {
+  competencies,
+  need = null,
+  needCompetencies = [],
+  retailerOrganisations = [],
+  prefill = null,
+} = Astro.props;
+const essential = new Set([
+  ...needCompetencies.filter((item) => item.importance === 'essential').map((item) => item.competency_id),
+  ...(!need && prefill
+    ? competencies.filter((item) => prefill.essentialCompetencySlugs.includes(item.slug)).map((item) => item.id)
+    : []),
+]);
 const useful = new Set(needCompetencies.filter((item) => item.importance === 'useful').map((item) => item.competency_id));
 const expiryDate = need?.expires_at ? new Date(need.expires_at) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
 const expiresLocal = new Date(expiryDate.getTime() - expiryDate.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
@@ -24,6 +44,12 @@ const categories = [
 <form class="need-form panel panel-pad" method="post" action="/api/needs" data-need-form novalidate>
   {need && <input type="hidden" name="need_id" value={need.id} />}
   <input type="hidden" name="action" value="save-draft" data-need-action />
+  {prefill && !need && (
+    <p class="form-notice" role="note">
+      Context carried from {prefill.sourceLabel}. Review and edit it before activating matching.
+      Product affiliation is not treated as proof of competence.
+    </p>
+  )}
 
   <nav aria-label="Need setup progress">
     <ol class="onboarding-steps need-steps">
@@ -38,9 +64,9 @@ const categories = [
     <div class="eyebrow">Step 1 of 4</div>
     <h2 id="need-outcome-title" tabindex="-1">What business outcome do you need?</h2>
     <p class="subtitle">Describe the result you want, then the problem keeping you from it.</p>
-    <label class="field" for="need-title">Short title<input id="need-title" name="title" required minlength="3" maxlength="180" value={need?.title ?? ''} placeholder="Improve product-data readiness across channels" /></label>
-    <label class="field" for="business-outcome">Desired business outcome<textarea id="business-outcome" name="business_outcome" required minlength="3" maxlength="2000" rows="3" placeholder="What should be measurably better?">{need?.business_outcome ?? ''}</textarea></label>
-    <label class="field" for="problem-statement">Problem to solve<textarea id="problem-statement" name="problem_statement" required minlength="3" maxlength="3000" rows="4" placeholder="What is happening today, and why does it matter?">{need?.problem_statement ?? ''}</textarea></label>
+    <label class="field" for="need-title">Short title<input id="need-title" name="title" required minlength="3" maxlength="180" value={need?.title ?? prefill?.title ?? ''} placeholder="Improve product-data readiness across channels" /></label>
+    <label class="field" for="business-outcome">Desired business outcome<textarea id="business-outcome" name="business_outcome" required minlength="3" maxlength="2000" rows="3" placeholder="What should be measurably better?">{need?.business_outcome ?? prefill?.businessOutcome ?? ''}</textarea></label>
+    <label class="field" for="problem-statement">Problem to solve<textarea id="problem-statement" name="problem_statement" required minlength="3" maxlength="3000" rows="4" placeholder="What is happening today, and why does it matter?">{need?.problem_statement ?? prefill?.problemStatement ?? ''}</textarea></label>
     <div class="form-actions">
       <span class="field-help">Start with the business issue, not a product or vendor.</span>
       <button class="btn" type="submit" data-submit-action="save-draft">Save draft</button>
@@ -89,7 +115,7 @@ const categories = [
     <div class="eyebrow">Step 3 of 4</div>
     <h2 id="need-context-title" tabindex="-1">Add useful context</h2>
     <p class="subtitle">Give potential matches enough context to understand the situation without exposing private details.</p>
-    <label class="field" for="relevant-context">Relevant context<textarea id="relevant-context" name="relevant_context" maxlength="3000" rows="5" placeholder="Systems, constraints, timing, stakeholders or what has already been tried.">{need?.relevant_context ?? ''}</textarea></label>
+    <label class="field" for="relevant-context">Relevant context<textarea id="relevant-context" name="relevant_context" maxlength="3000" rows="5" placeholder="Systems, constraints, timing, stakeholders or what has already been tried.">{need?.relevant_context ?? prefill?.relevantContext ?? ''}</textarea></label>
     {retailerOrganisations.length > 0 && (
       <label class="field" for="retailer-organisation">Retailer organisation
         <select id="retailer-organisation" name="retailer_organisation_id">
@@ -100,7 +126,7 @@ const categories = [
     )}
     <label class="field" for="retailer-segment">Market or segment<input id="retailer-segment" name="retailer_segment" maxlength="160" value={need?.retailer_segment ?? ''} placeholder="Mid-market fashion, B2B distribution, grocery..." /></label>
     <label class="field" for="current-stack">Current stack<textarea id="current-stack" name="current_stack_note" maxlength="1500" rows="3" placeholder="Platforms and systems in place today. Visible to members if you share this need with the network.">{need?.current_stack_note ?? ''}</textarea></label>
-    <label class="field" for="project-context">Project context<textarea id="project-context" name="project_context" maxlength="1500" rows="3" placeholder="Timing, budget stage, decision process or project status.">{need?.project_context ?? ''}</textarea></label>
+    <label class="field" for="project-context">Project context<textarea id="project-context" name="project_context" maxlength="1500" rows="3" placeholder="Timing, budget stage, decision process or project status.">{need?.project_context ?? prefill?.projectContext ?? ''}</textarea></label>
     <label class="field" for="requester-offers">What can you offer in return?<textarea id="requester-offers" name="what_requester_offers" maxlength="2000" rows="3" placeholder="Knowledge exchange, a peer conversation, implementation context, or another contribution.">{need?.what_requester_offers ?? ''}</textarea></label>
     <label class="field" for="conversation-type">Intended conversation type
       <select id="conversation-type" name="conversation_type">

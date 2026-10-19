@@ -40,6 +40,21 @@ export interface ProviderProduct {
   is_seed_data: boolean;
   seed_batch: string | null;
   public_disclosure_note?: string;
+  reviewed_at?: string | null;
+  reviewed_by?: string | null;
+}
+
+export interface EligibleProductAffiliate {
+  profile_id: string;
+  display_name: string;
+  professional_summary: string;
+  what_i_contribute: string;
+  affiliation_role: string;
+  affiliation_status: 'self_declared' | 'approved' | 'legacy_curated';
+  organisation_name: string;
+  organisation_role: string;
+  availability_status: 'open' | 'selective' | 'introductions_only';
+  is_synthetic: boolean;
 }
 
 export interface CategoryProduct extends ProviderProduct {
@@ -168,7 +183,7 @@ export async function getProviderProductBySlug(
 ): Promise<{ product: ProviderProduct & { public_disclosure_note: string }; provider: ProviderSummary; categories: Array<ProviderCategory & { fit_summary: string }> } | null> {
   const { data, error } = await client
     .from('provider_products')
-    .select('id, provider_id, slug, name, summary, operating_layer, contribution_role, evidence_maturity, merchant_fit, boundary_and_dependencies, buyer_validation_questions, architecture, deployment_model, capabilities_summary, is_seed_data, seed_batch, providers!inner(id, slug, name, website_url, summary, is_seed_data, seed_batch), provider_category_memberships(fit_summary, provider_categories!inner(id, slug, name, what_it_is, what_it_is_not, sort_order, is_seed_data, seed_batch))')
+    .select('id, provider_id, slug, name, summary, operating_layer, contribution_role, evidence_maturity, merchant_fit, boundary_and_dependencies, buyer_validation_questions, architecture, deployment_model, capabilities_summary, reviewed_at, reviewed_by, is_seed_data, seed_batch, providers!inner(id, slug, name, website_url, summary, is_seed_data, seed_batch), provider_category_memberships(fit_summary, provider_categories!inner(id, slug, name, what_it_is, what_it_is_not, sort_order, is_seed_data, seed_batch))')
     .eq('slug', slug)
     .maybeSingle();
   if (error) throw error;
@@ -191,6 +206,75 @@ export async function getProviderProductBySlug(
     provider: { ...provider, public_disclosure_note: providerStatus.data?.public_disclosure_note ?? '' },
     categories,
   };
+}
+
+export async function getEligibleProductAffiliates(
+  client: SupabaseClient,
+  productId: string,
+  providerId: string,
+): Promise<EligibleProductAffiliate[]> {
+  const { data: affiliations, error: affiliationError } = await client
+    .from('profile_product_affiliations')
+    .select('profile_id, role_title, verification_status, is_seed_data')
+    .eq('provider_product_id', productId)
+    .eq('consent_given', true);
+  if (affiliationError) throw affiliationError;
+
+  const profileIds = (affiliations ?? []).map((item) => item.profile_id);
+  if (profileIds.length === 0) return [];
+
+  const [profilesResult, preferencesResult, organisationsResult] = await Promise.all([
+    client
+      .from('discoverable_profiles')
+      .select('id, display_name, professional_summary, what_i_contribute')
+      .in('id', profileIds),
+    client
+      .from('discoverable_contact_preferences')
+      .select('profile_id, open_to_event_introductions, availability_status, conversation_capacity')
+      .in('profile_id', profileIds),
+    client
+      .from('profile_organisations')
+      .select('profile_id, role_title, organisations!inner(name, provider_id)')
+      .in('profile_id', profileIds)
+      .eq('organisations.provider_id', providerId),
+  ]);
+  if (profilesResult.error) throw profilesResult.error;
+  if (preferencesResult.error) throw preferencesResult.error;
+  if (organisationsResult.error) throw organisationsResult.error;
+
+  const profiles = new Map((profilesResult.data ?? []).map((profile) => [profile.id, profile]));
+  const preferences = new Map((preferencesResult.data ?? []).map((preference) => [preference.profile_id, preference]));
+  const organisations = new Map((organisationsResult.data ?? []).map((affiliation: any) => {
+    const organisation = one(affiliation.organisations);
+    return [affiliation.profile_id, { name: organisation?.name ?? '', role: affiliation.role_title ?? '' }];
+  }));
+
+  return (affiliations ?? []).flatMap((affiliation) => {
+    const profile = profiles.get(affiliation.profile_id);
+    const preference = preferences.get(affiliation.profile_id);
+    const organisation = organisations.get(affiliation.profile_id);
+    if (
+      !profile
+      || !organisation?.name
+      || !preference?.open_to_event_introductions
+      || preference.availability_status === 'unavailable'
+      || preference.conversation_capacity <= 0
+    ) {
+      return [];
+    }
+    return [{
+      profile_id: profile.id,
+      display_name: profile.display_name,
+      professional_summary: profile.professional_summary,
+      what_i_contribute: profile.what_i_contribute,
+      affiliation_role: affiliation.role_title ?? '',
+      affiliation_status: affiliation.verification_status,
+      organisation_name: organisation.name,
+      organisation_role: organisation.role,
+      availability_status: preference.availability_status,
+      is_synthetic: affiliation.is_seed_data,
+    } as EligibleProductAffiliate];
+  });
 }
 
 export async function getCategoryCompetencies(

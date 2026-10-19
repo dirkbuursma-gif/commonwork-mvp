@@ -1,0 +1,99 @@
+---
+import AppLayout from '../../layouts/AppLayout.astro';
+import { createSupabaseServerClient } from '../../lib/supabase/server';
+import { listEditorialInsights } from '../../lib/insights-data';
+import '../../styles/insights.css';
+
+export const prerender = false;
+
+const user = Astro.locals.user;
+if (!user || user.isLocalTestUser) return Astro.redirect('/sign-in', 303);
+
+const supabase = createSupabaseServerClient(Astro);
+if (!supabase) return new Response('Insights editorial tools are not configured.', { status: 503 });
+
+const { data: allowed } = await supabase.rpc('can_edit_insights');
+if (allowed !== true) return new Response('Insights editor access required.', { status: 403 });
+
+const articles = await listEditorialInsights(supabase);
+const selectedId = Astro.url.searchParams.get('edit');
+const selected = articles.find((article) => article.id === selectedId);
+const status = Astro.url.searchParams.get('status');
+---
+
+<AppLayout title="Insights editor" section="none">
+  <div class="page-head">
+    <div>
+      <div class="eyebrow">Authorized editor</div>
+      <h1>Insights editor</h1>
+      <p class="subtitle">Create and review drafts, then explicitly publish or unpublish them.</p>
+    </div>
+    <a class="btn" href="/insights">View Insights</a>
+  </div>
+
+  {status && <p class="form-notice" role="status">Editorial action: {status.replace('-', ' ')}.</p>}
+
+  <div class="stack">
+    <section class="panel panel-pad">
+      <h2>{selected ? `Edit ${selected.title}` : 'New draft'}</h2>
+      <form class="stack" method="post" action="/api/insights/editor">
+        <input type="hidden" name="action" value="save" />
+        {selected && <input type="hidden" name="id" value={selected.id} />}
+        <label>Title<input name="title" required maxlength="200" value={selected?.title ?? ''} /></label>
+        <label>URL name<input name="slug" required maxlength="100" pattern="[a-z0-9]+(?:-[a-z0-9]+)*" value={selected?.slug ?? ''} /></label>
+        <label>Deck<textarea name="deck" maxlength="1000" rows="3">{selected?.deck ?? ''}</textarea></label>
+        <label>Summary<textarea name="summary" maxlength="1000" rows="3">{selected?.summary ?? ''}</textarea></label>
+        <label>Body<textarea name="body" maxlength="50000" rows="14">{selected?.body ?? ''}</textarea></label>
+        <label>Desk
+          <select name="desk">
+            {['Product Data', 'Standards & Regulation', 'Ecosystem'].map((desk) => (
+              <option value={desk} selected={selected?.desk === desk}>{desk}</option>
+            ))}
+          </select>
+        </label>
+        <label>Format
+          <select name="format">
+            {['Analysis', 'Brief', 'Vendor Watch'].map((format) => (
+              <option value={format} selected={selected?.format === format}>{format}</option>
+            ))}
+          </select>
+        </label>
+        <label>Related catalogue product URL name
+          <input name="linked_product_slug" value={selected?.linked_product_slug ?? ''} placeholder="adobe-commerce" />
+        </label>
+        {selected?.status === 'published' && (
+          <p class="field-help">Saving changes returns this article to draft. It must be published again explicitly.</p>
+        )}
+        <button class="btn primary" type="submit">Save draft</button>
+      </form>
+    </section>
+
+    <section class="panel panel-pad">
+      <h2>Drafts and publications</h2>
+      {articles.length ? (
+        <ul class="event-material-list">
+          {articles.map((article) => (
+            <li class="event-material">
+              <div>
+                <span class="event-material-kind">{article.status}</span>
+                <p class="event-material-title">{article.title}</p>
+              </div>
+              <div class="intelligence-meta">
+                <a class="btn" href={`/insights/editor?edit=${article.id}`}>Edit</a>
+                <a class="btn" href={`/insights/${article.slug}?preview=draft`}>Preview</a>
+                <form method="post" action="/api/insights/editor">
+                  <input type="hidden" name="id" value={article.id} />
+                  <button class="btn" name="action" value={article.status === 'published' ? 'unpublish' : 'publish'} type="submit">
+                    {article.status === 'published' ? 'Unpublish' : 'Publish'}
+                  </button>
+                </form>
+              </div>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p class="event-note">No database-backed drafts yet. The retained Git-backed articles remain published separately.</p>
+      )}
+    </section>
+  </div>
+</AppLayout>

@@ -2,7 +2,13 @@
 import AppLayout from '../../../layouts/AppLayout.astro';
 import EmptyState from '../../../components/app/EmptyState.astro';
 import { createSupabaseServerClient } from '../../../lib/supabase/server';
-import { getProviderProductBySlug, recordCatalogueView } from '../../../lib/provider-intelligence';
+import {
+  getEligibleProductAffiliates,
+  getProviderProductBySlug,
+  recordCatalogueView,
+  type EligibleProductAffiliate,
+} from '../../../lib/provider-intelligence';
+import { getCatalogueJourneyContext } from '../../../lib/event-catalogue';
 import '../../../styles/intelligence.css';
 
 const user = Astro.locals.user;
@@ -10,10 +16,37 @@ const localPreview = user?.isLocalTestUser === true;
 const supabase = localPreview ? null : createSupabaseServerClient(Astro);
 let result = null;
 let loadError = false;
+type ProductAffiliation = {
+  verification_status: 'self_declared' | 'approved' | 'legacy_curated';
+  role_title: string;
+};
+
+let affiliation: ProductAffiliation | null = null;
+let eligibleAffiliates: EligibleProductAffiliate[] = [];
+const journeyContext = getCatalogueJourneyContext(
+  Astro.url.searchParams.get('from_event'),
+  Astro.params.slug,
+);
 if (supabase) {
   try {
     result = await getProviderProductBySlug(supabase, Astro.params.slug ?? '');
     if (result) await recordCatalogueView(supabase, 'provider_product', Astro.params.slug ?? '');
+    if (result) {
+      eligibleAffiliates = await getEligibleProductAffiliates(
+        supabase,
+        result.product.id,
+        result.provider.id,
+      );
+    }
+    if (result && user) {
+      const { data } = await supabase
+        .from('profile_product_affiliations')
+        .select('verification_status, role_title')
+        .eq('profile_id', user.id)
+        .eq('provider_product_id', result.product.id)
+        .maybeSingle();
+      affiliation = data as ProductAffiliation | null;
+    }
   } catch {
     loadError = true;
   }
@@ -28,19 +61,125 @@ if (supabase) {
   <AppLayout title="Product unavailable" section="intelligence"><section class="panel panel-pad"><EmptyState title="Product unavailable" description="This product is not published or no longer available." /></section></AppLayout>
 ) : (
   <AppLayout title={result.product.name} section="intelligence">
-    <div class="page-head"><div><div class="eyebrow">{result.product.operating_layer || 'Product profile'}</div><h1>{result.product.name}</h1><p class="subtitle">{result.product.summary}</p></div></div>
+    <div class="page-head">
+      <div>
+        {journeyContext && (
+          <a class="field-help" href={`/events/${journeyContext.eventSlug}`}>
+            ← Back to {journeyContext.eventTitle}
+          </a>
+        )}
+        <div class="eyebrow">{result.product.operating_layer || 'Product profile'}</div>
+        <h1>{result.product.name}</h1>
+        <p class="subtitle">{result.product.summary}</p>
+      </div>
+    </div>
     <div class="stack">
       {result.product.is_seed_data && <p class="intelligence-disclosure" role="note">Local demo catalogue: this record is a removable review fixture, not a certification or endorsement.</p>}
+      {journeyContext && (
+        <section class="panel panel-pad">
+          <div class="eyebrow">From the event</div>
+          <h2>Why this product is relevant</h2>
+          <p>{journeyContext.relevance}</p>
+        </section>
+      )}
       <section class="panel panel-pad">
         <div class="panel-head"><div><div class="eyebrow">Provider</div><h2><a href={`/intelligence/provider/${result.provider.slug}`}>{result.provider.name}</a></h2><p>{result.provider.summary}</p></div>{result.provider.website_url && <a class="btn" href={result.provider.website_url} target="_blank" rel="noopener noreferrer">Provider website</a>}</div>
         <div class="intelligence-meta"><span>Contribution: {result.product.contribution_role || 'Not assessed'}</span><span>Evidence: {result.product.evidence_maturity || 'Not assessed'}</span><span>Deployment: {result.product.deployment_model || 'Not specified'}</span></div>
       </section>
+      {result.product.reviewed_at && result.product.reviewed_by && (
+        <section class="panel panel-pad">
+          <div class="eyebrow">Catalogue review</div>
+          <h2>Reviewed record</h2>
+          <p>
+            Reviewed {new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium' }).format(new Date(result.product.reviewed_at))}
+            {' '}by {result.product.reviewed_by}.
+          </p>
+          <p class="field-help">
+            Review means the catalogue description and its stated boundaries were checked for publication.
+            It is not a certification, recommendation or product-performance guarantee.
+          </p>
+          {result.product.public_disclosure_note && <p class="intelligence-disclosure">{result.product.public_disclosure_note}</p>}
+        </section>
+      )}
       {result.categories.length > 0 && <section class="panel panel-pad"><div class="eyebrow">Categories</div><div class="intelligence-meta">{result.categories.map((category) => <a class="btn" href={`/intelligence/category/${category.slug}`}>{category.name}</a>)}</div></section>}
       {result.product.merchant_fit.length > 0 && <section class="panel panel-pad"><h2>Merchant fit</h2><ul>{result.product.merchant_fit.map((item) => <li>{item}</li>)}</ul></section>}
       <section class="panel panel-pad"><h2>Capabilities</h2><p>{result.product.capabilities_summary || result.product.summary}</p>{result.product.architecture && <><h3>Architecture</h3><p>{result.product.architecture}</p></>}</section>
       {result.product.boundary_and_dependencies && <section class="panel panel-pad"><h2>Boundaries and dependencies</h2><p>{result.product.boundary_and_dependencies}</p></section>}
       {result.product.buyer_validation_questions.length > 0 && <section class="panel panel-pad"><h2>Questions to validate</h2><ul>{result.product.buyer_validation_questions.map((question) => <li>{question}</li>)}</ul></section>}
-      {result.product.public_disclosure_note && <p class="intelligence-disclosure">{result.product.public_disclosure_note}</p>}
+      <section class="panel panel-pad">
+        <div class="eyebrow">Eligible affiliated people</div>
+        <h2>Continue with a person</h2>
+        <p class="field-help">
+          Product affiliation is shown separately from competence. People appear only when their profile is discoverable,
+          they consented to show the affiliation, and they are open to event introductions. The existing competence
+          matching flow checks expertise before an introduction can be requested.
+        </p>
+        {eligibleAffiliates.length > 0 ? (
+          <div class="intelligence-person-list">
+            {eligibleAffiliates.map((person) => (
+              <article class="intelligence-person">
+                <div>
+                  {person.is_synthetic && (
+                    <p class="intelligence-disclosure">
+                      Synthetic staging demonstration. This is not a real available contact, and no external outreach is sent.
+                    </p>
+                  )}
+                  <h3><a href={`/profiles/${person.profile_id}`}>{person.display_name}</a></h3>
+                  <p>{person.professional_summary}</p>
+                  <p class="field-help">
+                    <strong>{
+                      person.affiliation_status === 'approved'
+                        ? 'Approved product affiliation'
+                        : person.affiliation_status === 'self_declared'
+                          ? 'Self-declared product affiliation'
+                          : 'Curator-managed product affiliation'
+                    }</strong>
+                    {person.affiliation_role ? ` · ${person.affiliation_role}` : ''}
+                    {' '}at {person.organisation_name}
+                    {person.organisation_role ? ` (${person.organisation_role})` : ''}.
+                  </p>
+                  {person.what_i_contribute && <p><strong>Self-described contribution:</strong> {person.what_i_contribute}</p>}
+                </div>
+                <a
+                  class="btn primary"
+                  href={`/find/new?from_event=${encodeURIComponent(journeyContext?.eventSlug ?? '')}&product=${encodeURIComponent(result.product.slug)}&person=${encodeURIComponent(person.profile_id)}`}
+                >
+                  {person.is_synthetic ? 'Review introduction path' : 'Describe need for an introduction'}
+                </a>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <p>No affiliated member currently meets all visibility, affiliation-consent and introduction-availability conditions.</p>
+        )}
+      </section>
+      <section class="panel panel-pad">
+        <div class="eyebrow">Your relationship</div>
+        <h2>Product affiliation</h2>
+        {affiliation ? (
+          <>
+            <p>
+              <strong>{
+                affiliation.verification_status === 'approved'
+                  ? 'Approved affiliation'
+                  : affiliation.verification_status === 'legacy_curated'
+                    ? 'Curator-managed affiliation'
+                    : 'Self-declared affiliation'
+              }</strong>
+              {affiliation.role_title ? ` · ${affiliation.role_title}` : ''}
+            </p>
+            <p class="field-help">Affiliation is displayed with its source. It does not grant product or catalogue editing rights.</p>
+          </>
+        ) : (
+          <form class="stack" method="post" action="/api/intelligence/affiliation">
+            <input type="hidden" name="product_id" value={result.product.id} />
+            <input type="hidden" name="slug" value={result.product.slug} />
+            <label>Role or relationship<input name="role_title" maxlength="160" placeholder="For example: implementation partner" /></label>
+            <p class="field-help">This creates a self-declared affiliation. Approval is a separate operator decision.</p>
+            <button class="btn" type="submit">Declare affiliation</button>
+          </form>
+        )}
+      </section>
       <section class="panel panel-pad"><h2>Continue in Commonwork</h2><p>Use this provider context to describe a competence need and find relevant expertise.</p><a class="btn primary" href="/find">Find competence</a></section>
     </div>
   </AppLayout>
