@@ -7,6 +7,7 @@ import { deliveryError, streamEventObject } from '../../../lib/events/object-del
 const clips: Record<string, string> = {
   geoffy: 'Geoffy-in-60-seconds-EN-1080p.mp4',
   begen: 'AdMultify by Begen Video Teaser.mp4',
+  rierino: 'Rierino_Agentic_Commerce_InRetail_2026_music.mp4',
 };
 export const prerender = false;
 export const GET: APIRoute = async (context) => {
