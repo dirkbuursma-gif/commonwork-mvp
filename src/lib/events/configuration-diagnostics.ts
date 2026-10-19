@@ -42,3 +42,28 @@ export function describeDeliveryConfigurationFailure(input: {
   }
   return 'CONFIG_CHECK_FAILED';
 }
+
+/** Preview troubleshooting only: these booleans do not authenticate a credential. */
+export function describeStagingDeliveryBinding(input: {
+  publicUrl: unknown;
+  privateKey: unknown;
+}): { urlMatchesStaging: boolean; keyRefPresent: boolean; keyRefMatchesStaging: boolean } {
+  const result = { urlMatchesStaging: false, keyRefPresent: false, keyRefMatchesStaging: false };
+  if (typeof window !== 'undefined') return result;
+  const expectedRef = 'jcpwiijzycjgsfvyeeyv';
+  if (typeof input.publicUrl === 'string') {
+    try {
+      result.urlMatchesStaging = new URL(input.publicUrl).href === `https://${expectedRef}.supabase.co/`;
+    } catch { /* Keep only the fixed boolean result. */ }
+  }
+  const key = input.privateKey;
+  if (typeof key !== 'string' || key.startsWith('sb_secret_')) return result;
+  try {
+    const parsed: unknown = JSON.parse(Buffer.from(key.split('.')[1], 'base64url').toString('utf8'));
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return result;
+    const reference = (parsed as Record<string, unknown>).ref;
+    result.keyRefPresent = typeof reference === 'string' && reference.length > 0;
+    result.keyRefMatchesStaging = reference === expectedRef;
+  } catch { /* Never return the key, payload or exception. */ }
+  return result;
+}
