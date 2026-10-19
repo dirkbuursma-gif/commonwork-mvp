@@ -63,11 +63,12 @@ async function cleanup(admin, m, file) {
   }
   const manager = verified.find((p) => p.role === 'manager');
   if (manager) {
-    const event = ok('Locate fixture event', await admin.from('events').select('id, manager_profile_id').eq('slug', m.eventSlug).maybeSingle());
+    const event = ok('Locate fixture event', await admin.rpc('manage_staging_authz_event', { target_batch: m.batch, target_manager_id: manager.id, delete_fixture: false }).maybeSingle());
     if (event) {
       ensure(event.manager_profile_id === manager.id, 'Cleanup refused: event ownership mismatch.');
       ok('Remove fixture storage object', await admin.storage.from('event-materials').remove([`${event.id}/authz-${m.batch}.txt`]));
-      ok('Remove fixture event', await admin.from('events').delete().eq('id', event.id).eq('manager_profile_id', manager.id));
+      const removed = ok('Remove fixture event', await admin.rpc('manage_staging_authz_event', { target_batch: m.batch, target_manager_id: manager.id, delete_fixture: true }));
+      ensure(removed?.length === 1 && removed[0].id === event.id, 'Cleanup event scope changed; retain the manifest.');
     }
   }
   for (const p of verified.reverse()) ok('Remove synthetic Auth account', await admin.auth.admin.deleteUser(p.id));
@@ -127,7 +128,7 @@ async function probe(admin, publicKey, m, file) {
   const selfGrant = await attendee.client.from('workspace_memberships').insert({ user_id: attendee.id, status: 'active', source: 'operator' });
   ensure(selfGrant.error?.code === '42501', 'Self-grant was not refused.');
   await attendee.client.from('event_attendees').update({ status: 'approved', decided_at: new Date().toISOString(), decided_by: attendee.id }).eq('event_id', event.id).eq('profile_id', attendee.id);
-  const pending = ok('Check self-approval did not change state', await admin.from('event_attendees').select('status').eq('event_id', event.id).eq('profile_id', attendee.id).single());
+  const pending = ok('Check self-approval did not change state', await attendee.client.from('event_attendees').select('status').eq('event_id', event.id).eq('profile_id', attendee.id).single());
   ensure(pending.status === 'requested', 'Attendee self-approved.'); await materialDenied(attendee);
   ok('Manager approves synthetic attendance', await manager.client.from('event_attendees').update({ status: 'approved', decided_at: new Date().toISOString(), decided_by: manager.id }).eq('event_id', event.id).eq('profile_id', attendee.id).select('status').single());
   ensure(ok('Check approved event permission', await attendee.client.rpc('has_approved_event_access', { target_event_id: event.id })) === true, 'Approval was not effective.');
@@ -152,6 +153,8 @@ async function main() {
   if (mode === '--dry-run') { console.log(JSON.stringify({ project: REF, mode, writes: false, network: false, syntheticAccounts: 3, event: 1, privateTextObject: 1 })); return; }
   const { adminKey, publicKey } = keys(process.env);
   const admin = createClient(URL, adminKey, options);
+  const preflight = await admin.rpc('manage_staging_authz_event', { target_batch: randomUUID(), target_manager_id: randomUUID(), delete_fixture: false });
+  ensure(preflight.error?.code === '42501' && preflight.error.message === 'Synthetic fixture ownership is required.', 'Required fixture-scoped cleanup RPC is not ready; no accounts created.');
   if (mode === '--cleanup') {
     ensure(manifestArg, 'Supply the recovery manifest path.');
     const file = resolve(manifestArg); const m = JSON.parse(readFileSync(file, 'utf8')); validateManifest(m, file);
