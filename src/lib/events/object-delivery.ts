@@ -63,15 +63,35 @@ export async function streamEventObject(input: {
     const requestHeaders = new Headers({ apikey: key });
     if (!key.startsWith('sb_secret_')) requestHeaders.set('Authorization', `Bearer ${key}`);
     if (rangeValue) requestHeaders.set('Range', rangeValue);
-    const upstream = await (dependencies.fetcher ?? fetch)(url, {
+    const fetcher = dependencies.fetcher ?? fetch;
+    const upstream = await fetcher(url, {
       method: 'GET', headers: requestHeaders, redirect: 'error', cache: 'no-store', signal: input.request.signal,
     });
     const discard = async () => { try { await upstream.body?.cancel(); } catch { /* Never disclose upstream errors. */ } };
+    const unsatisfiable = (size: number) => Number.isSafeInteger(size) && size >= 0 &&
+      (size === 0 || (range && range.start !== undefined && range.start >= size));
+    // Some Storage backends omit 416 headers or return inconsistent 206 metadata.
+    // Confirm the size with authorized HEAD, never with a full-body retry.
+    const confirmRangeFailure = async (): Promise<Response> => {
+      await discard();
+      const metadataHeaders = new Headers(requestHeaders);
+      metadataHeaders.delete('Range');
+      const metadata = await fetcher(url, {
+        method: 'HEAD', headers: metadataHeaders, redirect: 'error', cache: 'no-store', signal: input.request.signal,
+      });
+      const rawSize = metadata.headers.get('content-length');
+      try { await metadata.body?.cancel(); } catch { /* Do not forward upstream details. */ }
+      if (metadata.status !== 200 || !rawSize || !/^\d+$/.test(rawSize) || !unsatisfiable(Number(rawSize))) {
+        return deliveryError('Invalid upstream range response.', 502);
+      }
+      return new Response(null, { status: 416, headers: { ...deliveryHeaders, 'Content-Range': `bytes */${Number(rawSize)}` } });
+    };
     if (upstream.status === 416 && range) {
       const value = upstream.headers.get('content-range');
+      const match = value ? /^bytes \*\/(\d+)$/.exec(value) : null;
+      if (!match || !unsatisfiable(Number(match[1]))) return confirmRangeFailure();
       await discard();
-      if (!value || !/^bytes \*\/\d+$/.test(value)) return deliveryError('Invalid upstream range response.', 502);
-      return new Response(null, { status: 416, headers: { ...deliveryHeaders, 'Content-Range': value } });
+      return new Response(null, { status: 416, headers: { ...deliveryHeaders, 'Content-Range': value! } });
     }
     if ((upstream.status !== 200 && upstream.status !== 206) || !upstream.body ||
         (range && upstream.status !== 206) || (!range && upstream.status !== 200) ||
@@ -81,7 +101,10 @@ export async function streamEventObject(input: {
     }
     const headers = new Headers(deliveryHeaders);
     const length = upstream.headers.get('content-length');
-    if (length && !/^\d+$/.test(length)) { await discard(); return deliveryError('Invalid upstream response.', 502); }
+    if (length && !/^\d+$/.test(length)) {
+      if (range) return confirmRangeFailure();
+      await discard(); return deliveryError('Invalid upstream response.', 502);
+    }
     if (upstream.status === 206) {
       const value = upstream.headers.get('content-range') ?? '';
       const parts = /^bytes (\d+)-(\d+)\/(\d+)$/.exec(value);
@@ -90,7 +113,7 @@ export async function streamEventObject(input: {
       const expectedEnd = range && range.suffix ? size - 1 : Math.min(range && range.end !== undefined ? range.end : size - 1, size - 1);
       if (![start, end, size].every(Number.isSafeInteger) || size <= 0 || start < 0 || end < start || end >= size ||
           start !== expectedStart || end !== expectedEnd || (length && Number(length) !== end - start + 1)) {
-        await discard(); return deliveryError('Invalid upstream range response.', 502);
+        return confirmRangeFailure();
       }
       headers.set('Content-Range', value);
     }
