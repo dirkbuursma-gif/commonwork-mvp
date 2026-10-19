@@ -31,7 +31,7 @@ test('configuration diagnostics identify failed predicates using only fixed labe
 
 test('diagnostics never claim successful authorization or reject documented key families by speculation', () => {
   expect(diagnose()).toBe('CONFIG_CHECK_FAILED');
-  expect(diagnose({ privateKey: 'sb_secret_fixture-not-a-real-key' })).toBe('CONFIG_CHECK_FAILED');
+  expect(diagnose({ privateKey: 'sb_secret_fixture' })).toBe('CONFIG_CHECK_FAILED');
   expect(diagnose({ publicUrl: 'http://127.0.0.1:54321', development: true })).toBe('CONFIG_CHECK_FAILED');
 });
 
