@@ -24,10 +24,28 @@ test('introduction business access requires membership while own privacy and saf
     const memberMethod = contacts.data?.find((c: { profile_id: string }) => c.profile_id === member.id);
     if (!attendeeMethod || !memberMethod) throw new Error('Local contacts missing.');
     const now = new Date().toISOString();
-    async function makeIntroduction(recipient: string, route: string, status: string): Promise<string> {
+    const vocabulary = await admin.from('competencies').select('id').eq('slug', 'product-data-quality').single();
+    expect(vocabulary.error).toBeNull();
+    if (!vocabulary.data) throw new Error('Local competence missing.');
+    const pendingNeed = await admin.from('competence_needs').insert({
+      owner_profile_id: member.id, title: 'Local introduction boundary need',
+      business_outcome: 'Local product-data outcome', problem_statement: 'Local product-data problem',
+      expires_at: new Date(Date.now() + 86_400_000).toISOString(),
+    }).select('id').single();
+    expect(pendingNeed.error).toBeNull();
+    if (!pendingNeed.data) throw new Error('Local active need missing.');
+    expect((await admin.from('need_competencies').insert({ need_id: pendingNeed.data.id, competency_id: vocabulary.data.id, importance: 'essential' })).error).toBeNull();
+    expect((await admin.from('competence_needs').update({ status: 'active' }).eq('id', pendingNeed.data.id)).error).toBeNull();
+    const pendingMatch = await admin.from('matches').insert({
+      need_id: pendingNeed.data.id, matched_profile_id: peer.id, relevance_band: 'good', score_internal: 80,
+    }).select('id').single();
+    expect(pendingMatch.error).toBeNull();
+    if (!pendingMatch.data) throw new Error('Local pending match missing.');
+    async function makeIntroduction(recipient: string, route: string, status: string, source?: { needId: string; matchId: string }): Promise<string> {
       const result = await admin.from('introductions').insert({
         requester_profile_id: member.id, recipient_profile_id: recipient,
         requester_display_name_snapshot: 'Local requester', recipient_display_name_snapshot: 'Local recipient',
+        need_id: source?.needId ?? null, match_id: source?.matchId ?? null,
         route, status, introduced_at: status === 'introduced' ? now : null,
         why_this_person: 'Local experience', why_now: 'Local timing',
         proposed_conversation: 'Local conversation', requester_offer: 'Local contribution',
@@ -38,7 +56,7 @@ test('introduction business access requires membership while own privacy and saf
       return result.data.id as string;
     }
     const introduced = await makeIntroduction(attendee.id, 'direct', 'introduced');
-    const assigned = await makeIntroduction(peer.id, 'trusted_connector', 'awaiting_connector');
+    const assigned = await makeIntroduction(peer.id, 'trusted_connector', 'awaiting_connector', { needId: pendingNeed.data.id, matchId: pendingMatch.data.id });
     for (const [person, method, role] of [[member, memberMethod, 'requester'], [attendee, attendeeMethod, 'recipient']] as const) {
       expect((await admin.from('introduction_participants').insert({
         introduction_id: introduced, profile_id: person.id, role, consent_status: 'accepted', consented_at: now,
@@ -92,6 +110,8 @@ test('introduction business access requires membership while own privacy and saf
     const inbox = await attendee.client.rpc('get_my_introduction_inbox');
     expect(inbox.error).toBeNull();
     expect(inbox.data).toEqual(expect.arrayContaining([expect.objectContaining({ introduction_id: introduced }), expect.objectContaining({ introduction_id: assigned })]));
+    const stillPending = await admin.from('introductions').select('status').eq('id', assigned).single();
+    expect(stillPending.error).toBeNull(); expect(stillPending.data?.status).toBe('awaiting_connector');
     const released = await attendee.client.rpc('release_introduction_contacts', { target_introduction_id: introduced });
     expect(released.error).toBeNull();
     expect(released.data).toEqual([expect.objectContaining({ profile_id: member.id, value: member.email })]);
