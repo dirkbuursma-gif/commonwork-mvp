@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { createSupabaseServerClient } from '../../../lib/supabase/server';
 import { deliveryError, deliveryHeaders, readDeliveryConfiguration, streamEventObject } from '../../../lib/events/object-delivery';
+import { describeDeliveryConfigurationFailure } from '../../../lib/events/configuration-diagnostics';
 
 export const prerender = false;
 
@@ -15,7 +16,15 @@ export const GET: APIRoute = () => {
       'X-Commonwork-Event-Delivery': 'server-stream-v1',
       'X-Commonwork-Delivery-Project': new URL(config.origin).hostname.split('.')[0],
     } });
-  } catch { return deliveryError('Configure server-only event delivery for this Preview.', 503); }
+  } catch {
+    const code = describeDeliveryConfigurationFailure({
+      publicUrl: import.meta.env?.PUBLIC_SUPABASE_URL,
+      privateKey: process.env.SUPABASE_SERVICE_ROLE_KEY,
+      development: Boolean(import.meta.env?.DEV),
+      server: typeof window === 'undefined',
+    });
+    return deliveryError(`Configure server-only event delivery for this Preview. Diagnostic: ${code}.`, 503);
+  }
 };
 
 export const POST: APIRoute = async (context) => {
