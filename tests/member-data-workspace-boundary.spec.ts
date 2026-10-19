@@ -90,6 +90,13 @@ test('direct member data APIs reject event-only access and workspace revocation 
     const prior = await attendee.client.rpc('matching_evidence_for_need', { target_need_id: attendeeNeed });
     expect(prior.error).toBeNull();
     expect(prior.data?.length).toBeGreaterThan(0);
+    const ownFeedback = await attendee.client.from('member_match_feedback').select('id, match_id, feedback_type').eq('match_id', match.data.id);
+    expect(ownFeedback.error).toBeNull();
+    expect(ownFeedback.data).toHaveLength(1);
+    expect(ownFeedback.data?.[0]?.feedback_type).toBe('useful');
+    const otherFeedback = await member.client.from('member_match_feedback').select('id').eq('match_id', match.data.id);
+    expect(otherFeedback.error).toBeNull();
+    expect(otherFeedback.data).toEqual([]);
     expect((await admin.from('workspace_memberships').update({ status: 'revoked', revoked_at: new Date().toISOString() }).eq('user_id', attendee.id)).error).toBeNull();
     const deniedClient = attendee.client;
     const ownId = attendee.id;
