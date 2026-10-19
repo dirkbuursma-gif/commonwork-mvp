@@ -20,7 +20,7 @@ test('direct member data APIs reject event-only access and workspace revocation 
       { id: member.id, display_name: 'Local data member' },
       { id: attendee.id, display_name: 'Local data attendee' },
       { id: peer.id, display_name: 'Local data peer', professional_summary: 'Local boundary expertise', what_i_contribute: 'Local boundary contribution', profile_visibility: 'members' },
-    ]);
+    ], { defaultToNull: false });
     expect(profiles.error).toBeNull();
     const skill = await admin.from('competencies').insert({ name: 'Local boundary competence', slug: `boundary-${key}`, category: 'knowledge' }).select('id').single();
     expect(skill.error).toBeNull();
