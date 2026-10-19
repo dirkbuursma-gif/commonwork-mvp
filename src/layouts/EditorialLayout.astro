@@ -34,7 +34,7 @@ const { title, description } = Astro.props;
         <a class="editorial-insights-link" href="/insights" aria-current={Astro.url.pathname.startsWith('/insights') ? 'page' : undefined}>Insights</a>
         <div class="editorial-desktop-links">
           <a href="/about" aria-current={Astro.url.pathname === '/about' ? 'page' : undefined}>About Commonwork</a>
-          <a href={`/sign-in${Astro.url.pathname.startsWith('/insights/') ? `?return_to=${encodeURIComponent(Astro.url.pathname)}` : ''}`}>Sign in</a>
+          {Astro.locals.user ? <a href="/account" aria-current={Astro.url.pathname === '/account' ? 'page' : undefined}>Your account</a> : <a href={`/sign-in${Astro.url.pathname.startsWith('/insights/') ? `?return_to=${encodeURIComponent(Astro.url.pathname)}` : ''}`}>Sign in</a>}
           <ThemeToggle />
         </div>
         <button
@@ -51,7 +51,7 @@ const { title, description } = Astro.props;
         </button>
         <div class="editorial-mobile-menu" id="editorial-mobile-menu" hidden>
           <a href="/about" aria-current={Astro.url.pathname === '/about' ? 'page' : undefined}>About Commonwork</a>
-          <a href={`/sign-in${Astro.url.pathname.startsWith('/insights/') ? `?return_to=${encodeURIComponent(Astro.url.pathname)}` : ''}`}>Sign in</a>
+          {Astro.locals.user ? <a href="/account" aria-current={Astro.url.pathname === '/account' ? 'page' : undefined}>Your account</a> : <a href={`/sign-in${Astro.url.pathname.startsWith('/insights/') ? `?return_to=${encodeURIComponent(Astro.url.pathname)}` : ''}`}>Sign in</a>}
           <div class="editorial-mobile-theme"><ThemeToggle /></div>
         </div>
       </nav>

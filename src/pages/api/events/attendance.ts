@@ -20,19 +20,22 @@ export const POST: APIRoute = async (context) => {
   const form = await context.request.formData();
   const slug = String(form.get('slug') ?? '').trim();
   const eventId = String(form.get('event_id') ?? '').trim();
-  if (!slug || !eventId) return new Response('An event reference is required.', { status: 400 });
+  if (slug.length > 80 || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug) ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(eventId)) {
+    return new Response('A valid event reference is required.', { status: 400 });
+  }
 
   const supabase = createSupabaseServerClient(context);
   if (!supabase) return new Response('Event access is not configured.', { status: 503 });
+  const event = await supabase.from('events').select('id')
+    .eq('id', eventId).eq('slug', slug).eq('is_published', true).maybeSingle();
+  if (event.error) return new Response('Event requests are temporarily unavailable.', { status: 503 });
+  if (!event.data) return new Response('Event unavailable for requests.', { status: 404 });
 
-  // Members may only ever create a 'requested' row; approval is a manager action.
-  const { error } = await supabase
-    .from('event_attendees')
-    .insert({ event_id: eventId, profile_id: user.id, status: 'requested' });
-
-  if (error) {
-    return back(context, slug, error.code === '23505' ? 'already-requested' : 'request-failed');
-  }
-
-  return back(context, slug, 'requested');
+  // Only the authenticated caller is targeted; submitted identity/decision fields
+  // are ignored. The database creates a private profile and request atomically.
+  const result = await supabase.rpc('request_event_attendance', { target_event_id: eventId });
+  const status = !result.error && (result.data === 'requested' || result.data === 'already-requested')
+    ? result.data : 'request-failed';
+  return back(context, slug, status);
 };

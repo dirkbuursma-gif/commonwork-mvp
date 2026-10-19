@@ -92,7 +92,7 @@ export function createLocalAnonymousClient(): SupabaseClient<any, 'public', any,
   });
 }
 
-export async function createLocalMember(displayName: string): Promise<LocalMember> {
+export async function createLocalMember(displayName: string, options: { workspaceAccess?: boolean } = {}): Promise<LocalMember> {
   const config = readLocalConfig();
   const admin = createClient(config.apiUrl, config.serviceRoleKey, {
     auth: { autoRefreshToken: false, persistSession: false },
@@ -106,6 +106,16 @@ export async function createLocalMember(displayName: string): Promise<LocalMembe
     user_metadata: { full_name: displayName },
   });
   if (error || !data.user) throw error ?? new Error('Local Supabase did not create a test member.');
+
+  if (options.workspaceAccess !== false) {
+    const { error: membershipError } = await admin.from('workspace_memberships').insert({
+      user_id: data.user.id, status: 'active', source: 'operator',
+    });
+    if (membershipError) {
+      await admin.auth.admin.deleteUser(data.user.id);
+      throw membershipError;
+    }
+  }
 
   const memberClient = createClient(config.apiUrl, config.anonKey, {
     auth: { autoRefreshToken: false, persistSession: false },
