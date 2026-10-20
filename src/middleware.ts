@@ -4,6 +4,7 @@ import { validateReturnPath } from './lib/auth-return-path';
 import { createSupabaseServerClient } from './lib/supabase/server';
 import { isEventResourceRequest, isOwnAccountRequest, readWorkspaceAccess } from './lib/workspace-access';
 import { deliveryHeaders } from './lib/events/object-delivery';
+import { eventCodeAccessEnabled, eventCodePageRoute } from './lib/events/event-code-server';
 
 const publicPaths = new Set([
   '/sign-in', '/sign-in/code', '/auth/callback', '/api/auth/sign-in',
@@ -24,8 +25,19 @@ export const onRequest = defineMiddleware(async (context, next) => {
   const { pathname } = new URL(context.request.url);
   if (publicPaths.has(pathname) || pathname.startsWith('/_astro/') || pathname.startsWith('/favicon')) return next();
   const local = import.meta.env.DEV && context.cookies.get('commonwork_local_test_session')?.value === 'enabled';
-  // These exact APIs own their verified-caller/event authorization and JSON-free errors.
-  // Do not redirect anonymous API callers or the Preview configuration preflight.
+  const codePage = eventCodeAccessEnabled() ? eventCodePageRoute(pathname, context.request.method) : null;
+  const codeDownload = eventCodeAccessEnabled() && pathname === '/api/events/code-material' && context.request.method === 'POST';
+  // Exemptions only let handlers run; every protected handler still authorizes the event.
+  if (codePage || codeDownload) {
+    const user = local ? localTestUser : hasSupabaseAuthCookie(context.request) ? await getCurrentUser(context) : null;
+    if (user) context.locals.user = user;
+    if (codePage?.section === 'home') {
+      return new Response(null, { status: 303, headers: { ...deliveryHeaders, Location: `/events/${codePage.slug}/access` } });
+    }
+    const response = await next();
+    for (const [name, value] of Object.entries(deliveryHeaders)) response.headers.set(name, value);
+    return response;
+  }
   if (pathname === '/api/events/material' || pathname === '/api/events/video') {
     const deliveryUser = local ? localTestUser : hasSupabaseAuthCookie(context.request) ? await getCurrentUser(context) : null;
     if (deliveryUser) context.locals.user = deliveryUser;
@@ -61,9 +73,6 @@ export const onRequest = defineMiddleware(async (context, next) => {
     }
   }
   const response = await next();
-  if (ownAccount) {
-    response.headers.set('Cache-Control', 'private, no-store');
-    response.headers.append('Vary', 'Cookie');
-  }
+  if (ownAccount) { response.headers.set('Cache-Control', 'private, no-store'); response.headers.append('Vary', 'Cookie'); }
   return response;
 });
