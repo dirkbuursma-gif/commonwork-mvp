@@ -68,6 +68,7 @@ for (const key of Object.keys(serverEnv)) {
 }
 // Only the freshly generated local key crosses this boundary; inherited hosted keys were removed above.
 serverEnv.SUPABASE_SERVICE_ROLE_KEY = values.SERVICE_ROLE_KEY;
+serverEnv.COMMONWORK_VIDEO_SECRET_KEY = values.SERVICE_ROLE_KEY;
 serverEnv.PUBLIC_SUPABASE_URL = values.API_URL;
 serverEnv.PUBLIC_SUPABASE_ANON_KEY = values.ANON_KEY;
 serverEnv.CRON_SECRET = 'local-test-cron-secret';
