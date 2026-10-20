@@ -14,6 +14,26 @@ function diagnostic(stage: string, details: Record<string, string | number | boo
   try { console.info('[event-video-delivery]', JSON.stringify({ stage, ...details })); } catch { /* Diagnostics must not affect delivery. */ }
 }
 
+function credentialDiagnostics(): Record<string, string | number | boolean> {
+  const raw = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const key = raw ?? '';
+  const details = { present: raw !== undefined, empty: key.length === 0, secretPrefix: key.startsWith('sb_secret_'), hasNewline: /[\r\n]/.test(key) };
+  let failure = 'none';
+  if (!details.secretPrefix) {
+    try {
+      const claims = JSON.parse(Buffer.from(key.split('.')[1], 'base64url').toString('utf8'));
+      const url = new URL(import.meta.env.PUBLIC_SUPABASE_URL);
+      const local = import.meta.env.DEV && url.protocol === 'http:' && ['127.0.0.1', 'localhost'].includes(url.hostname);
+      if (claims.role !== 'service_role') failure = 'legacy-role-invalid';
+      else if (claims.exp && claims.exp * 1000 <= Date.now()) failure = 'legacy-expired';
+      else if (!local && claims.ref !== url.hostname.split('.')[0]) failure = 'legacy-project-mismatch';
+    } catch { failure = 'legacy-unreadable'; }
+  }
+  if (details.empty) failure = details.present ? 'empty' : 'missing';
+  else if (failure === 'none' && details.hasNewline) failure = 'newline';
+  return { ...details, failure };
+}
+
 export const prerender = false;
 export const GET: APIRoute = async (context) => {
   const user = context.locals.user;
@@ -44,6 +64,10 @@ export const GET: APIRoute = async (context) => {
           : message === 'Invalid delivery configuration.' ? 'storage-origin-invalid'
           : message === 'Server configuration required.' ? 'server-context-required' : 'configuration-error';
         diagnostic('configuration-rejected', { reason });
+        if (reason === 'private-credential-invalid') {
+          try { diagnostic('credential-diagnostics', credentialDiagnostics()); }
+          catch { diagnostic('credential-diagnostics-unavailable'); }
+        }
         throw error;
       }
     };
