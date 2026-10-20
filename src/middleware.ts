@@ -36,6 +36,8 @@ export const onRequest = defineMiddleware(async (context, next) => {
     }
     const response = await next();
     for (const [name, value] of Object.entries(deliveryHeaders)) response.headers.set(name, value);
+    // HTML forms need a non-null Origin; downloads retain no-referrer.
+    if (codePage) response.headers.set('Referrer-Policy', 'same-origin');
     return response;
   }
   if (pathname === '/api/events/material' || pathname === '/api/events/video') {
