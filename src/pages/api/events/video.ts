@@ -2,7 +2,8 @@ import type { APIRoute } from 'astro';
 import { createSupabaseServerClient } from '../../../lib/supabase/server';
 import { getEventMaterialAccess } from '../../../lib/events/material-access';
 import { getLisbonEventContextBySlug } from '../../../lib/events/lisbon-context';
-import { deliveryError, readDeliveryConfiguration, streamEventObject } from '../../../lib/events/object-delivery';
+import { deliveryError, streamEventObject } from '../../../lib/events/object-delivery';
+import { readVideoDeliveryConfiguration as readDeliveryConfiguration } from '../../../lib/events/video-delivery-configuration';
 
 const clips: Record<string, string> = {
   geoffy: 'Geoffy-in-60-seconds-EN-1080p.mp4',
@@ -15,16 +16,16 @@ function diagnostic(stage: string, details: Record<string, string | number | boo
 }
 
 function credentialDiagnostics(): Record<string, string | number | boolean> {
-  const raw = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const raw = process.env.COMMONWORK_VIDEO_SECRET_KEY;
   const key = raw ?? '';
-  const details = { present: raw !== undefined, empty: key.length === 0, secretPrefix: key.startsWith('sb_secret_'), hasNewline: /[\r\n]/.test(key) };
+  const details = { credentialVariable: 'COMMONWORK_VIDEO_SECRET_KEY', present: raw !== undefined, empty: key.length === 0, secretPrefix: key.startsWith('sb_secret_'), hasNewline: /[\r\n]/.test(key) };
   let failure = 'none';
   if (!details.secretPrefix) {
     try {
       const claims = JSON.parse(Buffer.from(key.split('.')[1], 'base64url').toString('utf8'));
       const url = new URL(import.meta.env.PUBLIC_SUPABASE_URL);
       const local = import.meta.env.DEV && url.protocol === 'http:' && ['127.0.0.1', 'localhost'].includes(url.hostname);
-      if (claims.role !== 'service_role') failure = 'legacy-role-invalid';
+      if (!claims || claims.role !== 'service_role') failure = 'legacy-role-invalid';
       else if (claims.exp && claims.exp * 1000 <= Date.now()) failure = 'legacy-expired';
       else if (!local && claims.ref !== url.hostname.split('.')[0]) failure = 'legacy-project-mismatch';
     } catch { failure = 'legacy-unreadable'; }
@@ -56,14 +57,14 @@ export const GET: APIRoute = async (context) => {
     const configuration = () => {
       try {
         const config = readDeliveryConfiguration();
-        diagnostic('configuration-accepted');
+        diagnostic('configuration-accepted', { credentialVariable: 'COMMONWORK_VIDEO_SECRET_KEY' });
         return config;
       } catch (error) {
         const message = error instanceof Error ? error.message : '';
         const reason = message === 'Private delivery credential required.' ? 'private-credential-invalid'
           : message === 'Invalid delivery configuration.' ? 'storage-origin-invalid'
           : message === 'Server configuration required.' ? 'server-context-required' : 'configuration-error';
-        diagnostic('configuration-rejected', { reason });
+        diagnostic('configuration-rejected', { reason, credentialVariable: 'COMMONWORK_VIDEO_SECRET_KEY' });
         if (reason === 'private-credential-invalid') {
           try { diagnostic('credential-diagnostics', credentialDiagnostics()); }
           catch { diagnostic('credential-diagnostics-unavailable'); }
