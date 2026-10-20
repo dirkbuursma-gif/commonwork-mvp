@@ -8,6 +8,7 @@ const clips: Record<string, string> = {
   geoffy: 'Geoffy-in-60-seconds-EN-1080p.mp4',
   begen: 'AdMultify by Begen Video Teaser.mp4',
   rierino: 'Rierino_Agentic_Commerce_InRetail_2026_music.mp4',
+  becited: 'VIDEO-2026-10-20-13-21-28.mp4',
 };
 function diagnostic(stage: string, details: Record<string, string | number | boolean> = {}): void {
   try { console.info('[event-video-delivery]', JSON.stringify({ stage, ...details })); } catch { /* Diagnostics must not affect delivery. */ }
