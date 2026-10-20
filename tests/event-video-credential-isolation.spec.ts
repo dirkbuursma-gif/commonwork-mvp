@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { validateVideoDeliveryConfiguration } from '../src/lib/events/video-delivery-configuration';
 
 const publicUrl = `https://${'a'.repeat(20)}.supabase.co`;
-const input = { publicUrl, privateKey: 'sb_secret_test_fixture_not_a_real_key', development: false, server: true };
+const input = { publicUrl, privateKey: 'sb_secret_fixture', development: false, server: true };
 const token = (claims: Record<string, unknown>) => `fixture.${Buffer.from(JSON.stringify(claims)).toString('base64url')}.fixture`;
 
 test('video configuration accepts a dedicated modern secret without changing its value', () => {
