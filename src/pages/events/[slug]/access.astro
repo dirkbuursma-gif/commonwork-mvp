@@ -46,13 +46,79 @@ try {
       <section aria-labelledby="materials-heading">
         <h2 id="materials-heading">Your event materials</h2>
         <p>Event access is active on this browser. No Commonwork account was created.</p>
-        <div class="event-actions"><a class="btn btn-primary" href={`/events/${state.event.slug}/presentation`}>Open presentation</a><a class="btn" href={`/events/${state.event.slug}/guide`}>Read retailer guide</a><a class="btn" href={`/events/${state.event.slug}/guide/print`}>Print retailer guide</a></div>
-        {materials.length > 0 && <ul>{materials.map((material) => <li><form method="post" action="/api/events/code-material"><input type="hidden" name="event_slug" value={state.event.slug} /><input type="hidden" name="material_id" value={material.id} /><button type="submit">Download {material.title || materialLabels[material.kind]}</button></form></li>)}</ul>}
-        <form method="post" action={accessPath}><input type="hidden" name="action" value="leave" /><button type="submit">Leave event access on this browser</button></form>
+        <div class="event-actions">
+          <div class="event-resource-row">
+            <a class="btn btn-primary" href={`/events/${state.event.slug}/presentation`}>Open presentation</a>
+            {materials.filter((material) => material.kind === 'presentation').map((material) => (
+              <form method="post" action="/api/events/code-material">
+                <input type="hidden" name="event_slug" value={state.event.slug} />
+                <input type="hidden" name="material_id" value={material.id} />
+                <button class="event-link-button" type="submit">Download {material.title || materialLabels[material.kind]}</button>
+              </form>
+            ))}
+          </div>
+          <div class="event-resource-row">
+            <a class="btn" href={`/events/${state.event.slug}/guide`}>Read retailer guide</a>
+            {materials.filter((material) => material.kind === 'guide').map((material) => (
+              <form method="post" action="/api/events/code-material">
+                <input type="hidden" name="event_slug" value={state.event.slug} />
+                <input type="hidden" name="material_id" value={material.id} />
+                <button class="event-link-button" type="submit">Download {material.title || materialLabels[material.kind]}</button>
+              </form>
+            ))}
+            <a class="btn event-print-button" href={`/events/${state.event.slug}/guide/print`}>Print retailer guide</a>
+          </div>
+          {materials.filter((material) => material.kind !== 'presentation' && material.kind !== 'guide').map((material) => (
+            <form method="post" action="/api/events/code-material">
+              <input type="hidden" name="event_slug" value={state.event.slug} />
+              <input type="hidden" name="material_id" value={material.id} />
+              <button class="event-link-button" type="submit">Download {material.title || materialLabels[material.kind]}</button>
+            </form>
+          ))}
+        </div>
+        <form class="event-leave-form" method="post" action={accessPath}><input type="hidden" name="action" value="leave" /><button type="submit">Leave event access on this browser</button></form>
       </section>
     ) : (
-      <section aria-labelledby="code-heading"><h2 id="code-heading">Enter your event code</h2><p>Use the code shared by the event organizer to open the presentation, guide and videos. No registration is required.</p><form method="post" action={accessPath}><input type="hidden" name="action" value="unlock" /><label for="event-code">Event access code</label><input id="event-code" name="code" type="password" autocomplete="off" minlength="12" maxlength="256" required /><button class="btn btn-primary" type="submit">Open event materials</button></form><p>A shared code can be forwarded. Please use it only within the intended event audience.</p></section>
+      <section aria-labelledby="code-heading"><h2 id="code-heading">Enter your event code</h2><p>Use the code shared by the event organizer to open the presentation, guide and videos. No registration is required.</p><form class="event-code-form" method="post" action={accessPath}><input type="hidden" name="action" value="unlock" /><label for="event-code">Event access code</label><input id="event-code" name="code" type="password" autocomplete="off" minlength="12" maxlength="256" required /><button class="btn btn-primary" type="submit">Open event materials</button></form><p>A shared code can be forwarded. Please use it only within the intended event audience.</p></section>
     )}
     <section><h2>Explore Commonwork</h2><p><a href="/insights">Read Insights and reviews</a> · <a href="/about">About Commonwork</a></p><p>Event access is separate from Commonwork membership.</p></section>
   </div>
 </EditorialLayout>
+
+<style>
+  .event-code-form {
+    display: grid;
+    gap: 0.75rem;
+    max-width: 28rem;
+    margin: 1.25rem 0 1.5rem;
+  }
+  .event-code-form label { font-weight: 600; }
+  .event-code-form input:not([type='hidden']) {
+    width: 100%;
+    min-width: 0;
+    padding: 0.7rem 0.85rem;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--card);
+  }
+  .event-code-form button { justify-self: start; }
+  .event-resource-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem 1.25rem;
+  }
+  .event-actions form { margin: 0; }
+  .event-print-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.6rem 0.9rem;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--card);
+    text-decoration: none;
+  }
+  .event-print-button:hover { border-color: var(--green); }
+  .event-leave-form { margin-top: 1.5rem; }
+</style>
