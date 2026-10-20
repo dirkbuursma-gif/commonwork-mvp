@@ -97,7 +97,7 @@ test('authenticated unapproved members cannot open any attendee playbook view or
   for (const path of ['presentation', 'guide', 'guide/print']) {
     const response = await page.goto(`/events/${slug}/${path}`);
     expect(response?.status()).toBe(403);
-    await expect(page.getByText('Approved event attendee access is required.')).toBeVisible();
+    await expect(page.getByText('Event materials are not available.')).toBeVisible();
   }
   const deniedDownload = await page.request.post('/api/events/material', {
     form: { material_id: guideMaterialId },
