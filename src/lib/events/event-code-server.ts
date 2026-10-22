@@ -6,6 +6,7 @@ import { createSupabaseServerClient } from '../supabase/server';
 import { getEventMaterialAccess, type EventMaterialAccess } from './material-access';
 import type { EventSummary, EventMaterial } from '../events';
 import { readVideoDeliveryConfiguration } from './video-delivery-configuration';
+import { getLisbonEventContextBySlug } from './lisbon-context';
 import { eventPassCookieName, issueEventPass, verifyEventAccessCode, verifyEventPass, type EventPassBinding } from './event-pass';
 
 type PassContext = Pick<APIContext, 'cookies' | 'request'>;
@@ -28,6 +29,19 @@ function serverClient() {
     if (new URL(address).origin !== origin) throw new Error('Event access unavailable.');
     return fetch(input, { ...init, redirect: 'error', cache: 'no-store' });
   } } });
+}
+export async function readPublicLisbonAccess(slug: string): Promise<{ event: EventSummary; materials: EventMaterial[] } | null> {
+  const configured = getLisbonEventContextBySlug(slug);
+  if (!configured) return null;
+  const client = serverClient();
+  const result = await client.from('events').select('id, slug, title, summary, location, starts_at, ends_at, is_published, manager_profile_id').eq('id', configured.eventId).eq('slug', configured.eventSlug).eq('is_published', true).maybeSingle();
+  if (result.error) throw new Error('Event access unavailable.');
+  if (!result.data) return null;
+  const event = result.data as EventSummary;
+  const materialsResult = await client.from('event_materials').select('id, event_id, kind, title, storage_path').eq('event_id', event.id).in('kind', ['presentation', 'guide']);
+  if (materialsResult.error) throw new Error('Event access unavailable.');
+  const materials = ((materialsResult.data ?? []) as EventMaterial[]).filter((material) => material.event_id === event.id && material.storage_path.startsWith(`${event.id}/`) && !material.storage_path.split('/').some((part) => part === '..' || part === '.'));
+  return { event, materials };
 }
 export async function loadEventCodeState(slug: string) {
   if (!eventCodeAccessEnabled() || slug.length > 80 || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug) || slug === 'manage') return null;
@@ -54,6 +68,8 @@ export async function listPassMaterials(state: EventCodeState): Promise<EventMat
   return (result.data ?? []) as EventMaterial[];
 }
 export async function readEventCodeAccess(context: PassContext, slug: string): Promise<{ event: EventSummary; materials: EventMaterial[] } | null> {
+  const publicAccess = await readPublicLisbonAccess(slug);
+  if (publicAccess) return publicAccess;
   if (!eventCodeAccessEnabled() || !(context.request.headers.get('cookie') ?? '').includes('cw_event_pass_')) return null;
   const state = await loadEventCodeState(slug);
   if (!state || !hasEventPass(context, state)) return null;
