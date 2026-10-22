@@ -15,5 +15,5 @@ export async function requireRevisionAccess(context: Context): Promise<Response 
   }
   const clip = (key: string) => '/api/events/video?' + new URLSearchParams({ event_slug: access.event.slug, clip: key }).toString();
   const videoSources: Record<string, string> = matchesLisbonEventContext(access.event.id, access.event.slug) ? { geoffy: clip('geoffy'), begen: clip('begen'), rierino: clip('rierino'), becited: clip('becited') } : {};
-  return { eventHome: eventCodeAccessEnabled() ? `/events/${access.event.slug}/access` : `/events/${access.event.slug}`, title: access.event.title, videoSources };
+  return { eventHome: `/events/${access.event.slug}`, title: access.event.title, videoSources };
 }
