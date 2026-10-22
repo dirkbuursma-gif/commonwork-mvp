@@ -5,6 +5,7 @@ import { createSupabaseServerClient } from './lib/supabase/server';
 import { isEventResourceRequest, isOwnAccountRequest, readWorkspaceAccess } from './lib/workspace-access';
 import { deliveryHeaders } from './lib/events/object-delivery';
 import { eventCodeAccessEnabled, eventCodePageRoute } from './lib/events/event-code-server';
+import { getLisbonEventContextBySlug } from './lib/events/lisbon-context';
 
 const publicPaths = new Set([
   '/sign-in', '/sign-in/code', '/auth/callback', '/api/auth/sign-in',
@@ -24,6 +25,19 @@ function hasSupabaseAuthCookie(request: Request): boolean {
 export const onRequest = defineMiddleware(async (context, next) => {
   const { pathname } = new URL(context.request.url);
   if (publicPaths.has(pathname) || pathname.startsWith('/_astro/') || pathname.startsWith('/favicon')) return next();
+  const publicEventMatch = /^\/events\/([a-z0-9]+(?:-[a-z0-9]+)*)(?:\/(access|resources|presentation|guide(?:\/print)?))?\/?$/.exec(pathname);
+  if (publicEventMatch && getLisbonEventContextBySlug(publicEventMatch[1]) && ['GET', 'HEAD'].includes(context.request.method)) {
+    const section = publicEventMatch[2];
+    if (!section || section === 'access') {
+      return new Response(null, { status: 303, headers: { ...deliveryHeaders, Location: `/events/${publicEventMatch[1]}/resources` } });
+    }
+    const user = hasSupabaseAuthCookie(context.request) ? await getCurrentUser(context) : null;
+    if (user && !user.isLocalTestUser) context.locals.user = user;
+    const response = await next();
+    for (const [name, value] of Object.entries(deliveryHeaders)) response.headers.set(name, value);
+    response.headers.set('Referrer-Policy', 'same-origin');
+    return response;
+  }
   const local = import.meta.env.DEV && context.cookies.get('commonwork_local_test_session')?.value === 'enabled';
   const codePage = eventCodeAccessEnabled() ? eventCodePageRoute(pathname, context.request.method) : null;
   const codeDownload = eventCodeAccessEnabled() && pathname === '/api/events/code-material' && context.request.method === 'POST';

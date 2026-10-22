@@ -1,0 +1,28 @@
+---
+import EditorialLayout from '../../../layouts/EditorialLayout.astro';
+import { readPublicLisbonAccess } from '../../../lib/events/event-code-server';
+import { deliveryError, deliveryHeaders } from '../../../lib/events/object-delivery';
+import '../../../styles/events.css';
+export const prerender = false;
+let access;
+try { access = await readPublicLisbonAccess(Astro.params.slug ?? ''); } catch { return deliveryError('Event resources are temporarily unavailable.', 503); }
+if (!access) return deliveryError('Event resources not found.', 404);
+for (const [key, value] of Object.entries(deliveryHeaders)) Astro.response.headers.set(key, value);
+const base = `/events/${access.event.slug}`;
+---
+<EditorialLayout title={access.event.title} description={access.event.summary || 'Public InRetail session resources hosted by Commonwork.'}>
+  <div class="event-page">
+    <header class="event-hero"><div class="eyebrow">InRetail · Public session resources</div><h1>{access.event.title}</h1><p class="lede">{access.event.summary}</p></header>
+    <section aria-labelledby="materials-heading">
+      <h2 id="materials-heading">Presentation and audience guide</h2>
+      <p>These session resources are public with the event organizer’s permission. No account or event code is required.</p>
+      <div class="event-actions">
+        <a class="btn btn-primary" href={`${base}/presentation`}>Open presentation</a>
+        <a class="btn" href={`${base}/guide`}>Open audience guide and worksheet</a>
+      </div>
+      <p>The presentation includes the four supplier videos. The audience guide contains sources, the exercise and worksheet, with a print / save as PDF option.</p>
+      <p role="status">The downloadable presentation PDF is being updated to match the current slides.</p>
+    </section>
+    <section><h2>Explore Commonwork</h2><p><a href="/insights">Read Insights and reviews</a> · <a href="/about">About Commonwork</a></p><p>Viewing these resources does not create a Commonwork account.</p></section>
+  </div>
+</EditorialLayout>
