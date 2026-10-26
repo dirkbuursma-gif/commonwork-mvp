@@ -1,14 +1,34 @@
 ---
 import ThemeToggle from '../components/app/ThemeToggle.astro';
 import BrandMark from '../components/BrandMark.astro';
+import { createSupabaseServerClient } from '../lib/supabase/server';
+import { readWorkspaceAccess } from '../lib/workspace-access';
+import { getLisbonEventContextBySlug } from '../lib/events/lisbon-context';
 import '../styles/tokens.css';
 import '../styles/global.css';
 import '../styles/insights.css';
 interface Props { title: string; description: string; }
 const { title, description } = Astro.props;
-const eventMatch = /^\/events\/([a-z0-9]+(?:-[a-z0-9]+)*)(?:\/|$)/.exec(Astro.url.pathname);
-const eventHome = eventMatch ? `/events/${eventMatch[1]}/resources` : undefined;
-const signIn = `/sign-in${Astro.url.pathname.startsWith('/insights/') ? `?return_to=${encodeURIComponent(Astro.url.pathname)}` : ''}`;
+const user = Astro.locals.user;
+const local = import.meta.env.DEV && user?.isLocalTestUser === true;
+const client = user && !local ? createSupabaseServerClient(Astro) : null;
+const member = local || (client ? await readWorkspaceAccess(client) : false);
+const routeEvent = /^\/events\/([a-z0-9]+(?:-[a-z0-9]+)*)(?:\/|$)/.exec(Astro.url.pathname)?.[1];
+const eventContext = getLisbonEventContextBySlug(routeEvent || Astro.url.searchParams.get('from_event'));
+const eventHome = eventContext ? `/events/${eventContext.eventSlug}/resources` : undefined;
+const publicLink = (path: string) => {
+  const target = new URL(path, Astro.url.origin);
+  if (eventContext) target.searchParams.set('from_event', eventContext.eventSlug);
+  return `${target.pathname}${target.search}${target.hash}`;
+};
+const links = [
+  { label: 'Events', href: publicLink('/about#events') },
+  { label: 'Insights', href: publicLink('/insights') },
+  { label: 'Catalogue', href: publicLink('/about#catalogue') },
+  { label: 'About', href: publicLink('/about') },
+];
+const accountLink = member ? '/today' : user ? '/account' : '/sign-in';
+const accountLabel = member ? 'My workspace' : user ? 'Your account' : 'Sign in';
 ---
 <!doctype html>
 <html lang="en" data-theme="light">
@@ -17,52 +37,61 @@ const signIn = `/sign-in${Astro.url.pathname.startsWith('/insights/') ? `?return
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#f5f2f0" />
     <meta name="description" content={description} />
-    <title>{title} · {eventHome ? 'Commonwork' : 'Commonwork Insights'}</title>
+    <title>{title} · Commonwork</title>
   </head>
   <body>
     <header class="editorial-header">
-      <a class="editorial-brand" href={eventHome || '/insights'} aria-label={eventHome ? 'Commonwork session resources' : 'Commonwork Insights home'}>
-        <BrandMark /><span>Commonwork</span>
-      </a>
-      <nav class="editorial-nav" aria-label="Public navigation">
-        <a class="editorial-insights-link" href={eventHome || '/insights'} aria-current={eventHome || Astro.url.pathname.startsWith('/insights') ? 'page' : undefined}>{eventHome ? 'Session resources' : 'Insights'}</a>
-        <div class="editorial-desktop-links">
-          {eventHome && <a href="/insights">Insights</a>}
-          <a href="/about" aria-current={Astro.url.pathname === '/about' ? 'page' : undefined}>About Commonwork</a>
-          {Astro.locals.user ? <a href="/account" aria-current={Astro.url.pathname === '/account' ? 'page' : undefined}>Your account</a> : <a href={signIn}>Sign in</a>}
-          <ThemeToggle />
+      <a class="editorial-brand" href={publicLink('/about')} aria-label="About Commonwork"><BrandMark /><span>Commonwork</span></a>
+      <nav class="public-navigation" aria-label="Public navigation">
+        <div class="public-desktop">
+          {links.map((link) => <a href={link.href} aria-current={link.label === 'Insights' && Astro.url.pathname.startsWith('/insights') ? 'page' : undefined}>{link.label}</a>)}
+          {!member && <a class="public-join" href={publicLink('/about#join')}>Join Commonwork</a>}
+          <a href={accountLink}>{accountLabel}</a><ThemeToggle />
         </div>
-        <button class="editorial-menu-toggle" type="button" aria-label="Open menu" aria-controls="editorial-mobile-menu" aria-expanded="false" hidden>
-          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" /></svg>
-        </button>
-        <div class="editorial-mobile-menu" id="editorial-mobile-menu" hidden>
-          {eventHome && <a href="/insights">Insights</a>}
-          <a href="/about" aria-current={Astro.url.pathname === '/about' ? 'page' : undefined}>About Commonwork</a>
-          {Astro.locals.user ? <a href="/account" aria-current={Astro.url.pathname === '/account' ? 'page' : undefined}>Your account</a> : <a href={signIn}>Sign in</a>}
-          <div class="editorial-mobile-theme"><ThemeToggle /></div>
-        </div>
+        <details class="public-mobile">
+          <summary>Menu</summary>
+          <div class="public-mobile-links">
+            {links.map((link) => <a href={link.href}>{link.label}</a>)}
+            {!member && <a class="public-join" href={publicLink('/about#join')}>Join Commonwork</a>}
+            <a href={accountLink}>{accountLabel}</a><ThemeToggle />
+          </div>
+        </details>
       </nav>
     </header>
-    <main id="main-content" class="editorial-main"><slot /></main>
-    <script>
-      const menuToggle = document.querySelector<HTMLButtonElement>('.editorial-menu-toggle');
-      const menu = document.querySelector<HTMLDivElement>('#editorial-mobile-menu');
-      if (menuToggle && menu) {
-        const setMenuOpen = (isOpen: boolean) => {
-          menu.hidden = !isOpen;
-          menuToggle.setAttribute('aria-expanded', String(isOpen));
-          menuToggle.setAttribute('aria-label', isOpen ? 'Close menu' : 'Open menu');
-        };
-        const navigation = menuToggle.closest('nav');
-        menuToggle.hidden = false;
-        menuToggle.addEventListener('click', () => setMenuOpen(menuToggle.getAttribute('aria-expanded') !== 'true'));
-        navigation?.addEventListener('keydown', (event) => {
-          if (event.key === 'Escape') { setMenuOpen(false); menuToggle.focus(); }
-        });
-        document.addEventListener('click', (event) => {
-          if (menuToggle.getAttribute('aria-expanded') === 'true' && event.target instanceof Node && !menu.contains(event.target) && !menuToggle.contains(event.target)) setMenuOpen(false);
-        });
-      }
-    </script>
+    <main id="main-content" class="editorial-main">
+      {eventHome && <nav class="public-event-context" aria-label="Session context"><a href={eventHome}>← Back to session resources</a><span>{eventContext.eventTitle}</span></nav>}
+      <slot />
+      <aside class="public-participation" aria-labelledby="participation-heading">
+        <h2 id="participation-heading">Take the next step with Commonwork</h2>
+        <p>Read, explore and use public resources without joining. Choose how you would like to participate.</p>
+        <div class="participation-links">
+          <a href={publicLink('/about#join')}>Membership and introductions →</a>
+          <a href={publicLink('/about#insights-updates')}>Insights updates →</a>
+          <a href={publicLink('/about#events')}>Event participation →</a>
+        </div>
+      </aside>
+    </main>
   </body>
 </html>
+<style>
+  .public-navigation { position: relative; }
+  .public-desktop { display: flex; align-items: center; gap: 1rem; font-size: .9rem; }
+  .public-navigation a { text-decoration: none; }
+  .public-navigation a:hover { text-decoration: underline; }
+  .public-join { display: inline-block; padding: .6rem .85rem; border: 1px solid var(--brand-primary); border-radius: var(--radius-sm); color: var(--brand-primary); font-weight: 700; }
+  .public-mobile { display: none; }
+  .public-event-context { display: flex; flex-wrap: wrap; gap: .5rem 1.25rem; margin-bottom: 1.5rem; font-size: .9rem; }
+  .public-event-context a { color: var(--brand-primary); font-weight: 700; }
+  .public-event-context span { color: var(--muted); }
+  .public-participation { margin-top: 3rem; padding: 1.5rem; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--soft); }
+  .participation-links { display: flex; flex-wrap: wrap; gap: 1rem 1.5rem; font-weight: 700; }
+  @media (max-width: 1050px) {
+    .public-desktop { display: none; }
+    .public-mobile { display: block; }
+    .public-mobile summary { cursor: pointer; min-height: 44px; padding: .65rem; font-weight: 700; }
+    .public-mobile-links { position: absolute; top: 100%; right: 0; z-index: 20; display: grid; gap: .5rem; min-width: 230px; padding: 1rem; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--card); box-shadow: var(--shadow); }
+    .public-mobile-links > a { padding: .55rem; }
+    .public-event-context { flex-direction: column; }
+    .participation-links { flex-direction: column; }
+  }
+</style>

@@ -1,18 +1,7 @@
 ---
-import AppLayout from './AppLayout.astro';
 import EditorialLayout from './EditorialLayout.astro';
-import { createSupabaseServerClient } from '../lib/supabase/server';
-import { readWorkspaceAccess } from '../lib/workspace-access';
 import '../styles/insights.css';
 interface Props { title: string; description: string; }
 const { title, description } = Astro.props;
-const user = Astro.locals.user;
-const local = import.meta.env.DEV && user?.isLocalTestUser === true;
-const client = user && !local ? createSupabaseServerClient(Astro) : null;
-const memberShell = local || (client ? await readWorkspaceAccess(client) : false);
 ---
-{memberShell ? (
-  <AppLayout title={title} section="none"><slot /></AppLayout>
-) : (
-  <EditorialLayout title={title} description={description}><slot /></EditorialLayout>
-)}
+<EditorialLayout title={title} description={description}><slot /></EditorialLayout>
