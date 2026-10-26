@@ -6,6 +6,7 @@ import { isEventResourceRequest, isOwnAccountRequest, readWorkspaceAccess } from
 import { deliveryHeaders } from './lib/events/object-delivery';
 import { eventCodeAccessEnabled, eventCodePageRoute } from './lib/events/event-code-server';
 import { getLisbonEventContextBySlug } from './lib/events/lisbon-context';
+import { catalogueRedirect } from './lib/catalogue-redirect';
 
 const publicPaths = new Set([
   '/sign-in', '/sign-in/code', '/auth/callback', '/api/auth/sign-in',
@@ -24,6 +25,11 @@ function hasSupabaseAuthCookie(request: Request): boolean {
 }
 export const onRequest = defineMiddleware(async (context, next) => {
   const { pathname } = new URL(context.request.url);
+  const catalogueTarget = catalogueRedirect(context.request.url, context.request.method);
+  if (catalogueTarget) return new Response(null, {
+    status: 303,
+    headers: { Location: catalogueTarget, 'Cache-Control': 'private, no-store', Vary: 'Cookie' },
+  });
   if (publicPaths.has(pathname) || pathname.startsWith('/_astro/') || pathname.startsWith('/favicon')) return next();
   const publicEventMatch = /^\/events\/([a-z0-9]+(?:-[a-z0-9]+)*)(?:\/(access|resources|presentation|guide(?:\/print)?))?\/?$/.exec(pathname);
   if (publicEventMatch && getLisbonEventContextBySlug(publicEventMatch[1]) && ['GET', 'HEAD'].includes(context.request.method)) {
