@@ -4,6 +4,7 @@ import BrandMark from '../components/BrandMark.astro';
 import { createSupabaseServerClient } from '../lib/supabase/server';
 import { readWorkspaceAccess } from '../lib/workspace-access';
 import { getLisbonEventContextBySlug } from '../lib/events/lisbon-context';
+import { memberProductPath } from '../lib/catalogue-redirect';
 import '../styles/tokens.css';
 import '../styles/global.css';
 import '../styles/insights.css';
@@ -20,10 +21,11 @@ const eventHome = eventContext ? `/events/${eventContext.eventSlug}/resources` :
 const publicLink = (path: string) => { const target = new URL(path, Astro.url.origin); if (eventContext) target.searchParams.set('from_event', eventContext.eventSlug); return `${target.pathname}${target.search}${target.hash}`; };
 const links = [
   { label: 'Events', path: '/discover/events' }, { label: 'Insights', path: '/insights' },
-  { label: 'Catalogue', path: '/catalogue' }, { label: 'About', path: '/about' },
+  { label: 'Providers & products', path: '/catalogue' }, { label: 'About', path: '/about' },
 ].map((link) => ({ ...link, href: publicLink(link.path), active: Astro.url.pathname === link.path || (link.path === '/insights' && Astro.url.pathname.startsWith('/insights/')) }));
 const accountLink = member ? '/today' : user ? '/account' : '/sign-in';
 const accountLabel = member ? 'My workspace' : user ? 'Your account' : 'Sign in';
+const productTools = memberProductPath(Astro.url.href);
 ---
 <!doctype html>
 <html lang="en" data-theme="light">
@@ -35,7 +37,9 @@ const accountLabel = member ? 'My workspace' : user ? 'Your account' : 'Sign in'
 <div class="public-desktop">{links.map((link) => <a href={link.href} aria-current={link.active ? 'page' : undefined}>{link.label}</a>)}{!member && <a class="public-join" href={publicLink('/about#join')}>Join Commonwork</a>}<a href={accountLink}>{accountLabel}</a><ThemeToggle /></div>
 <details class="public-mobile"><summary aria-controls="public-mobile-links" aria-expanded="false">Menu</summary><div class="public-mobile-links" id="public-mobile-links">{links.map((link) => <a href={link.href} aria-current={link.active ? 'page' : undefined}>{link.label}</a>)}{!member && <a class="public-join" href={publicLink('/about#join')}>Join Commonwork</a>}<a href={accountLink}>{accountLabel}</a><ThemeToggle /></div></details>
 </nav></header>
-<main id="main-content" class="editorial-main">{eventContext && eventHome && <nav class="public-event-context" aria-label="Session context"><a href={eventHome}>← Back to session resources</a><span>{eventContext.eventTitle}</span></nav>}<slot /></main>
+<main id="main-content" class="editorial-main">{eventContext && eventHome && <nav class="public-event-context" aria-label="Session context"><a href={eventHome}>← Back to session resources</a><span>{eventContext.eventTitle}</span></nav>}
+{productTools && <aside class="public-product-tools" aria-label="Member product tools"><a href={productTools}>{member ? 'Open member expertise and product affiliations' : 'Continue to member product tools'}</a><p>Relevant member profiles and affiliation controls remain inside the workspace. Sign-in and workspace membership are required; public product information remains available below.</p></aside>}
+<slot /></main>
 <footer class="public-footer"><p>Commonwork · Useful work, in good company.</p><nav aria-label="Participation and contact"><a href={publicLink('/about#join')}>Membership</a><a href={publicLink('/about#insights-updates')}>Insights updates</a><a href="mailto:dirk.buursma@commerce-partners.com">Contact</a></nav></footer>
 <script>
   const menu = document.querySelector<HTMLDetailsElement>('.public-mobile');
@@ -54,6 +58,7 @@ const accountLabel = member ? 'My workspace' : user ? 'Your account' : 'Sign in'
 </script>
 </body></html>
 <style>
+.public-product-tools{margin:1rem 0;padding:1rem;border:1px solid var(--line);border-radius:var(--radius-sm)}.public-product-tools p{margin-bottom:0;color:var(--muted);font-size:.9rem}
 .public-navigation{position:relative}.public-desktop{display:flex;align-items:center;gap:1rem;font-size:.9rem}.public-navigation a{text-decoration:none}.public-navigation a:hover{text-decoration:underline}.public-navigation a[aria-current='page']{font-weight:700;color:var(--brand-primary)}.public-join{display:inline-block;padding:.6rem .85rem;border:1px solid var(--brand-primary);border-radius:var(--radius-sm);color:var(--brand-primary);font-weight:700}.public-mobile{display:none}.public-event-context{display:flex;flex-wrap:wrap;gap:.5rem 1.25rem}.public-event-context a{color:var(--brand-primary);font-weight:700}.public-event-context span{color:var(--muted)}
 @media(max-width:1050px){.public-desktop{display:none}.public-mobile{display:block}.public-mobile summary{cursor:pointer;min-height:44px;padding:.65rem;font-weight:700}.public-mobile-links{position:absolute;top:100%;right:0;z-index:20;display:grid;gap:.5rem;min-width:230px;padding:1rem;border:1px solid var(--line);border-radius:var(--radius-md);background:var(--card);box-shadow:var(--shadow)}.public-mobile-links>a{padding:.55rem}.public-event-context{flex-direction:column}}
 </style>
