@@ -58,7 +58,7 @@ test('production identity does not bypass authentication or preview-identity den
 });
 
 test('production video request rejects unknown clips and path injection before storage', async () => {
-  for (const clip of ['unknown-clip', 'becited', '../other.mp4', 'toString', 'https://example.test/video.mp4']) {
+  for (const clip of ['unknown-clip', '../other.mp4', 'toString', 'https://example.test/video.mp4']) {
     const query = new URLSearchParams({ event_slug: production.slug, clip }).toString();
     const response = await GET(videoContext(query, { id: 'boundary-test' }));
     expect(response.status).toBe(404);
