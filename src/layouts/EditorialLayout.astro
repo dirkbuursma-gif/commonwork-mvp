@@ -45,7 +45,7 @@ const accountLabel = member ? 'My workspace' : user ? 'Your account' : 'Sign in'
     </nav>
   </header>
   <main id="main-content" class="editorial-main">
-    {eventHome && <nav class="public-event-context" aria-label="Session context"><a href={eventHome}>← Back to session resources</a><span>{eventContext.eventTitle}</span></nav>}
+    {eventContext && eventHome && <nav class="public-event-context" aria-label="Session context"><a href={eventHome}>← Back to session resources</a><span>{eventContext.eventTitle}</span></nav>}
     <slot />
   </main>
   <footer class="public-footer"><p>Commonwork · Useful work, in good company.</p><nav aria-label="Participation and contact"><a href={publicLink('/about#join')}>Membership</a><a href={publicLink('/about#insights-updates')}>Insights updates</a><a href="mailto:dirk.buursma@commerce-partners.com">Contact</a></nav></footer>
