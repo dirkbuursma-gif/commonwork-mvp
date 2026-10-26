@@ -1,7 +1,10 @@
 ---
 import InsightsLayout from '../layouts/InsightsLayout.astro';
+import { getLisbonEventContextBySlug } from '../lib/events/lisbon-context';
 export const prerender = false;
 const contact = (subject: string) => `mailto:dirk.buursma@commerce-partners.com?subject=${encodeURIComponent(subject)}`;
+const context = getLisbonEventContextBySlug(Astro.url.searchParams.get('from_event'));
+const publicLink = (path: string) => context ? `${path}?from_event=${encodeURIComponent(context.eventSlug)}` : path;
 ---
 <InsightsLayout title="About Commonwork" description="Explore Commonwork membership, Insights updates and event participation.">
   <article class="about-page">
@@ -24,13 +27,15 @@ const contact = (subject: string) => `mailto:dirk.buursma@commerce-partners.com?
     <section id="events" aria-labelledby="events-heading">
       <h2 id="events-heading">Meet through events</h2>
       <p>Explore public session resources and express interest in future events. Attendance requirements and registration are specific to each event. Reading resources does not register you as an attendee.</p>
+      <p><a href={publicLink('/discover/events')}>Explore public events and session resources →</a></p>
       <a class="about-signin" href={contact('Commonwork event participation enquiry')}>Ask about future events</a>
       <p class="participation-note">Opens an email draft. Event registration and any update preferences will be confirmed separately.</p>
     </section>
     <section id="catalogue" aria-labelledby="catalogue-heading">
       <h2 id="catalogue-heading">Discover the catalogue</h2>
-      <p>The catalogue helps explain provider offerings, their operating roles and the evidence behind their claims. Public session hubs include selected offering summaries and provider links.</p>
-      <p>Full catalogue pages currently require workspace membership. A dedicated public catalogue overview is not available yet.</p>
+      <p>The public catalogue overview starts with selected offering summaries already shared through public sessions. Explore the jobs they address and follow the provider sources.</p>
+      <p><a href={publicLink('/catalogue')}>Browse the public catalogue →</a></p>
+      <p>Full member catalogue pages still require workspace membership. Public summaries do not expose private member information.</p>
       <a class="about-signin" href={contact('Commonwork catalogue and introductions enquiry')}>Discuss a need or introduction</a>
       <p class="participation-note">An enquiry does not share your details with a provider or guarantee an introduction.</p>
     </section>

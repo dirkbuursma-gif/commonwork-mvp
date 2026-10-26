@@ -1,0 +1,32 @@
+---
+import EditorialLayout from '../../layouts/EditorialLayout.astro';
+import { readPublicLisbonAccess } from '../../lib/events/event-code-server';
+import { formatEventDate } from '../../lib/events';
+export const prerender = false;
+const candidates = ['commonwork-lisbon-preview', 'agentic-commerce-lisbon-2026'];
+const results = await Promise.allSettled(candidates.map((slug) => readPublicLisbonAccess(slug)));
+const events = results.flatMap((result) => result.status === 'fulfilled' && result.value ? [{
+  slug: result.value.event.slug, title: result.value.event.title, summary: result.value.event.summary,
+  location: result.value.event.location, startsAt: result.value.event.starts_at, endsAt: result.value.event.ends_at,
+}] : []).sort((a, b) => (b.startsAt ?? '').localeCompare(a.startsAt ?? ''));
+const unavailable = results.some((result) => result.status === 'rejected');
+const now = Date.now();
+const past = (event: typeof events[number]) => Boolean(event.startsAt && Date.parse(event.endsAt || event.startsAt) < now);
+---
+<EditorialLayout title="Events" description="Explore public Commonwork sessions and their resources.">
+  <div class="insights-page">
+    <header class="insights-heading"><h1>Events</h1><p class="lede">Meet around meaningful work. Revisit sessions and explore the resources shared with their audiences.</p></header>
+    <p>This directory lists sessions explicitly enabled for public resources. Viewing a session does not register you for an event or create a member account.</p>
+    {unavailable && <p role="status">Some public sessions could not be checked just now. Please try again later.</p>}
+    <section class="insights-feed" aria-label="Public sessions">
+      {events.map((event) => <article class="insight-card">
+        <div class="insight-meta"><span class="insight-topic-label">{past(event) ? 'Past session · resources' : event.startsAt ? 'Upcoming session' : 'Date to be confirmed'}</span><span>{formatEventDate(event.startsAt)}</span></div>
+        <h2>{event.title}</h2><p>{event.summary}</p>{event.location && <p>{event.location}</p>}
+        <a class="insight-read-link" href={`/events/${event.slug}/resources`}>Open session resources →</a>
+      </article>)}
+      {!events.length && !unavailable && <p>No public sessions are available in this environment yet.</p>}
+    </section>
+    <section class="directory-interest"><h2>Interested in future events?</h2><p>Tell us what you would like to take part in. Registration requirements are specific to each event.</p><a href="mailto:dirk.buursma@commerce-partners.com?subject=Commonwork%20event%20participation%20enquiry">Ask about future events</a><p>Opens an email draft; it does not register you or subscribe you to updates.</p></section>
+  </div>
+</EditorialLayout>
+<style>.directory-interest { margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid var(--line); }</style>

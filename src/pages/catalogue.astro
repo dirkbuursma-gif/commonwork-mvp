@@ -1,0 +1,37 @@
+---
+import EditorialLayout from '../layouts/EditorialLayout.astro';
+import { getEventCatalogueSelections } from '../lib/event-catalogue';
+import { getLisbonEventContextBySlug } from '../lib/events/lisbon-context';
+export const prerender = false;
+const context = getLisbonEventContextBySlug(Astro.url.searchParams.get('from_event'));
+const selections = getEventCatalogueSelections('00000000-0000-4000-8000-00000000e001');
+const offerings = [
+  { slug: 'geoffy', name: 'Geoffy', provider: 'Geoffy', role: 'Product information', source: 'https://geoffy.ai/' },
+  { slug: 'admultify', name: 'AdMultify', provider: 'Begen', role: 'Creative production', source: 'https://begen.ai/' },
+  { slug: 'rierino-commerce-platform', name: 'Rierino Commerce', provider: 'Rierino', role: 'Commerce operations', source: 'https://rierino.com/solutions/commerce' },
+  { slug: 'be-cited', name: 'Be.Cited', provider: 'Benext', role: 'AI-answer visibility', source: 'https://becited.com.br/' },
+];
+const selected = offerings.find((offering) => offering.slug === Astro.url.searchParams.get('role'))?.slug;
+const link = (path: string) => { const url = new URL(path, Astro.url.origin); if (context) url.searchParams.set('from_event', context.eventSlug); return `${url.pathname}${url.search}${url.hash}`; };
+---
+<EditorialLayout title="Catalogue" description="Explore public offering summaries by the jobs they address, and learn how to request an introduction.">
+  <div class="insights-page">
+    <header class="insights-heading"><h1>Catalogue</h1><p class="lede">Start with the job you need done—not a universal vendor ranking.</p></header>
+    <p>An initial selection of four offering summaries already shared through the public Agentic Commerce session. This is not the complete member catalogue.</p>
+    <p>Descriptions are attributed to their publishers, not independently verified outcomes. Inclusion is not sponsorship, endorsement, a ranking or evidence of integration with Commonwork. Validate availability, suitability and evidence for your situation.</p>
+    <nav class="insights-topics" aria-label="Filter offerings by job">
+      <a class="insights-topic" href={link('/catalogue')} aria-current={!selected ? 'page' : undefined}>All offerings</a>
+      {offerings.map((offering) => <a class="insights-topic" href={link(`/catalogue?role=${offering.slug}`)} aria-current={selected === offering.slug ? 'page' : undefined}>{offering.role}</a>)}
+    </nav>
+    <section class="insights-feed" aria-label="Public offering summaries">
+      {offerings.filter((offering) => !selected || offering.slug === selected).map((offering) => <article class="insight-card">
+        <div class="insight-meta"><span class="insight-topic-label">{offering.role}</span><span>{offering.provider}</span></div>
+        <h2>{offering.name}</h2><p>{selections.find((selection) => selection.productSlug === offering.slug)?.relevance}</p>
+        <p><a href={offering.source} target="_blank" rel="noopener noreferrer">Read the provider’s own description ↗</a></p>
+        <a class="insight-read-link" href={link('/about#join')}>Explore membership for introductions →</a>
+      </article>)}
+    </section>
+    <section class="directory-interest"><h2>Need a relevant introduction?</h2><p>Tell us about the outcome you need. Membership and introductions are reviewed separately; an enquiry does not share your details with a provider or guarantee a match.</p><a href="mailto:dirk.buursma@commerce-partners.com?subject=Commonwork%20catalogue%20and%20introductions%20enquiry">Discuss a need or introduction</a><p>Opens an email draft. Private member information remains inside the workspace.</p></section>
+  </div>
+</EditorialLayout>
+<style>.directory-interest { margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid var(--line); }</style>

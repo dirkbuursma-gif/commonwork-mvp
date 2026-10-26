@@ -22,10 +22,10 @@ const publicLink = (path: string) => {
   return `${target.pathname}${target.search}${target.hash}`;
 };
 const links = [
-  { label: 'Events', href: publicLink('/about#events') },
-  { label: 'Insights', href: publicLink('/insights') },
-  { label: 'Catalogue', href: publicLink('/about#catalogue') },
-  { label: 'About', href: publicLink('/about') },
+  { label: 'Events', href: publicLink('/discover/events'), active: Astro.url.pathname === '/discover/events' },
+  { label: 'Insights', href: publicLink('/insights'), active: Astro.url.pathname.startsWith('/insights') },
+  { label: 'Catalogue', href: publicLink('/catalogue'), active: Astro.url.pathname === '/catalogue' },
+  { label: 'About', href: publicLink('/about'), active: Astro.url.pathname === '/about' },
 ];
 const accountLink = member ? '/today' : user ? '/account' : '/sign-in';
 const accountLabel = member ? 'My workspace' : user ? 'Your account' : 'Sign in';
@@ -44,14 +44,14 @@ const accountLabel = member ? 'My workspace' : user ? 'Your account' : 'Sign in'
       <a class="editorial-brand" href={publicLink('/about')} aria-label="About Commonwork"><BrandMark /><span>Commonwork</span></a>
       <nav class="public-navigation" aria-label="Public navigation">
         <div class="public-desktop">
-          {links.map((link) => <a href={link.href} aria-current={link.label === 'Insights' && Astro.url.pathname.startsWith('/insights') ? 'page' : undefined}>{link.label}</a>)}
+          {links.map((link) => <a href={link.href} aria-current={link.active ? 'page' : undefined}>{link.label}</a>)}
           {!member && <a class="public-join" href={publicLink('/about#join')}>Join Commonwork</a>}
           <a href={accountLink}>{accountLabel}</a><ThemeToggle />
         </div>
         <details class="public-mobile">
           <summary>Menu</summary>
           <div class="public-mobile-links">
-            {links.map((link) => <a href={link.href}>{link.label}</a>)}
+            {links.map((link) => <a href={link.href} aria-current={link.active ? 'page' : undefined}>{link.label}</a>)}
             {!member && <a class="public-join" href={publicLink('/about#join')}>Join Commonwork</a>}
             <a href={accountLink}>{accountLabel}</a><ThemeToggle />
           </div>
@@ -67,7 +67,7 @@ const accountLabel = member ? 'My workspace' : user ? 'Your account' : 'Sign in'
         <div class="participation-links">
           <a href={publicLink('/about#join')}>Membership and introductions →</a>
           <a href={publicLink('/about#insights-updates')}>Insights updates →</a>
-          <a href={publicLink('/about#events')}>Event participation →</a>
+          <a href={publicLink('/discover/events')}>Explore events →</a>
         </div>
       </aside>
     </main>
@@ -78,6 +78,7 @@ const accountLabel = member ? 'My workspace' : user ? 'Your account' : 'Sign in'
   .public-desktop { display: flex; align-items: center; gap: 1rem; font-size: .9rem; }
   .public-navigation a { text-decoration: none; }
   .public-navigation a:hover { text-decoration: underline; }
+  .public-navigation a[aria-current='page'] { font-weight: 700; color: var(--brand-primary); }
   .public-join { display: inline-block; padding: .6rem .85rem; border: 1px solid var(--brand-primary); border-radius: var(--radius-sm); color: var(--brand-primary); font-weight: 700; }
   .public-mobile { display: none; }
   .public-event-context { display: flex; flex-wrap: wrap; gap: .5rem 1.25rem; margin-bottom: 1.5rem; font-size: .9rem; }

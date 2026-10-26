@@ -17,7 +17,7 @@ const localTestUser: App.User = {
   id: '00000000-0000-4000-8000-000000000001', email: 'test.member@commonwork.local',
   user_metadata: { full_name: 'Local Test Member' }, isLocalTestUser: true,
 };
-const publicEditorialPath = /^\/(?:insights(?:\/[^/]+)?|about|events\/[a-z0-9]+(?:-[a-z0-9]+)*)$/;
+const publicEditorialPath = /^\/(?:insights(?:\/[^/]+)?|about|catalogue|discover\/events|events\/[a-z0-9]+(?:-[a-z0-9]+)*)$/;
 const eventJoinPath = /^\/events\/(?!manage\/)[a-z0-9]+(?:-[a-z0-9]+)*\/join$/;
 function hasSupabaseAuthCookie(request: Request): boolean {
   return (request.headers.get('cookie') ?? '').split(';').some((cookie) => /^sb-.+-auth-token(?:\.\d+)?=/i.test(cookie.trim()));
