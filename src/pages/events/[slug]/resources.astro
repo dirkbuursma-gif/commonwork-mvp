@@ -27,20 +27,24 @@ const dateTime = (value: string) => new Intl.DateTimeFormat('en-GB', { dateStyle
 <EditorialLayout title={identity?.sessionTitleEn || access.event.title} description={identity?.summary || access.event.summary || 'Public InRetail session resources hosted by Commonwork.'}>
   <div class="event-page">
     <header class="event-hero">
-      {identity && brandingAssets.has(identity.eventMark.src) && <img class="event-resource-banner" src={identity.eventMark.src} alt={identity.eventMark.alt} width={identity.eventMark.width} height={identity.eventMark.height} />}
       <div class="eyebrow">{identity ? `${identity.parentEventName} · ${identity.theme} · ${identity.edition}` : 'InRetail · Public session resources'}</div>
       <h1>{identity?.sessionTitleEn || access.event.title}</h1>
       {identity && <p lang="pt">Official programme title: “{identity.sessionTitlePt}”</p>}
       <p class="lede">{identity?.summary || access.event.summary}</p>
-      {identity && <><dl class="event-facts"><div><dt>Conference</dt><dd>{identity.datesLabel}</dd></div><div><dt>Venue</dt><dd>{identity.venue}</dd></div><div><dt>Session</dt><dd>{dateTime(identity.presentation.startsAt)} (Lisbon time)</dd></div><div><dt>Track</dt><dd lang="pt">{identity.trackTitle}</dd></div></dl><ul class="event-topics">{identity.topics.map((topic) => <li>{topic}</li>)}</ul></>}
     </header>
-    <section aria-labelledby="materials-heading">
+    <section class="event-resource-actions" aria-labelledby="materials-heading">
       <h2 id="materials-heading">Presentation and audience guide</h2>
       <p>These session resources are public with the event organizer’s permission. No account or event code is required.</p>
       <div class="event-actions"><a class="btn btn-primary" href={`${base}/presentation`}>Open presentation</a><a class="btn" href={`${base}/guide`}>Open audience guide and worksheet</a></div>
       <p>The presentation includes the four supplier videos. The audience guide contains sources, the exercise and worksheet, with a print / save as PDF option.</p>
-      <p role="status">The downloadable presentation PDF is being updated to match the current slides.</p>
+      <p class="event-note" role="status">The downloadable presentation PDF is being updated to match the current slides.</p>
     </section>
+    {identity && <section aria-labelledby="session-details-heading">
+      <h2 id="session-details-heading">Session details</h2>
+      {brandingAssets.has(identity.eventMark.src) && <img class="event-resource-banner" src={identity.eventMark.src} alt={identity.eventMark.alt} width={identity.eventMark.width} height={identity.eventMark.height} />}
+      <dl class="event-facts"><div><dt>Conference</dt><dd>{identity.datesLabel}</dd></div><div><dt>Venue</dt><dd>{identity.venue}</dd></div><div><dt>Session</dt><dd>{dateTime(identity.presentation.startsAt)} (Lisbon time)</dd></div><div><dt>Track</dt><dd lang="pt">{identity.trackTitle}</dd></div></dl>
+      <ul class="event-topics">{identity.topics.map((topic) => <li>{topic}</li>)}</ul>
+    </section>}
     {identity && <section class="event-details" aria-labelledby="programme-heading">
       <div class="event-programme"><h2 id="programme-heading">Session programme</h2><ol class="event-runsheet"><li><div><p class="event-runsheet-label">{identity.presentation.label} · {dateTime(identity.presentation.startsAt)}</p><p>{identity.presenter.name} · {identity.presenter.role} · {identity.presenter.organisation}</p></div></li><li><div><p class="event-runsheet-label">{identity.debate.label} · {dateTime(identity.debate.startsAt)}</p>{identity.debaters.map((person) => <p>{person.name} · {person.role} · {person.organisation}</p>)}<p>Moderator: {identity.moderator.name} · {identity.moderator.role} · {identity.moderator.organisation}</p></div></li></ol><p class="event-note">Programme times are shown in Lisbon time. No session end time is published.</p></div>
       <div class="event-organisers"><h3>Organisation</h3><div class="event-resource-organiser-marks">{identity.organisers.filter((asset) => brandingAssets.has(asset.src)).map((asset) => <img src={asset.src} alt={asset.alt} width={asset.width} height={asset.height} loading="lazy" />)}</div><p>Distribuição Hoje · Skolae Formação</p><a href={identity.programmeUrl} target="_blank" rel="noopener noreferrer">Official event programme</a><p class="event-note">Presented by Dirk Buursma for Commerce Partners. Session resources hosted by Commonwork.</p></div>
@@ -51,6 +55,8 @@ const dateTime = (value: string) => new Intl.DateTimeFormat('en-GB', { dateStyle
   </div>
 </EditorialLayout>
 <style>
+  .event-resource-actions { padding: clamp(1rem, 3vw, 1.5rem); border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--card); }
+  .event-resource-actions > :last-child { margin-bottom: 0; }
   .event-resource-banner { display: block; width: 100%; height: auto; margin: 0 0 1.5rem; border-radius: 10px; }
   .event-resource-organiser-marks { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; }
   .event-resource-organiser-marks img { max-width: 180px; width: auto; height: 70px; object-fit: contain; }
