@@ -1,5 +1,6 @@
 ---
 import AppNav from '../components/app/AppNav.astro';
+import WorkspaceExplore from '../components/app/WorkspaceExplore.astro';
 import ThemeToggle from '../components/app/ThemeToggle.astro';
 import SupportContact from '../components/app/SupportContact.astro';
 import '../styles/tokens.css';
@@ -50,6 +51,7 @@ const name =
             <ThemeToggle />
           </div>
         </header>
+        <WorkspaceExplore />
         <main id="main-content"><slot /></main>
         <SupportContact />
       </div>
