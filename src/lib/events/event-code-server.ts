@@ -7,6 +7,7 @@ import { getEventMaterialAccess, type EventMaterialAccess } from './material-acc
 import type { EventSummary, EventMaterial } from '../events';
 import { readVideoDeliveryConfiguration } from './video-delivery-configuration';
 import { getLisbonEventContextBySlug } from './lisbon-context';
+import { publicEventResourcesEnabled } from './public-resource-policy';
 import { eventPassCookieName, issueEventPass, verifyEventAccessCode, verifyEventPass, type EventPassBinding } from './event-pass';
 
 type PassContext = Pick<APIContext, 'cookies' | 'request'>;
@@ -32,7 +33,7 @@ function serverClient() {
 }
 export async function readPublicLisbonAccess(slug: string): Promise<{ event: EventSummary; materials: EventMaterial[] } | null> {
   const configured = getLisbonEventContextBySlug(slug);
-  if (!configured) return null;
+  if (!configured || !publicEventResourcesEnabled(slug)) return null;
   const client = serverClient();
   const result = await client.from('events').select('id, slug, title, summary, location, starts_at, ends_at, is_published, manager_profile_id').eq('id', configured.eventId).eq('slug', configured.eventSlug).eq('is_published', true).maybeSingle();
   if (result.error) throw new Error('Event access unavailable.');
