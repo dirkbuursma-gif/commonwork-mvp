@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { expect, test } from '@playwright/test';
 import { createLocalAdminClient, createLocalMember, type LocalMember } from './helpers/local-supabase';
+import { assertPublicCatalogueAlias, memberCategory, memberProduct } from './helpers/catalogue-boundary';
 
 test('a first event request creates only a private minimal profile and cannot grant broader access', async ({ page }) => {
   test.setTimeout(90_000);
@@ -39,7 +40,6 @@ test('a first event request creates only a private minimal profile and cannot gr
     expect(crossOrigin.status()).toBe(403);
     const absent = await admin.from('profiles').select('id').eq('id', attendee.id).maybeSingle();
     expect(absent.error).toBeNull(); expect(absent.data).toBeNull();
-
     await page.goto(`/events/${published.slug}`);
     await page.getByRole('button', { name: 'Request attendee access', exact: true }).click();
     await expect(page.getByText('Your request is awaiting a decision by the event manager', { exact: true })).toBeVisible();
@@ -70,7 +70,10 @@ test('a first event request creates only a private minimal profile and cannot gr
     const revoked = await attendee.client.from('event_attendees').select('status').eq('event_id', published.id).eq('profile_id', attendee.id).single();
     expect(revoked.error).toBeNull(); expect(revoked.data?.status).toBe('revoked');
     expect((await page.request.get(`/events/${published.slug}/guide`, { maxRedirects: 0 })).status()).toBe(403);
-    expect((await page.request.get('/intelligence', { maxRedirects: 0 })).status()).toBe(403);
+    await assertPublicCatalogueAlias(page.request);
+    for (const path of [memberCategory, memberProduct]) expect((await page.request.get(path, { maxRedirects: 0 })).status(), path).toBe(403);
+    const afterPublicBrowse = await attendee.client.rpc('can_access_member_workspace');
+    expect(afterPublicBrowse.error).toBeNull(); expect(afterPublicBrowse.data).toBe(false);
     const hidden = await existing.client.from('discoverable_profiles').select('id').eq('id', attendee.id);
     expect(hidden.error).toBeNull(); expect(hidden.data).toEqual([]);
     const existingRequest = await existing.client.rpc('request_event_attendance', { target_event_id: published.id });

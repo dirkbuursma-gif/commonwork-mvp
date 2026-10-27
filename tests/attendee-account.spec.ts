@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test';
 import { isOwnAccountRequest } from '../src/lib/workspace-access';
 import { validateReturnPath } from '../src/lib/auth-return-path';
 import { createLocalAdminClient, createLocalMember, type LocalMember } from './helpers/local-supabase';
+import { assertPublicCatalogueAlias, memberCategory, memberProduct } from './helpers/catalogue-boundary';
 
 test('own-account exceptions are exact paths and methods, not workspace admission', () => {
   for (const path of ['/account', '/api/account']) for (const method of ['GET', 'HEAD']) expect(isOwnAccountRequest(path, method)).toBe(true);
@@ -62,14 +63,16 @@ test('event-only users manage only their own account without a workspace grant',
     expect(profile.error).toBeNull(); expect(profile.data).toMatchObject({ id: attendee.id, profile_visibility: 'private', professional_summary: '', onboarding_completed: false });
     const preferences = await admin.from('contact_preferences').select('profile_id').eq('profile_id', attendee.id);
     expect(preferences.error).toBeNull(); expect(preferences.data).toEqual([]);
+    await assertPublicCatalogueAlias(page.request);
     const workspace = await attendee.client.rpc('can_access_member_workspace');
     expect(workspace.error).toBeNull(); expect(workspace.data).toBe(false);
-    for (const path of ['/intelligence', '/introductions', '/profiles/me']) expect((await page.request.get(path, { maxRedirects: 0 })).status()).toBe(403);
+    for (const path of [memberCategory, memberProduct, '/introductions', '/profiles/me']) expect((await page.request.get(path, { maxRedirects: 0 })).status(), path).toBe(403);
     expect((await page.request.post('/api/onboarding', { maxRedirects: 0 })).status()).toBe(403);
     const memberContext = await browser.newContext({ baseURL: origin });
     try {
       await memberContext.addCookies(member.cookies.map(({ name, value, url }) => ({ name, value, url })));
-      expect((await memberContext.request.get('/intelligence', { maxRedirects: 0 })).status()).toBe(200);
+      await assertPublicCatalogueAlias(memberContext.request);
+      expect((await memberContext.request.get(memberCategory, { maxRedirects: 0 })).status()).toBe(200);
       expect((await memberContext.request.get('/account', { maxRedirects: 0 })).status()).toBe(200);
     } finally { await memberContext.close(); }
     await page.getByRole('button', { name: 'Sign out', exact: true }).click();
