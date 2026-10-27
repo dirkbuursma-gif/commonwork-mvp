@@ -1,0 +1,12 @@
+---
+interface Props {
+  class?: string;
+  monochrome?: boolean;
+}
+const { class: className = 'brand-mark', monochrome = false } = Astro.props;
+---
+
+<svg class={className} viewBox="0 0 32 32" width="32" height="32" fill="none" aria-hidden="true" focusable="false">
+  <path d="M13 5H5V24H13M19 5H27V24H19" stroke="var(--brand-primary, currentColor)" stroke-width="4" stroke-linejoin="miter" />
+  <path d="M11 24H21" stroke={monochrome ? 'var(--brand-primary, currentColor)' : 'var(--brand-accent, #c7462d)'} stroke-width="4" />
+</svg>

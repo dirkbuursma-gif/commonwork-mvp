@@ -1,0 +1,41 @@
+---
+import EditorialLayout from '../../layouts/EditorialLayout.astro';
+import { readPublicLisbonAccess } from '../../lib/events/event-code-server';
+import { formatEventDate } from '../../lib/events';
+export const prerender = false;
+const candidates = ['commonwork-lisbon-preview', 'agentic-commerce-lisbon-2026'];
+const results = await Promise.allSettled(candidates.map((slug) => readPublicLisbonAccess(slug)));
+const events = results.flatMap((result) => result.status === 'fulfilled' && result.value ? [{
+  slug: result.value.event.slug, title: result.value.event.title, summary: result.value.event.summary,
+  location: result.value.event.location, startsAt: result.value.event.starts_at, endsAt: result.value.event.ends_at,
+}] : []).sort((a, b) => (b.startsAt ?? '').localeCompare(a.startsAt ?? ''));
+const unavailable = results.some((result) => result.status === 'rejected');
+const now = Date.now();
+const state = (event: (typeof events)[number]) => {
+  const start = event.startsAt ? Date.parse(event.startsAt) : NaN;
+  const end = event.endsAt ? Date.parse(event.endsAt) : start;
+  return !Number.isFinite(start) ? 'undated' : (Number.isFinite(end) ? end : start) < now ? 'past' : 'scheduled';
+};
+const groups = [
+  { id: 'scheduled', title: 'Upcoming and current sessions', items: events.filter((event) => state(event) === 'scheduled').sort((a, b) => (a.startsAt ?? '').localeCompare(b.startsAt ?? '')) },
+  { id: 'past', title: 'Past sessions', items: events.filter((event) => state(event) === 'past') },
+  { id: 'undated', title: 'Sessions · dates to be confirmed', items: events.filter((event) => state(event) === 'undated') },
+];
+---
+<EditorialLayout title="Events" description="Explore sessions, revisit the ideas and take them back into your own work.">
+<div class="public-events">
+  <header class="public-page-head"><p class="eyebrow">Events</p><h1>Conversations around useful work.</h1><p class="lede">Explore sessions, revisit the ideas and take them back into your own work.</p></header>
+  {unavailable && <p role="status">Some public sessions could not be checked just now. Please try again later.</p>}
+  {groups.filter((group) => group.items.length > 0).map((group) => <section class="event-directory-group" aria-labelledby={`${group.id}-heading`}>
+    <h2 id={`${group.id}-heading`}>{group.title}</h2><ul class="event-directory-list">
+      {group.items.map((event) => <li><article class="public-event-card">
+        <div class="public-event-meta"><span>{event.startsAt && Number.isFinite(Date.parse(event.startsAt)) ? formatEventDate(event.startsAt) : 'Date to be confirmed'}</span><span>Public session resources</span></div>
+        <h3>{event.title}</h3><p>{event.summary}</p>{event.location && <p class="public-event-location">{event.location}</p>}
+        <div class="public-event-actions"><a class="public-action" href={`/events/${event.slug}/resources`}>Explore session resources →</a><span>No account required</span></div>
+      </article></li>)}
+    </ul>
+  </section>)}
+  {!events.length && !unavailable && <p>No public sessions are available in this environment yet.</p>}
+  <section class="event-interest" aria-labelledby="future-events-heading"><h2 id="future-events-heading">Stay connected to future conversations.</h2><p>Interested in a topic or a future event? Tell us what you would like to take part in.</p><a class="public-action" href="mailto:dirk.buursma@commerce-partners.com?subject=Commonwork%20event%20participation%20enquiry">Ask about future events</a><p class="event-interest-note">Opens an email draft. Registration and update preferences are confirmed separately.</p></section>
+</div>
+</EditorialLayout>

@@ -1,0 +1,61 @@
+---
+import EditorialLayout from '../layouts/EditorialLayout.astro';
+import { createSupabaseServerClient } from '../lib/supabase/server';
+export const prerender = false;
+const user = Astro.locals.user;
+if (!user) return Astro.redirect('/sign-in?return_to=/account', 303);
+const preview = user.isLocalTestUser === true;
+const client = preview ? null : createSupabaseServerClient(Astro);
+let failed = !preview && !client;
+let requests: Array<{ id: string; request_type: string; status: string }> = [];
+if (client) {
+  const result = await client.rpc('get_my_privacy_requests');
+  failed = Boolean(result.error);
+  requests = result.error ? [] : (result.data ?? []);
+}
+if (failed) Astro.response.status = 503;
+const messages: Record<string, string> = {
+  'deletion-requested': 'Your account deletion request has been recorded for operator review.',
+  'export-requested': 'Your data export request has been recorded for operator review.',
+  'request-cancelled': 'Your pending request has been cancelled.',
+  'action-failed': 'We could not complete that account action. Please try again or contact support.',
+};
+const message = messages[Astro.url.searchParams.get('status') ?? ''];
+---
+<EditorialLayout title="Your account" description="Manage your own Commonwork account and privacy requests.">
+  <h1>Your account</h1>
+  <p>Signed in as {user.email}.</p>
+  <p>Event access is decided separately by each event manager. This page does not grant member-workspace access.</p>
+  {preview && <p role="note">The local preview identity is read-only.</p>}
+  {message && <p role="status">{message}</p>}
+  {failed ? <p role="alert">Account controls are temporarily unavailable. Please try again or contact support.</p> : (
+    <>
+      <section aria-labelledby="data-heading">
+        <h2 id="data-heading">Your data</h2>
+        {!preview && <p><a href="/api/account">Download my account data (JSON)</a></p>}
+        <form method="post" action="/api/account">
+          <label for="account-note">Note for the account request (optional)</label>
+          <textarea id="account-note" name="member_note" maxlength="2000" disabled={preview}></textarea>
+          <p><button type="submit" name="action" value="request-export" disabled={preview}>Request a data export</button></p>
+          <p><button type="submit" name="action" value="request-deletion" disabled={preview}>Request account deletion</button></p>
+        </form>
+        <p>A deletion request does not delete your account immediately. An operator reviews and processes the request.</p>
+      </section>
+      <section aria-labelledby="requests-heading">
+        <h2 id="requests-heading">Your privacy requests</h2>
+        {requests.length === 0 ? <p>No privacy requests recorded.</p> : <ul>{requests.map((request) => (
+          <li data-request-id={request.id}>
+            <p>{request.request_type === 'account_deletion' ? 'Account deletion' : 'Data export'} — {request.status}</p>
+            {request.status === 'pending' && <form method="post" action="/api/account">
+              <input type="hidden" name="action" value="cancel-request" />
+              <input type="hidden" name="request_id" value={request.id} />
+              <button type="submit">Cancel request</button>
+            </form>}
+          </li>
+        ))}</ul>}
+      </section>
+    </>
+  )}
+  <p>For account or event questions, contact <a href="mailto:dirk.buursma@commerce-partners.com">dirk.buursma@commerce-partners.com</a>.</p>
+  <form method="post" action={preview ? '/api/auth/end-test-session' : '/api/auth/sign-out'}><button type="submit">Sign out</button></form>
+</EditorialLayout>

@@ -1,0 +1,99 @@
+---
+import AuthLayout from '../../../layouts/AuthLayout.astro';
+import { createSupabaseServerClient } from '../../../lib/supabase/server';
+import { normalizeCode, normalizeEmail, resendSecondsRemaining, verifyEmailCode } from '../../../lib/email-code-auth';
+import { eventSignupConfig, eventSignupAllowed, requestEventEmailCode, encodeEventPending, decodeEventPending, EVENT_PENDING_COOKIE, EVENT_PENDING_SECONDS } from '../../../lib/event-email-code-auth';
+export const prerender = false;
+Astro.response.headers.set('Cache-Control', 'private, no-store');
+const config = eventSignupConfig();
+if (!config) return new Response('Event account registration is not available.', { status: 404 });
+if (Astro.request.method === 'POST' && Astro.request.headers.get('origin') !== Astro.url.origin) {
+  return new Response('Cross-origin registration rejected.', { status: 403 });
+}
+const client = createSupabaseServerClient(Astro);
+if (!client) return new Response('Event account registration is unavailable.', { status: 503 });
+const result = await client.from('events').select('id, slug, title, is_published').eq('slug', Astro.params.slug ?? '').eq('is_published', true).maybeSingle();
+const event = result.data;
+if (result.error || !event || !eventSignupAllowed(config, event)) return new Response('Event account registration is not available.', { status: 404 });
+const eventPath = `/events/${event.slug}`;
+const joinPath = `${eventPath}/join`;
+if (Astro.locals.user) return Astro.redirect(eventPath, 303);
+let pending = decodeEventPending(Astro.cookies.get(EVENT_PENDING_COOKIE)?.value, config.secret, event.id, event.slug);
+let notice = '';
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  const action = String(form.get('action') ?? '');
+  if (action === 'change-email') {
+    Astro.cookies.delete(EVENT_PENDING_COOKIE, { path: joinPath });
+    return Astro.redirect(joinPath, 303);
+  } else if (action === 'verify') {
+    const code = normalizeCode(form.get('code'));
+    if (!pending) notice = 'This code request has expired. Request a new code.';
+    else if (!code) notice = 'Enter the numeric code from your email.';
+    else {
+      const outcome = await verifyEmailCode(client, pending.email, code);
+      if (outcome === 'verified') {
+        const identity = await client.auth.getUser();
+        if (!identity.error && identity.data.user?.email_confirmed_at && normalizeEmail(identity.data.user.email) === pending.email) {
+          Astro.cookies.delete(EVENT_PENDING_COOKIE, { path: joinPath });
+          return Astro.redirect(eventPath, 303);
+        }
+        await client.auth.signOut();
+      }
+      notice = outcome === 'rate_limited' ? 'Too many attempts. Please wait before trying again.' : 'The code could not be verified. Check the code or request a new one.';
+    }
+  } else if (action === 'send' || action === 'resend') {
+    const email = action === 'resend' ? pending?.email ?? null : normalizeEmail(form.get('email'));
+    if (action === 'send' && form.get('event_account_notice') !== 'on') {
+      notice = 'Confirm that you understand the account access limits.';
+    } else if (action === 'resend' && (!pending || resendSecondsRemaining(pending) > 0)) {
+      notice = 'Please wait before requesting another code, or start a new request.';
+    } else {
+      const outcome = await requestEventEmailCode(client, config, event, email, form.get('cf-turnstile-response'));
+      if (outcome === 'sent' && email) {
+        pending = { email, eventId: event.id, slug: event.slug, sentAt: Date.now() };
+        Astro.cookies.set(EVENT_PENDING_COOKIE, encodeEventPending(pending, config.secret), { path: joinPath, httpOnly: true, sameSite: 'lax', secure: Astro.url.protocol === 'https:', maxAge: EVENT_PENDING_SECONDS });
+        return Astro.redirect(joinPath, 303);
+      }
+      notice = outcome === 'rate_limited' ? 'Too many requests. Please wait before trying again.' : outcome === 'invalid' ? 'Enter a valid email address and complete the verification challenge.' : 'We could not request a code. Please try again later.';
+    }
+  } else return new Response('Invalid registration action.', { status: 400 });
+}
+const remaining = pending ? resendSecondsRemaining(pending) : 0;
+---
+<AuthLayout title="Event account">
+  <main class="auth-page"><section class="auth-side"><div class="auth-card">
+    <h1>Account for {event.title}</h1>
+    <p>Verify your email, then return to the event to request attendee access. The event manager decides access separately.</p>
+    <p>This account does not grant member-workspace access, publish a professional profile, or opt you into commercial contact.</p>
+    {notice && <p class="form-notice error" role="alert">{notice}</p>}
+    {pending ? <>
+      <p>If delivery is allowed, a code will arrive at {pending.email}. Check your inbox and spam folder.</p>
+      <form method="post" action={joinPath} data-submit-once>
+        <input type="hidden" name="action" value="verify" />
+        <label class="field" for="event-code">Email code<input id="event-code" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="32" required /></label>
+        <button class="btn primary" type="submit">Verify email</button>
+      </form>
+      <form method="post" action={joinPath} data-submit-once>
+        <input type="hidden" name="action" value="resend" />
+        <div class="cf-turnstile" data-sitekey={config.siteKey} data-action="event_signup"></div>
+        <button class="btn" type="submit" disabled={remaining > 0}>{remaining > 0 ? `Request another code in ${remaining}s` : 'Request another code'}</button>
+      </form>
+      <form method="post" action={joinPath}><input type="hidden" name="action" value="change-email" /><button class="btn" type="submit">Use a different email address</button></form>
+    </> : <form method="post" action={joinPath} data-submit-once>
+      <input type="hidden" name="action" value="send" />
+      <label class="field" for="event-email">Email address<input id="event-email" name="email" type="email" autocomplete="email" maxlength="254" required /></label>
+      <label><input type="checkbox" name="event_account_notice" required /> I understand that an account does not approve event access or grant member-workspace access.</label>
+      <div class="cf-turnstile" data-sitekey={config.siteKey} data-action="event_signup"></div>
+      <button class="btn primary" type="submit">Email me an event code</button>
+    </form>}
+    <p><a href={eventPath}>Back to the event</a></p>
+    <p><a href={`/sign-in?return_to=${encodeURIComponent(eventPath)}`}>Use existing invitation sign-in</a></p>
+    <p>Account questions: <a href="mailto:dirk.buursma@commerce-partners.com">dirk.buursma@commerce-partners.com</a>.</p>
+  </div></section></main>
+  <script is:inline src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+</AuthLayout>
+<script>
+  import { enableSubmitOnce } from '../../../lib/submit-once';
+  enableSubmitOnce();
+</script>

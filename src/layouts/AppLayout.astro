@@ -1,5 +1,6 @@
 ---
 import AppNav from '../components/app/AppNav.astro';
+import WorkspaceExplore from '../components/app/WorkspaceExplore.astro';
 import ThemeToggle from '../components/app/ThemeToggle.astro';
 import SupportContact from '../components/app/SupportContact.astro';
 import '../styles/tokens.css';
@@ -24,6 +25,7 @@ const name =
 <html lang="en" data-theme="light">
   <head>
     <meta charset="utf-8" />
+    <link rel="icon" type="image/svg+xml" sizes="any" href="/favicon.svg?v=commonwork-1" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#f1f2ed" />
     <meta name="description" content="Commonwork connects competence to real business needs through trusted introductions." />
@@ -50,6 +52,7 @@ const name =
             <ThemeToggle />
           </div>
         </header>
+        <WorkspaceExplore />
         <main id="main-content"><slot /></main>
         <SupportContact />
       </div>

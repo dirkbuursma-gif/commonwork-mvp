@@ -1,0 +1,21 @@
+---
+const links = [
+  { label: 'Insights', href: '/insights' },
+  { label: 'Catalogue', href: '/catalogue' },
+  { label: 'Public events', href: '/discover/events' },
+  { label: 'About', href: '/about' },
+];
+---
+<nav class="workspace-explore" aria-label="Explore Commonwork">
+  <span class="explore-label">Explore Commonwork</span>
+  <div class="explore-links">{links.map((link) => <a href={link.href}>{link.label}</a>)}</div>
+</nav>
+<style>
+  .workspace-explore { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 24px; padding: 8px 36px; border-bottom: 1px solid var(--line); background: var(--panel); }
+  .explore-label { color: var(--muted); font-size: .78rem; font-weight: 700; }
+  .explore-links { display: flex; flex-wrap: wrap; gap: 0 20px; min-width: 0; }
+  .explore-links a { display: inline-flex; align-items: center; min-height: 44px; color: var(--brand-primary); font-size: .88rem; font-weight: 600; text-decoration: none; }
+  .explore-links a:hover { text-decoration: underline; }
+  .explore-links a:focus-visible { outline: 3px solid var(--brand-accent); outline-offset: 3px; }
+  @media (max-width: 767px) { .workspace-explore { padding: 8px 16px; gap: 0 16px; } .explore-label { flex-basis: 100%; } .explore-links { gap: 0 16px; } }
+</style>

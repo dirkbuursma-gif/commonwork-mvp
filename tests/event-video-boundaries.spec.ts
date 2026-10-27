@@ -26,10 +26,28 @@ test('video endpoint rejects other events before storage access', async () => {
 });
 
 test('video endpoint rejects unknown clips and object-path injection', async () => {
-  for (const clip of ['rierino', 'becited', '../other.mp4', 'toString', 'https://example.test/video.mp4']) {
+  for (const clip of ['unknown-clip', '../other.mp4', 'toString', 'https://example.test/video.mp4']) {
     const query = new URLSearchParams({ event_slug: 'commonwork-lisbon-preview', clip });
     const response = await GET(context(query.toString(), { id: 'boundary-test' }));
     expect(response.status).toBe(404);
     expect(response.headers.get('Location')).toBeNull();
+  }
+});
+
+test('all four recognised clips require authentication when public opt-in is absent', async () => {
+  const previous = process.env.COMMONWORK_PUBLIC_EVENT_RESOURCE_IDS;
+  delete process.env.COMMONWORK_PUBLIC_EVENT_RESOURCE_IDS;
+  try {
+    for (const event_slug of ['commonwork-lisbon-preview', 'agentic-commerce-lisbon-2026']) {
+      for (const clip of ['geoffy', 'begen', 'rierino', 'becited']) {
+        const response = await GET(context(new URLSearchParams({ event_slug, clip }).toString()));
+        expect(response.status, `${event_slug}: ${clip}`).toBe(401);
+        expect(response.headers.get('Cache-Control')).toBe('private, no-store');
+        expect(response.headers.get('Location')).toBeNull();
+      }
+    }
+  } finally {
+    if (previous === undefined) delete process.env.COMMONWORK_PUBLIC_EVENT_RESOURCE_IDS;
+    else process.env.COMMONWORK_PUBLIC_EVENT_RESOURCE_IDS = previous;
   }
 });

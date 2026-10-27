@@ -1,21 +1,22 @@
 ---
+import '../styles/tokens.css';
 import '../styles/playbook.css';
-
+import '../styles/event-brand.css';
 interface Props {
   title: string;
   mode: 'audience' | 'present' | 'print';
 }
-
 const { title, mode } = Astro.props;
 ---
-
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="light">
   <head>
     <meta charset="utf-8" />
+    <link rel="icon" type="image/svg+xml" sizes="any" href="/favicon.svg?v=commonwork-1" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="robots" content="noindex, nofollow" />
-    <meta name="description" content="Draft playbook on agentic commerce for retailers." />
+    <meta name="theme-color" content="#f5f2f0" />
+    <meta name="description" content="Agentic commerce presentation, audience guide and worksheet for retailers." />
     <title>{title} · Commonwork</title>
   </head>
   <body class={`pb pb-${mode}`}>
