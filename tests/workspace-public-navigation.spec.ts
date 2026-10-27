@@ -43,6 +43,28 @@ test('desktop sidebar collapse persists between workspace and public pages', asy
   await expect(page.locator('#workspace-sidebar')).toBeVisible();
 });
 
+test('mobile hides the sidebar toggle while desktop toggle remains usable', async ({ page }) => {
+  await page.goto('/sign-in');
+  await page.getByRole('button', { name: 'Enter local test workspace' }).click();
+  await expect(page).toHaveURL(/\/today$/);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.locator('.sidebar-toggle')).toBeHidden();
+  await expect(page.locator('#workspace-sidebar')).toBeHidden();
+  await expect(page.locator('.mobile-nav')).toBeVisible();
+
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const toggle = page.getByRole('button', { name: 'Toggle workspace sidebar' });
+  await expect(toggle).toBeVisible();
+  await expect(page.locator('#workspace-sidebar')).toBeVisible();
+  await toggle.click();
+  await expect(page.locator('#workspace-sidebar')).toBeHidden();
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+  await toggle.click();
+  await expect(page.locator('#workspace-sidebar')).toBeVisible();
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+});
+
 test('signed-out public discovery stays available without workspace controls', async ({ page }) => {
   for (const [, path] of destinations) {
     await page.goto(path);
