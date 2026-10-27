@@ -15,16 +15,18 @@ test('return paths allow only local Intelligence routes', () => {
   expect(validateIntelligenceReturnPath('/intelligence\\category\\a')).toBeNull();
 });
 
-test('signed-out access to Intelligence carries only an allowed return path', async ({ page }) => {
+test('signed-out public discovery links to protected category expertise with a safe return path', async ({ page }) => {
   await page.goto('/intelligence/category/commerce-platforms');
+  await expect(page).toHaveURL(/\/catalogue\?category=commerce-platforms&view=all$/);
+  await expect(page.getByRole('heading', { name: 'Providers & products', exact: true })).toBeVisible();
+  await page.getByRole('link', { name: 'Continue to member category expertise', exact: true }).click();
   await expect(page).toHaveURL(/\/sign-in\?/);
-  expect(new URL(page.url()).searchParams.get('return_to')).toBe('/intelligence/category/commerce-platforms');
-
+  expect(new URL(page.url()).searchParams.get('return_to')).toBe('/intelligence/category/commerce-platforms?workspace=1');
   await page.goto('/sign-in?return_to=https%3A%2F%2Fevil.example');
   await expect(page.locator('input[name="return_to"]')).toHaveCount(0);
 });
 
-test('a signed-in member can browse published intelligence and continue to Find', async ({ browser }) => {
+test('a signed-in member reaches private category and product tools from public discovery', async ({ browser }) => {
   const member = await createLocalMember('Intelligence Browse Member');
   const context = await browser.newContext();
   try {
@@ -33,17 +35,24 @@ test('a signed-in member can browse published intelligence and continue to Find'
     await context.addCookies(member.cookies.map(({ name, value }) => ({ name, value, url: 'http://127.0.0.1:4322' })));
     const page = await context.newPage();
     await page.goto('/intelligence');
-    await expect(page.getByRole('heading', { name: 'Intelligence', exact: true })).toBeVisible();
-    await page.getByRole('link', { name: 'Commerce Platforms' }).click();
+    await expect(page).toHaveURL(/\/catalogue$/);
+    await expect(page.getByRole('heading', { name: 'Providers & products', exact: true })).toBeVisible();
+    await page.goto('/intelligence/category/commerce-platforms');
+    await page.getByRole('link', { name: 'Explore member expertise in this category', exact: true }).click();
+    await expect(page).toHaveURL(/\/intelligence\/category\/commerce-platforms\?workspace=1$/);
     await expect(page.getByRole('heading', { name: 'Commerce Platforms', exact: true })).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Adobe Commerce' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Adobe Commerce', exact: true })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Relevant experts' })).toBeVisible();
     await expect(page.getByRole('link', { name: 'Find competence' }).last()).toHaveAttribute('href', '/find');
-    await page.getByRole('link', { name: 'Adobe Commerce' }).click();
+    await page.getByRole('link', { name: 'Adobe Commerce', exact: true }).click();
+    await expect(page).toHaveURL(/\/catalogue\?product=adobe-commerce$/);
+    await page.getByRole('link', { name: 'Open member expertise and product affiliations', exact: true }).click();
+    await expect(page).toHaveURL(/\/intelligence\/product\/adobe-commerce\?workspace=1$/);
     await expect(page.getByRole('heading', { name: 'Adobe Commerce', exact: true })).toBeVisible();
     await expect(page.getByRole('link', { name: 'Find competence' }).last()).toHaveAttribute('href', '/find');
-    const { data: viewEvents } = await createLocalAdminClient().from('member_activity_events')
+    const { data: viewEvents, error: viewError } = await createLocalAdminClient().from('member_activity_events')
       .select('event_name').eq('profile_id', member.id).eq('event_name', 'commonwork_product_viewed');
+    expect(viewError).toBeNull();
     expect(viewEvents).toHaveLength(1);
   } finally {
     await context.close();
@@ -67,7 +76,6 @@ test('unpublished provider products are hidden by RLS', async () => {
     }).select('id').single();
     expect(providerError).toBeNull();
     providerId = provider!.id;
-
     const { data: product, error: productError } = await admin.from('provider_products').insert({
       provider_id: providerId,
       slug: `draft-product-${unique}`,
@@ -77,21 +85,15 @@ test('unpublished provider products are hidden by RLS', async () => {
       is_seed_data: false,
     }).select('id').single();
     expect(productError).toBeNull();
-
     const { error: providerPublicationError } = await admin.from('provider_publication_status').insert({
-      provider_id: providerId,
-      status: 'published',
-      published_at: new Date().toISOString(),
+      provider_id: providerId, status: 'published', published_at: new Date().toISOString(),
     });
     expect(providerPublicationError).toBeNull();
     const { error: productPublicationError } = await admin.from('provider_publication_status').insert({
-      provider_product_id: product!.id,
-      status: 'draft',
+      provider_product_id: product!.id, status: 'draft',
     });
     expect(productPublicationError).toBeNull();
-
-    const { data, error } = await member.client.from('provider_products')
-      .select('id').eq('id', product!.id);
+    const { data, error } = await member.client.from('provider_products').select('id').eq('id', product!.id);
     expect(error).toBeNull();
     expect(data).toEqual([]);
   } finally {
@@ -100,14 +102,13 @@ test('unpublished provider products are hidden by RLS', async () => {
   }
 });
 
-test('category experts come only from completed discoverable profiles', async ({ browser }) => {
+test('category experts are absent publicly and visible only in the protected member view', async ({ browser }) => {
   const member = await createLocalMember('Product Data Test Expert');
   const context = await browser.newContext({ viewport: { width: 375, height: 812 } });
   try {
     const { data: competency, error: competencyError } = await member.client.from('competencies')
       .select('id').eq('slug', 'product-data-quality').single();
     expect(competencyError).toBeNull();
-
     const { error: profileError } = await member.client.from('profiles').insert({
       id: member.id,
       display_name: 'Product Data Test Expert',
@@ -117,37 +118,32 @@ test('category experts come only from completed discoverable profiles', async ({
       profile_visibility: 'members',
     });
     expect(profileError).toBeNull();
-
     const { data: profileCompetency, error: profileCompetencyError } = await member.client
       .from('profile_competencies').insert({
-        profile_id: member.id,
-        competency_id: competency!.id,
+        profile_id: member.id, competency_id: competency!.id,
         member_statement: 'I make product data more complete and consistent.',
-        evidence_status: 'demonstrated',
-        discoverable: true,
+        evidence_status: 'demonstrated', discoverable: true,
       }).select('id').single();
     expect(profileCompetencyError).toBeNull();
-
     const { error: evidenceError } = await member.client.from('competence_evidence').insert({
       profile_competency_id: profileCompetency!.id,
       title: 'Product data quality example',
       context: 'A fictional catalogue contained inconsistent product attributes.',
       contribution: 'I mapped required fields and assigned data ownership.',
-      outcome: 'The team gained repeatable product data checks.',
-      visibility: 'members',
+      outcome: 'The team gained repeatable product data checks.', visibility: 'members',
     });
     expect(evidenceError).toBeNull();
     const { error: preferencesError } = await member.client.from('contact_preferences').insert({
-      profile_id: member.id,
-      open_to_peer_exchange: true,
-      availability_status: 'selective',
-      conversation_capacity: 1,
+      profile_id: member.id, open_to_peer_exchange: true,
+      availability_status: 'selective', conversation_capacity: 1,
     });
     expect(preferencesError).toBeNull();
-
     await context.addCookies(member.cookies.map(({ name, value }) => ({ name, value, url: 'http://127.0.0.1:4322' })));
     const page = await context.newPage();
     await page.goto('/intelligence/category/product-data-enrichment');
+    await expect(page.getByRole('link', { name: /Product Data Test Expert/ })).toHaveCount(0);
+    await page.getByRole('link', { name: 'Explore member expertise in this category', exact: true }).click();
+    await expect(page).toHaveURL(/\/intelligence\/category\/product-data-enrichment\?workspace=1$/);
     const expertLink = page.getByRole('link', { name: /Product Data Test Expert/ });
     await expect(expertLink).toBeVisible();
     await expect(expertLink).not.toContainText(member.email);

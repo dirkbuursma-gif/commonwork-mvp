@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { expect, test } from '@playwright/test';
 import { readWorkspaceAccess, isEventResourceRequest } from '../src/lib/workspace-access';
 import { createLocalAdminClient, createLocalMember } from './helpers/local-supabase';
+import { assertPublicCatalogueAlias, memberCategory, memberProduct } from './helpers/catalogue-boundary';
 
 test('workspace lookup fails closed; resource exemptions exclude management', async () => {
   expect(await readWorkspaceAccess({ rpc: async () => ({ data: true, error: null }) })).toBe(true);
@@ -31,7 +32,8 @@ test('event-only requests preserve approval checks and do not grant workspace ac
     if (!event.data) throw new Error('Local event missing.');
     eventId = event.data.id;
     await page.context().addCookies(attendee.cookies.map(({ name, value, url }) => ({ name, value, url })));
-    for (const path of ['/today', '/me', '/find', '/intelligence', '/events/manage', `/events/${slug}/manage`, '/insights/editor']) expect((await page.request.get(path, { maxRedirects: 0 })).status(), path).toBe(403);
+    await assertPublicCatalogueAlias(page.request);
+    for (const path of ['/today', '/me', '/find', memberCategory, memberProduct, '/events/manage', `/events/${slug}/manage`, '/insights/editor']) expect((await page.request.get(path, { maxRedirects: 0 })).status(), path).toBe(403);
     expect((await page.request.post('/api/needs', { maxRedirects: 0 })).status()).toBe(403);
     const views = ['presentation', 'guide', 'guide/print'];
     for (const view of views) expect((await page.request.get(`/events/${slug}/${view}`)).status()).toBe(403);
@@ -46,16 +48,20 @@ test('event-only requests preserve approval checks and do not grant workspace ac
     for (const view of views) expect((await page.request.get(`/events/${slug}/${view}`)).status()).toBe(200);
     const spoof = await attendee.client.auth.updateUser({ data: { workspace_access: true, canAccessWorkspace: true } });
     expect(spoof.error).toBeNull();
-    expect((await page.request.get('/intelligence')).status()).toBe(403);
+    for (const path of [memberCategory, memberProduct]) expect((await page.request.get(path, { maxRedirects: 0 })).status(), path).toBe(403);
+    const attendeeMembership = await attendee.client.rpc('can_access_member_workspace');
+    expect(attendeeMembership.error).toBeNull(); expect(attendeeMembership.data).toBe(false);
     const revoked = await admin.from('event_attendees').update({ status: 'revoked', decided_at: new Date().toISOString() }).eq('event_id', eventId).eq('profile_id', attendee.id);
     expect(revoked.error).toBeNull();
     expect((await page.request.get(`/events/${slug}/guide`)).status()).toBe(403);
     memberContext = await browser.newContext({ baseURL: 'http://127.0.0.1:4322' });
     await memberContext.addCookies(member.cookies.map(({ name, value, url }) => ({ name, value, url })));
-    expect((await memberContext.request.get('/intelligence')).status()).toBe(200);
+    await assertPublicCatalogueAlias(memberContext.request);
+    expect((await memberContext.request.get(memberCategory, { maxRedirects: 0 })).status()).toBe(200);
     const membership = await admin.from('workspace_memberships').update({ status: 'revoked', revoked_at: new Date().toISOString() }).eq('user_id', member.id);
     expect(membership.error).toBeNull();
-    expect((await memberContext.request.get('/intelligence')).status()).toBe(403);
+    for (const path of [memberCategory, memberProduct]) expect((await memberContext.request.get(path, { maxRedirects: 0 })).status(), path).toBe(403);
+    await assertPublicCatalogueAlias(memberContext.request);
   } finally {
     await memberContext?.close();
     if (eventId) await admin.from('events').delete().eq('id', eventId);

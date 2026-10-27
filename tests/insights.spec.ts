@@ -83,7 +83,7 @@ test('public mobile navigation supports keyboard use, focus indication and Escap
   const menu = page.locator('.public-mobile'); const toggle = menu.locator('summary'); const items = menu.locator('.public-mobile-links');
   await expect(toggle).toBeVisible(); await expect(toggle).toHaveAttribute('aria-expanded', 'false'); await expect(items).toBeHidden();
   await toggle.focus(); await page.keyboard.press('Enter'); await expect(toggle).toHaveAttribute('aria-expanded', 'true'); await expect(menu).toHaveAttribute('open', '');
-  for (const name of ['Events', 'Insights', 'Catalogue', 'About', 'Join Commonwork', 'Sign in']) await expect(items.getByRole('link', { name, exact: true })).toBeVisible();
+  for (const name of ['Events', 'Insights', 'Providers & products', 'About', 'Join Commonwork', 'Sign in']) await expect(items.getByRole('link', { name, exact: true })).toBeVisible();
   await expect(items.getByRole('button', { name: 'Switch to dark theme' })).toBeVisible();
   await page.keyboard.press('Tab'); await expect(items.getByRole('link', { name: 'Events', exact: true })).toBeFocused();
   expect(await page.evaluate(() => getComputedStyle(document.activeElement!).outlineStyle)).not.toBe('none');
@@ -92,7 +92,7 @@ test('public mobile navigation supports keyboard use, focus indication and Escap
 test('public desktop header retains its full navigation and editorial secondary text meets contrast', async ({ page }) => {
   const errors = browserErrors(page); await page.setViewportSize({ width: 1440, height: 1000 }); await page.goto('/insights/testing-the-agent-ready-claim'); await assertMark(page);
   const desktop = page.getByRole('navigation', { name: 'Public navigation' }).locator('.public-desktop');
-  for (const name of ['Events', 'Insights', 'Catalogue', 'About', 'Join Commonwork', 'Sign in']) await expect(desktop.getByRole('link', { name, exact: true })).toBeVisible();
+  for (const name of ['Events', 'Insights', 'Providers & products', 'About', 'Join Commonwork', 'Sign in']) await expect(desktop.getByRole('link', { name, exact: true })).toBeVisible();
   await expect(desktop.getByRole('button', { name: 'Switch to dark theme' })).toBeVisible(); await expect(page.locator('.public-mobile summary')).toBeHidden();
   const ratios = await page.locator('.insight-meta, .insight-topic-label, .insight-byline, .insight-related-card span').evaluateAll((elements) => elements.map((element) => {
     const parse = (value: string) => value.match(/[\d.]+/g)!.slice(0, 3).map(Number);
