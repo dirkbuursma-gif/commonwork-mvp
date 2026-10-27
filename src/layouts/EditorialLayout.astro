@@ -4,7 +4,7 @@ import BrandMark from '../components/BrandMark.astro';
 import { createSupabaseServerClient } from '../lib/supabase/server';
 import { readWorkspaceAccess } from '../lib/workspace-access';
 import { getLisbonEventContextBySlug } from '../lib/events/lisbon-context';
-import { memberProductPath } from '../lib/catalogue-redirect';
+import { memberProductPath, memberCategoryPath } from '../lib/catalogue-redirect';
 import '../styles/tokens.css';
 import '../styles/global.css';
 import '../styles/insights.css';
@@ -26,6 +26,7 @@ const links = [
 const accountLink = member ? '/today' : user ? '/account' : '/sign-in';
 const accountLabel = member ? 'My workspace' : user ? 'Your account' : 'Sign in';
 const productTools = memberProductPath(Astro.url.href);
+const categoryTools = memberCategoryPath(Astro.url.href);
 ---
 <!doctype html>
 <html lang="en" data-theme="light">
@@ -39,6 +40,7 @@ const productTools = memberProductPath(Astro.url.href);
 </nav></header>
 <main id="main-content" class="editorial-main">{eventContext && eventHome && <nav class="public-event-context" aria-label="Session context"><a href={eventHome}>← Back to session resources</a><span>{eventContext.eventTitle}</span></nav>}
 {productTools && <aside class="public-product-tools" aria-label="Member product tools"><a href={productTools}>{member ? 'Open member expertise and product affiliations' : 'Continue to member product tools'}</a><p>Relevant member profiles and affiliation controls remain inside the workspace. Sign-in and workspace membership are required; public product information remains available below.</p></aside>}
+{categoryTools && <aside class="public-product-tools" aria-label="Member category expertise"><a href={categoryTools}>{member ? 'Explore member expertise in this category' : 'Continue to member category expertise'}</a><p>Expert profiles and member comparison tools require sign-in and workspace membership. Public category information remains available below.</p></aside>}
 <slot /></main>
 <footer class="public-footer"><p>Commonwork · Useful work, in good company.</p><nav aria-label="Participation and contact"><a href={publicLink('/about#join')}>Membership</a><a href={publicLink('/about#insights-updates')}>Insights updates</a><a href="mailto:dirk.buursma@commerce-partners.com">Contact</a></nav></footer>
 <script>
