@@ -6,7 +6,7 @@ test('workspace exposes public destinations at desktop, intermediate and mobile 
   await expect(page).toHaveURL(/\/today$/);
   const destinations = [
     ['Insights', '/insights'],
-    ['Catalogue', '/catalogue'],
+    ['Providers & products', '/catalogue'],
     ['Public events', '/discover/events'],
     ['About', '/about'],
   ] as const;
