@@ -1,0 +1,18 @@
+---
+import BrandMark from '../components/BrandMark.astro';
+import WorkspaceExplore from '../components/app/WorkspaceExplore.astro';
+import '../styles/tokens.css';
+import '../styles/global.css';
+import '../styles/insights.css';
+import '../styles/public-pages.css';
+interface Props { title: string; description: string; }
+const { title, description } = Astro.props;
+const user = Astro.locals.user;
+---
+<!doctype html>
+<html lang="en" data-theme="light"><head><meta charset="utf-8" /><link rel="icon" type="image/svg+xml" sizes="any" href="/favicon.svg?v=commonwork-1" /><meta name="viewport" content="width=device-width, initial-scale=1" /><meta name="theme-color" content="#f5f2f0" /><meta name="description" content={description} /><title>{title} · Commonwork</title></head>
+<body class="public-site"><a class="public-skip" href="#main-content">Skip to content</a><header class="editorial-header shared-public-header"><a class="editorial-brand" href="/about" aria-label="About Commonwork"><BrandMark /><span>Commonwork</span></a><WorkspaceExplore showAccount={true} accountHref={user ? '/account' : '/sign-in'} accountLabel={user ? 'Your account' : 'Sign in'} /></header><main id="main-content" class="editorial-main"><slot /></main></body></html>
+<style>
+.shared-public-header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px 24px;min-height:76px;padding:16px 24px;border-bottom:1px solid var(--line)}.public-skip{position:fixed;top:8px;left:8px;transform:translateY(-180%);z-index:100;padding:12px;background:var(--card)}.public-skip:focus{transform:none}
+@media(max-width:767px){.shared-public-header{padding:12px 16px;gap:8px 16px}}
+</style>

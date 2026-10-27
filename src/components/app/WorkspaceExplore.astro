@@ -1,21 +1,36 @@
 ---
+import ThemeToggle from './ThemeToggle.astro';
+import { getLisbonEventContextBySlug } from '../../lib/events/lisbon-context';
+interface Props { showAccount?: boolean; accountHref?: string; accountLabel?: string; }
+const { showAccount = false, accountHref = '/sign-in', accountLabel = 'Sign in' } = Astro.props;
+const routeEvent = /^\/events\/([a-z0-9]+(?:-[a-z0-9]+)*)(?:\/|$)/.exec(Astro.url.pathname)?.[1];
+const context = getLisbonEventContextBySlug(routeEvent || Astro.url.searchParams.get('from_event'));
+const publicLink = (path: string) => { const target = new URL(path, Astro.url.origin); if (context) target.searchParams.set('from_event', context.eventSlug); return target.pathname + target.search + target.hash; };
 const links = [
-  { label: 'Insights', href: '/insights' },
-  { label: 'Providers & products', href: '/catalogue' },
-  { label: 'Public events', href: '/discover/events' },
-  { label: 'About', href: '/about' },
-];
+  { label: 'Insights', path: '/insights' },
+  { label: 'Providers & products', path: '/catalogue' },
+  { label: 'Events', path: '/discover/events' },
+  { label: 'About', path: '/about' },
+].map((link) => {
+  const active = Astro.url.pathname === link.path || (link.path === '/insights' && Astro.url.pathname.startsWith('/insights/')) || (link.path === '/catalogue' && Astro.url.pathname.startsWith('/catalogue/')) || (link.path === '/discover/events' && Astro.url.pathname.startsWith('/events/') && Boolean(context));
+  return { ...link, href: publicLink(link.path), active };
+});
 ---
-<nav class="workspace-explore" aria-label="Explore Commonwork">
-  <span class="explore-label">Explore Commonwork</span>
-  <div class="explore-links">{links.map((link) => <a href={link.href}>{link.label}</a>)}</div>
+<nav class="workspace-explore" aria-label="Public navigation">
+  <div class="explore-desktop public-desktop">{links.map((link) => <a href={link.href} aria-current={link.active ? 'page' : undefined}>{link.label}</a>)}{showAccount && <><a class="public-join" href={publicLink('/about#join')}>Join Commonwork</a><a href={accountHref}>{accountLabel}</a><ThemeToggle /></>}</div>
+  <details class="explore-mobile public-mobile"><summary aria-controls="public-mobile-links" aria-expanded="false">Explore Commonwork</summary><div class="public-mobile-links" id="public-mobile-links">{links.map((link) => <a href={link.href} aria-current={link.active ? 'page' : undefined}>{link.label}</a>)}{showAccount && <><a class="public-join" href={publicLink('/about#join')}>Join Commonwork</a><a href={accountHref}>{accountLabel}</a><ThemeToggle /></>}</div></details>
 </nav>
+<script>
+  document.querySelectorAll<HTMLDetailsElement>('.explore-mobile').forEach((menu) => {
+    const toggle = menu.querySelector('summary');
+    const sync = () => toggle?.setAttribute('aria-expanded', String(menu.open));
+    sync();
+    menu.addEventListener('toggle', sync);
+    menu.addEventListener('keydown', (event) => { if (event.key === 'Escape' && menu.open) { event.preventDefault(); menu.open = false; sync(); toggle?.focus(); } });
+    document.addEventListener('click', (event) => { if (event.target instanceof Node && !menu.contains(event.target)) { menu.open = false; sync(); } });
+  });
+</script>
 <style>
-  .workspace-explore { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 24px; padding: 8px 36px; border-bottom: 1px solid var(--line); background: var(--panel); }
-  .explore-label { color: var(--muted); font-size: .78rem; font-weight: 700; }
-  .explore-links { display: flex; flex-wrap: wrap; gap: 0 20px; min-width: 0; }
-  .explore-links a { display: inline-flex; align-items: center; min-height: 44px; color: var(--brand-primary); font-size: .88rem; font-weight: 600; text-decoration: none; }
-  .explore-links a:hover { text-decoration: underline; }
-  .explore-links a:focus-visible { outline: 3px solid var(--brand-accent); outline-offset: 3px; }
-  @media (max-width: 767px) { .workspace-explore { padding: 8px 16px; gap: 0 16px; } .explore-label { flex-basis: 100%; } .explore-links { gap: 0 16px; } }
+.workspace-explore{position:relative;min-width:0}.explore-desktop{display:flex;align-items:center;flex-wrap:wrap;gap:0 20px}.workspace-explore a{display:inline-flex;align-items:center;min-height:44px;color:var(--brand-primary);font-size:.88rem;font-weight:600;text-decoration:none}.workspace-explore a:hover{text-decoration:underline}.workspace-explore a[aria-current='page']{font-weight:800;text-decoration:underline;text-underline-offset:.4em}.public-join{padding:.6rem .85rem;border:1px solid var(--brand-primary);border-radius:var(--radius-sm)}.explore-mobile{display:none}.explore-mobile summary{cursor:pointer;min-height:44px;padding:10px 0;font-weight:700}.explore-mobile>div{position:absolute;top:100%;right:0;z-index:30;display:grid;width:max-content;min-width:220px;max-width:calc(100vw - 32px);padding:12px 18px;border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--card);box-shadow:var(--shadow)}.explore-mobile:not([open])>div{display:none}
+@media(max-width:1050px){.explore-desktop{display:none}.explore-mobile{display:block}}
 </style>

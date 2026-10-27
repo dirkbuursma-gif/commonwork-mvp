@@ -65,14 +65,22 @@ test('unknown articles are public 404s while private workspace routes remain pro
   const response = await request.get('/today', { maxRedirects: 0 }); expect(response.status()).toBe(303); expect(response.headers().location).toContain('/sign-in'); expect((await request.get('/intelligence', { maxRedirects: 0 })).status()).toBe(303);
   for (const path of ['/api/auth/sign-out', '/insights/product-data-is-a-margin-line']) expect((await request.post(path, { maxRedirects: 0, headers: { origin: 'http://127.0.0.1:4322' } })).status()).toBe(303);
 });
-test('signed-in readers retain the public shell and explicitly enter their workspace', async ({ page }) => {
+test('workspace members retain their shell while reading public Insights', async ({ page }) => {
   await page.goto('/sign-in'); await page.getByRole('button', { name: 'Enter local test workspace' }).click(); await expect(page).toHaveURL(/\/today$/);
   await page.goto('/insights'); await expect(page.locator('.insight-summary')).toHaveText(Object.values(approvedPreviewSummaries));
   for (const path of ['/insights', '/insights/product-data-is-a-margin-line']) {
-    await page.goto(path); await expect(page.getByRole('navigation', { name: 'Public navigation' })).toBeVisible(); await expect(page.getByRole('navigation', { name: 'Workspace' })).toHaveCount(0); await expect(page.getByRole('link', { name: 'My workspace', exact: true })).toBeVisible();
+    await page.goto(path);
+    await expect(page.getByRole('navigation', { name: 'Public navigation', exact: true })).toBeVisible();
+    const workspace = page.getByRole('navigation', { name: 'Workspace', exact: true }).filter({ visible: true });
+    await expect(workspace).toHaveCount(1);
+    await expect(workspace.getByRole('link', { name: 'Today', exact: true })).toBeVisible();
+    await expect(workspace.getByRole('link', { name: 'My events', exact: true })).toBeVisible();
+    await expect(workspace.locator('[aria-current="page"]')).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Toggle workspace sidebar' })).toBeVisible();
   }
   await expect(page.getByRole('heading', { level: 1, name: articleTitles['product-data-is-a-margin-line'] })).toBeVisible();
-  await page.getByRole('link', { name: 'My workspace', exact: true }).click(); await expect(page).toHaveURL(/\/today$/); await expect(page.getByRole('navigation', { name: 'Workspace' }).first()).toBeVisible(); await expect(page.getByText('Local test session')).toBeVisible();
+  await page.getByRole('navigation', { name: 'Workspace', exact: true }).filter({ visible: true }).getByRole('link', { name: 'Today', exact: true }).click();
+  await expect(page).toHaveURL(/\/today$/); await expect(page.getByRole('navigation', { name: 'Workspace' }).first()).toBeVisible(); await expect(page.getByText('Local test session')).toBeVisible();
 });
 test('public index and article fit mobile, intermediate and desktop widths', async ({ page }) => {
   for (const width of [320, 375, 390, 768, 1024, 1440]) { await page.setViewportSize({ width, height: 900 }); for (const path of ['/insights', '/insights/dpp-registry-is-live']) { await page.goto(path); const dimensions = await page.evaluate(() => ({ viewport: document.documentElement.clientWidth, content: document.documentElement.scrollWidth })); expect(dimensions.content, `${path} at ${width}px`).toBeLessThanOrEqual(dimensions.viewport); } }
@@ -85,7 +93,7 @@ test('public mobile navigation supports keyboard use, focus indication and Escap
   await toggle.focus(); await page.keyboard.press('Enter'); await expect(toggle).toHaveAttribute('aria-expanded', 'true'); await expect(menu).toHaveAttribute('open', '');
   for (const name of ['Events', 'Insights', 'Providers & products', 'About', 'Join Commonwork', 'Sign in']) await expect(items.getByRole('link', { name, exact: true })).toBeVisible();
   await expect(items.getByRole('button', { name: 'Switch to dark theme' })).toBeVisible();
-  await page.keyboard.press('Tab'); await expect(items.getByRole('link', { name: 'Events', exact: true })).toBeFocused();
+  await page.keyboard.press('Tab'); await expect(items.getByRole('link', { name: 'Insights', exact: true })).toBeFocused();
   expect(await page.evaluate(() => getComputedStyle(document.activeElement!).outlineStyle)).not.toBe('none');
   await page.keyboard.press('Escape'); await expect(toggle).toHaveAttribute('aria-expanded', 'false'); await expect(toggle).toBeFocused(); await expect(items).toBeHidden(); expect(errors).toEqual([]);
 });
