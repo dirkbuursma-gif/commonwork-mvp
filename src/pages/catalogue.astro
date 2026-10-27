@@ -1,6 +1,8 @@
 ---
 import EditorialLayout from '../layouts/EditorialLayout.astro';
 import { createSupabaseServerClient } from '../lib/supabase/server';
+import { readWorkspaceAccess } from '../lib/workspace-access';
+import { memberProductPath, memberCategoryPath } from '../lib/catalogue-redirect';
 import { filterPublicCatalogue, type PublicCatalogueEntry, type CatalogueTerm } from '../lib/public-catalogue';
 import { getEventCatalogueSelections } from '../lib/event-catalogue';
 import { getLisbonEventContextBySlug, matchesLisbonEventContext } from '../lib/events/lisbon-context';
@@ -10,8 +12,8 @@ Astro.response.headers.set('Cache-Control', 'private, no-store');
 Astro.response.headers.set('Vary', 'Cookie');
 const params = Astro.url.searchParams;
 const context = getLisbonEventContextBySlug(params.get('from_event'));
-const session = context ?? getLisbonEventContextBySlug('agentic-commerce-lisbon-2026');
-const selections = getEventCatalogueSelections(session?.eventId);
+const session = context;
+const selections = session ? getEventCatalogueSelections(session.eventId) : [];
 const eventOnly = Boolean(context && params.get('view') !== 'all');
 const product = params.get('product') || params.get('role') || '';
 const competence = params.get('competence') || '';
@@ -20,6 +22,12 @@ const q = (params.get('q') || '').slice(0, 200);
 let entries: PublicCatalogueEntry[] = [];
 let loadError = false;
 const client = createSupabaseServerClient(Astro);
+const user = Astro.locals.user;
+const member = (import.meta.env.DEV && user?.isLocalTestUser === true) || Boolean(user && client && await readWorkspaceAccess(client));
+const productTools = memberProductPath(Astro.url.href);
+const categoryTools = memberCategoryPath(Astro.url.href);
+const productAction = member ? 'Open member expertise and product affiliations' : 'Continue to member product tools';
+const categoryAction = member ? 'Explore member expertise in this category' : 'Continue to member category expertise';
 try {
   if (!client) throw new Error('Catalogue unavailable');
   const result = await client.rpc('read_public_catalogue');
@@ -30,6 +38,7 @@ const uniqueTerms = (terms: CatalogueTerm[]) => [...new Map(terms.map((term) => 
 const categories = uniqueTerms(entries.flatMap((entry) => entry.categories));
 const competencies = uniqueTerms(entries.flatMap((entry) => entry.competencies));
 const selectedCompetence = competencies.find((term) => term.slug === competence);
+const selectedCategory = categories.find((term) => term.slug === category);
 const filtered = filterPublicCatalogue(entries, { q, product, category, competence, eventProducts: eventOnly ? selections.map((item) => item.productSlug) : undefined });
 const requestedPage = Number(params.get('page'));
 const pageCount = Math.max(1, Math.ceil(filtered.length / 24));
@@ -37,63 +46,64 @@ const page = Number.isSafeInteger(requestedPage) && requestedPage > 0 ? Math.min
 const visible = filtered.slice((page - 1) * 24, page * 24);
 const link = (updates: Record<string, string | null>) => {
   const target = new URL('/catalogue', Astro.url.origin);
-  for (const key of ['from_event', 'view', 'q', 'category', 'competence', 'product']) {
-    const value = params.get(key); if (value) target.searchParams.set(key, value);
-  }
-  for (const [key, value] of Object.entries(updates)) {
-    if (value) target.searchParams.set(key, value); else target.searchParams.delete(key);
-  }
+  for (const key of ['from_event', 'view', 'q', 'category', 'competence', 'product']) { const value = params.get(key); if (value) target.searchParams.set(key, value); }
+  for (const [key, value] of Object.entries(updates)) { if (value) target.searchParams.set(key, value); else target.searchParams.delete(key); }
   return `${target.pathname}${target.search}`;
 };
-const clips: Record<string, { name: string; key: string }> = {
-  geoffy: { name: 'Geoffy', key: 'geoffy' },
-  admultify: { name: 'AdMultify', key: 'begen' },
-  'rierino-commerce-platform': { name: 'Rierino Commerce', key: 'rierino' },
-  'be-cited': { name: 'Be.Cited', key: 'becited' },
+const family = (terms: CatalogueTerm[]) => {
+  const value = terms.map((term) => term.slug).join(' ');
+  if (/product-data|product-information|pim|standards/.test(value)) return 'data';
+  if (/creative|content-production|digital-asset/.test(value)) return 'creative';
+  if (/search|discovery|visibility/.test(value)) return 'discovery';
+  if (/commerce|checkout|payment/.test(value)) return 'commerce';
+  return 'general';
 };
-const relatedSelections = selections.filter((item) =>
-  product ? item.productSlug === product : competence ? item.competencySlug === competence : Boolean(context)
-);
+const icons: Record<string, string> = { data: 'M5 5h4v4H5z M15 5h4v4h-4z M10 15h4v4h-4z M7 9v3h10V9 M12 12v3', creative: 'M5 16l-1 4 4-1L19 8l-3-3z M13 8l3 3', discovery: 'M16 10a6 6 0 1 1-12 0 6 6 0 0 1 12 0 M14 14l6 6', commerce: 'M5 8h14l-1 12H6z M9 8V6a3 3 0 0 1 6 0v2', general: 'M4 4h6v6H4z M14 4h6v6h-6z M4 14h6v6H4z M14 14h6v6h-6z' };
+const summary = (entry: PublicCatalogueEntry) => !entry.summary.trim() || entry.summary.trim() === 'Source catalogue listing. Detailed capabilities have not yet been supplied in the imported source record.' ? 'Product description not yet available.' : entry.summary;
+const clips: Record<string, { name: string; key: string }> = { geoffy: { name: 'Geoffy', key: 'geoffy' }, admultify: { name: 'AdMultify', key: 'begen' }, 'rierino-commerce-platform': { name: 'Rierino Commerce', key: 'rierino' }, 'be-cited': { name: 'Be.Cited', key: 'becited' } };
+const relatedSelections = selections.filter((item) => product ? item.productSlug === product : competence ? item.competencySlug === competence : Boolean(context));
 let mediaAccess = false;
-if (session && relatedSelections.length) {
-  const access = await resolveEventResourceAccess(Astro, session.eventSlug);
-  mediaAccess = access.status === 'available' && matchesLisbonEventContext(access.event.id, access.event.slug);
-}
+if (session && relatedSelections.length) { const access = await resolveEventResourceAccess(Astro, session.eventSlug); mediaAccess = access.status === 'available' && matchesLisbonEventContext(access.event.id, access.event.slug); }
 ---
 <EditorialLayout title="Providers & products" description="Explore commerce solutions, related competence areas and supporting intelligence, including event collections and supplier videos.">
-  <div class="insights-page">
-    <header class="insights-heading"><h1>Providers &amp; products</h1><p class="lede">Start with what you need to achieve. Explore relevant solutions, competence areas and supporting intelligence.</p></header>
-    <p>Product capabilities, people's competence and company affiliations are different kinds of information. Inclusion does not imply endorsement.</p>
-    {context && <section aria-label="Event collection"><h2>{context.eventTitle}</h2><p>{eventOnly ? 'Showing the curated offerings connected to this session.' : 'Browsing the full catalogue while keeping your event context.'}</p><a href={link({ view: eventOnly ? 'all' : null, product: null, category: null, competence: null, q: null })}>{eventOnly ? 'Browse all offerings' : 'Return to event collection'}</a></section>}
-    <form method="get" action="/catalogue" class="catalogue-filters" aria-label="Search providers, products and competence areas">
-      {context && <input type="hidden" name="from_event" value={context.eventSlug} />}
-      {params.get('view') === 'all' && <input type="hidden" name="view" value="all" />}
-      <label>What do you need?<input type="search" name="q" value={q} maxlength="200" placeholder="Search a capability, product or provider" /></label>
-      <label>Category<select name="category"><option value="">All categories</option>{categories.map((term) => <option value={term.slug} selected={category === term.slug}>{term.name}</option>)}</select></label>
-      <label>Related competence<select name="competence"><option value="">All competence areas</option>{competencies.map((term) => <option value={term.slug} selected={competence === term.slug}>{term.name}</option>)}</select></label>
-      <button type="submit">Search</button>
-    </form>
-    {selectedCompetence && <section aria-label="Competence definition"><h2>{selectedCompetence.name}</h2><p>{selectedCompetence.description}</p><p>These links describe related category expertise, not a verified product-level competence assessment.</p><a href="/onboarding?step=competencies">Add competence to my profile</a> · <a href="/find/new">Describe a competence need</a></section>}
-    {loadError ? <p role="alert">The full catalogue is temporarily unavailable. Event summaries and videos below remain separate from catalogue availability. Please try again shortly.</p> : <>
-      <p role="status">{filtered.length} matching offerings · page {page} of {pageCount}</p>
-      {filtered.length === 0 && <p>No offerings match these filters. Try a broader search.</p>}
-      <section class="insights-feed" aria-label="Published offerings">{visible.map((entry) => <article class="insight-card">
-        <div class="insight-meta"><span>{entry.provider_name}</span><span>{entry.evidence_maturity || 'Evidence not assessed'}</span></div>
-        <h2><a href={link({ product: entry.slug, q: null, category: null, competence: null })}>{entry.name}</a></h2><p>{entry.summary}</p>
-        <p>{entry.categories.map((term) => <a class="catalogue-term" href={link({ category: term.slug, product: null })}>{term.name}</a>)}</p>
-        {entry.competencies.length > 0 && <div><h3>Related category expertise</h3><p>{entry.competencies.map((term) => <a class="catalogue-term" href={link({ competence: term.slug, product: null })}>{term.name}</a>)}</p><p>Category context—not a reviewed product-competence mapping.</p></div>}
-        <details open={product === entry.slug}><summary>Capabilities, boundaries and validation questions</summary><p>{entry.capabilities || 'Detailed capabilities have not yet been supplied.'}</p>{entry.boundaries && <p>{entry.boundaries}</p>}{entry.questions.length > 0 && <ul>{entry.questions.map((question) => <li>{question}</li>)}</ul>}</details>
-        {entry.disclosure && <p class="catalogue-disclosure">{entry.disclosure}</p>}
+<div class="insights-page">
+  <header class="insights-heading"><h1>Providers &amp; products</h1><p class="lede">Start with what you need to achieve. Explore relevant solutions, competence areas and supporting intelligence.</p></header>
+  <p class="catalogue-intro-note">Product capabilities, people's competence and company affiliations are different kinds of information. Inclusion does not imply endorsement.</p>
+  {context && <section aria-label="Event collection"><h2>{context.eventTitle}</h2><p>{eventOnly ? 'Showing the curated offerings connected to this session.' : 'Browsing the full catalogue while keeping your event context.'}</p><a href={link({ view: eventOnly ? 'all' : null, product: null, category: null, competence: null, q: null })}>{eventOnly ? 'Browse all offerings' : 'Return to event collection'}</a></section>}
+  <form method="get" action="/catalogue" class="catalogue-filters" aria-label="Search providers, products and competence areas">
+    {context && <input type="hidden" name="from_event" value={context.eventSlug} />}{params.get('view') === 'all' && <input type="hidden" name="view" value="all" />}
+    <label>What do you need?<input type="search" name="q" value={q} maxlength="200" placeholder="Search a capability, product or provider" /></label>
+    <label>Category<select name="category"><option value="">All categories</option>{categories.map((term) => <option value={term.slug} selected={category === term.slug}>{term.name}</option>)}</select></label>
+    <label>Related competence<select name="competence"><option value="">All competence areas</option>{competencies.map((term) => <option value={term.slug} selected={competence === term.slug}>{term.name}</option>)}</select></label><button type="submit">Search</button>
+  </form>
+  {categoryTools && !product && <section class="catalogue-category-context" aria-label="Selected category"><h2>{selectedCategory?.name || 'Selected category'}</h2><aside class="catalogue-member-tools" aria-label="Member category expertise"><p class="catalogue-label">Member workspace</p><p>Explore relevant member expertise. Sign-in and workspace membership are required.</p><a href={categoryTools} aria-label={categoryAction}>{member ? 'Explore member expertise' : user ? 'Continue to member tools' : 'Sign in for member tools'}</a></aside></section>}
+  {selectedCompetence && <section aria-label="Competence definition"><h2>{selectedCompetence.name}</h2><p>{selectedCompetence.description}</p><p>These links describe related category expertise, not a verified product-level competence assessment.</p><a href="/onboarding?step=competencies">Add competence to my profile</a> · <a href="/find/new">Describe a competence need</a></section>}
+  {loadError ? <p role="alert">The full catalogue is temporarily unavailable. Please try again shortly.</p> : <>
+    <p role="status">{filtered.length} matching {filtered.length === 1 ? 'offering' : 'offerings'} · page {page} of {pageCount}</p>
+    {filtered.length === 0 && <p>No offerings match these filters. Try a broader search.</p>}
+    {productTools && filtered.length === 0 && <article class="catalogue-card catalogue-unavailable"><h2>Product details unavailable</h2><p>The public listing is not available in these results. Member tools remain separately protected.</p><aside class="catalogue-member-tools" aria-label="Member product tools"><p class="catalogue-label">Member workspace</p><p>Sign-in and workspace membership are required.</p><a href={productTools} aria-label={productAction}>{member ? 'Open member tools' : user ? 'Continue to member tools' : 'Sign in for member tools'}</a></aside></article>}
+    <section class="insights-feed catalogue-feed" aria-label="Published offerings">{visible.map((entry) => <article class="insight-card catalogue-card" data-category-family={family(entry.categories)}>
+      <header class="catalogue-card-heading"><span class="catalogue-category-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" focusable="false"><path d={icons[family(entry.categories)]} /></svg></span><div><h2><a href={link({ product: entry.slug, role: null, q: null, category: null, competence: null })}>{entry.name}</a></h2><p class="catalogue-provider">By {entry.provider_name}</p></div></header>
+      <p class="catalogue-summary">{summary(entry)}</p>
+      {entry.categories.length > 0 && <div class="catalogue-categories"><p class="catalogue-label">Category</p><div class="catalogue-chips">{entry.categories.map((term) => <a href={link({ category: term.slug, product: null, role: null })}>{term.name}</a>)}</div></div>}
+      <details class="catalogue-details" open={product === entry.slug}><summary>Product details</summary><div class="catalogue-detail-sections">
+        {entry.capabilities && <section><h3>Capabilities</h3><p>{entry.capabilities}</p></section>}
+        {entry.boundaries && <section><h3>Limitations &amp; dependencies</h3><p>{entry.boundaries}</p></section>}
+        {entry.questions.length > 0 && <section><h3>Questions to ask the provider</h3><ul>{entry.questions.map((question) => <li>{question}</li>)}</ul></section>}
+        {entry.competencies.length > 0 && <section><h3>Related category expertise</h3><p class="catalogue-chips">{entry.competencies.map((term) => <a href={link({ competence: term.slug, product: null, role: null })}>{term.name}</a>)}</p><p>Category context—not a reviewed product-competence mapping.</p></section>}
+        <section><h3>Sources &amp; review status</h3><p>Evidence: {entry.evidence_maturity || 'Not assessed'}</p>{entry.disclosure && <p class="catalogue-disclosure">{entry.disclosure}</p>}</section>
         <a href="/find/new">Describe the expertise you need</a>
-      </article>)}</section>
-      <nav aria-label="Catalogue pagination">{page > 1 && <a href={link({ page: String(page - 1) })}>Previous</a>} {page < pageCount && <a href={link({ page: String(page + 1) })}>Next</a>}</nav>
-    </>}
-    {session && relatedSelections.length > 0 && <section class="catalogue-videos" aria-label="Related event videos"><h2>Related event videos</h2><p><a href={`/events/${session.eventSlug}/resources`}>{session.eventTitle}</a></p><p>Supplier presentations connected to this session. They are not independent product tests or verification of a person's competence.</p>
-      {relatedSelections.map((selection) => { const clip = clips[selection.productSlug]; return clip && <article class="insight-card"><h3>{clip.name}</h3><p>{selection.relevance}</p>{mediaAccess ? <video controls playsinline preload="none" aria-label={`${clip.name} supplier video`} src={`/api/events/video?${new URLSearchParams({ event_slug: session.eventSlug, clip: clip.key })}`}><a href={`/events/${session.eventSlug}/presentation#tools-by-job`}>Open the video presentation</a></video> : <p>Playback is currently unavailable here. <a href={`/events/${session.eventSlug}/presentation#tools-by-job`}>Open event resources or check access</a>.</p>}<p><a href={link({ product: selection.productSlug, q: null, category: null, competence: null })}>Explore {clip.name}</a> · <a href={link({ competence: selection.competencySlug, product: null, q: null, category: null, view: 'all' })}>Explore the session's competence topic</a></p></article>; })}
-    </section>}
-    {!context && session && <p><a href={`/catalogue?from_event=${session.eventSlug}`}>Explore the Agentic Commerce event collection and videos</a></p>}
-  </div>
+      </div></details>
+      <p class="catalogue-evidence">Evidence: {entry.evidence_maturity || 'Not assessed'}</p>
+      {product === entry.slug && productTools && <aside class="catalogue-member-tools" aria-label="Member product tools"><p class="catalogue-label">Member workspace</p><p>Explore relevant expertise or manage your product affiliation. Sign-in and workspace membership are required.</p><a href={productTools} aria-label={productAction}>{member ? 'Open member tools' : user ? 'Continue to member tools' : 'Sign in for member tools'}</a></aside>}
+    </article>)}</section>
+    <nav aria-label="Catalogue pagination">{page > 1 && <a href={link({ page: String(page - 1) })}>Previous</a>} {page < pageCount && <a href={link({ page: String(page + 1) })}>Next</a>}</nav>
+  </>}
+  {session && relatedSelections.length > 0 && <section class="catalogue-videos" aria-label="Related event videos"><h2>Related event videos</h2><p><a href={`/events/${session.eventSlug}/resources`}>{session.eventTitle}</a></p><p>Supplier presentations connected to this session. They are not independent product tests or verification of a person's competence.</p>
+    {relatedSelections.map((selection) => { const clip = clips[selection.productSlug]; return clip && <article class="insight-card"><h3>{clip.name}</h3><p>{selection.relevance}</p>{mediaAccess ? <video controls playsinline preload="none" aria-label={`${clip.name} supplier video`} src={`/api/events/video?${new URLSearchParams({ event_slug: session.eventSlug, clip: clip.key })}`}><a href={`/events/${session.eventSlug}/presentation#tools-by-job`}>Open the video presentation</a></video> : <p>Playback is currently unavailable here. <a href={`/events/${session.eventSlug}/presentation#tools-by-job`}>Open event resources or check access</a>.</p>}<p><a href={link({ product: selection.productSlug, q: null, category: null, competence: null })}>Explore {clip.name}</a> · <a href={link({ competence: selection.competencySlug, product: null, q: null, category: null, view: 'all' })}>Explore the session's competence topic</a></p></article>; })}
+  </section>}
+</div>
 </EditorialLayout>
 <style>
-.catalogue-filters{display:grid;grid-template-columns:2fr 1fr 1fr auto;gap:1rem;margin:2rem 0;align-items:end}.catalogue-filters label{display:grid;gap:.4rem}.catalogue-filters input,.catalogue-filters select,.catalogue-filters button{max-width:100%;min-height:44px;padding:.6rem;border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--card);color:inherit}.catalogue-term{display:inline-block;margin:0 .8rem .5rem 0}.catalogue-disclosure{font-size:.9rem;color:var(--muted)}.catalogue-videos{margin-top:2rem}.catalogue-videos video{display:block;width:100%;max-width:960px;background:#111}details{margin:1rem 0}@media(max-width:800px){.catalogue-filters{grid-template-columns:1fr}}
+.catalogue-filters{display:grid;grid-template-columns:2fr 1fr 1fr auto;gap:1rem;margin:2rem 0;align-items:end}.catalogue-filters label{display:grid;gap:.4rem;min-width:0}.catalogue-filters input,.catalogue-filters select,.catalogue-filters button{width:100%;max-width:100%;min-height:44px;padding:.6rem;border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--card);color:inherit}.catalogue-intro-note,.catalogue-provider,.catalogue-evidence{color:var(--muted)}.catalogue-intro-note{font-size:.9rem}.catalogue-feed{gap:1.25rem}.catalogue-card{--category-accent:var(--brand-primary);padding:1.5rem;border-top:3px solid var(--category-accent);overflow-wrap:anywhere}.catalogue-card[data-category-family='creative']{--category-accent:var(--brand-accent)}.catalogue-card[data-category-family='discovery']{--category-accent:var(--blue)}.catalogue-card[data-category-family='commerce']{--category-accent:var(--success)}.catalogue-card-heading{display:flex;gap:1rem;align-items:flex-start}.catalogue-card-heading>div{min-width:0}.catalogue-card-heading h2{margin:0 0 .35rem;font-size:1.35rem;line-height:1.25}.catalogue-card-heading h2 a{text-decoration:none}.catalogue-card-heading h2 a:hover{text-decoration:underline}.catalogue-category-icon{display:grid;place-items:center;flex:none;width:48px;height:48px;border-radius:12px;background:color-mix(in srgb,var(--category-accent) 10%,var(--card));color:var(--category-accent)}.catalogue-provider{margin:0;font-size:.9rem}.catalogue-summary{margin:1.2rem 0;max-width:70ch}.catalogue-label{font-size:.78rem;font-weight:700;letter-spacing:.04em;margin:0 0 .4rem;color:var(--muted)}.catalogue-chips{display:flex;flex-wrap:wrap;gap:.5rem}.catalogue-chips a{display:inline-flex;align-items:center;min-height:44px;padding:.4rem .7rem;border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--panel);font-size:.85rem;color:var(--brand-primary);text-decoration:none}.catalogue-chips a:hover{text-decoration:underline;border-color:var(--brand-primary)}.catalogue-details{margin:1.2rem 0 0;border-top:1px solid var(--line)}.catalogue-details summary{cursor:pointer;min-height:44px;padding:.85rem 0;font-weight:700;color:var(--brand-primary)}.catalogue-detail-sections{display:grid;gap:1.1rem;padding:.5rem 0 1rem}.catalogue-detail-sections h3{font-size:.95rem;margin:0 0 .5rem}.catalogue-detail-sections p:last-child{margin-bottom:0}.catalogue-evidence{font-size:.82rem;margin:.4rem 0 0}.catalogue-disclosure{font-size:.9rem}.catalogue-member-tools{margin-top:1.25rem;padding:1rem;border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--soft)}.catalogue-member-tools p:not(.catalogue-label){font-size:.9rem;margin-bottom:.6rem}.catalogue-member-tools>a{display:inline-flex;align-items:center;min-height:44px;font-weight:700;color:var(--brand-primary)}.catalogue-category-context{margin:1.5rem 0}.catalogue-category-context h2{font-size:1.15rem}.catalogue-category-context .catalogue-member-tools{margin-top:.6rem}.catalogue-videos{margin-top:2rem}.catalogue-videos video{display:block;width:100%;max-width:960px;background:#111}@media(max-width:800px){.catalogue-filters{grid-template-columns:1fr}}@media(max-width:480px){.catalogue-card{padding:1rem}.catalogue-card-heading{gap:.75rem}.catalogue-card-heading h2{font-size:1.2rem}.catalogue-category-icon{width:40px;height:40px}}
 </style>

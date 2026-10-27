@@ -4,7 +4,6 @@ import PublicFrame from './PublicFrame.astro';
 import { createSupabaseServerClient } from '../lib/supabase/server';
 import { readWorkspaceAccess } from '../lib/workspace-access';
 import { getLisbonEventContextBySlug } from '../lib/events/lisbon-context';
-import { memberProductPath, memberCategoryPath } from '../lib/catalogue-redirect';
 import '../styles/insights.css';
 import '../styles/public-pages.css';
 interface Props { title: string; description: string; }
@@ -18,16 +17,12 @@ const routeEvent = /^\/events\/([a-z0-9]+(?:-[a-z0-9]+)*)(?:\/|$)/.exec(Astro.ur
 const eventContext = getLisbonEventContextBySlug(routeEvent || Astro.url.searchParams.get('from_event'));
 const eventHome = eventContext ? `/events/${eventContext.eventSlug}/resources` : undefined;
 const publicLink = (path: string) => { const target = new URL(path, Astro.url.origin); if (eventContext) target.searchParams.set('from_event', eventContext.eventSlug); return `${target.pathname}${target.search}${target.hash}`; };
-const productTools = memberProductPath(Astro.url.href);
-const categoryTools = memberCategoryPath(Astro.url.href);
 ---
 <Frame title={title} description={description} section="none" editorial={true}>
 {eventContext && eventHome && <nav class="public-event-context" aria-label="Session context"><a href={eventHome}>← Back to session resources</a><span>{eventContext.eventTitle}</span></nav>}
-{productTools && <aside class="public-product-tools" aria-label="Member product tools"><a href={productTools}>{member ? 'Open member expertise and product affiliations' : 'Continue to member product tools'}</a><p>Relevant member profiles and affiliation controls remain inside the workspace. Sign-in and workspace membership are required; public product information remains available below.</p></aside>}
-{categoryTools && <aside class="public-product-tools" aria-label="Member category expertise"><a href={categoryTools}>{member ? 'Explore member expertise in this category' : 'Continue to member category expertise'}</a><p>Expert profiles and member comparison tools require sign-in and workspace membership. Public category information remains available below.</p></aside>}
 <slot />
 <footer class="public-footer"><p>Commonwork · Useful work, in good company.</p><nav aria-label="Participation and contact"><a href={publicLink('/about#join')}>Membership</a><a href={publicLink('/about#insights-updates')}>Insights updates</a><a href="mailto:dirk.buursma@commerce-partners.com">Contact</a></nav></footer>
 </Frame>
 <style>
-.public-product-tools{margin:1rem 0;padding:1rem;border:1px solid var(--line);border-radius:var(--radius-sm)}.public-product-tools p{margin-bottom:0;color:var(--muted);font-size:.9rem}.public-event-context{display:flex;flex-wrap:wrap;gap:.5rem 1.25rem}.public-event-context a{color:var(--brand-primary);font-weight:700}.public-event-context span{color:var(--muted)}
+.public-event-context{display:flex;flex-wrap:wrap;gap:.5rem 1.25rem}.public-event-context a{color:var(--brand-primary);font-weight:700}.public-event-context span{color:var(--muted)}
 </style>
