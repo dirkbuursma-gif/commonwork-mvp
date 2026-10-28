@@ -1,6 +1,7 @@
 ---
 import AppLayout from '../../../layouts/AppLayout.astro';
 import EmptyState from '../../../components/app/EmptyState.astro';
+import MemberAvatar from '../../../components/app/MemberAvatar.astro';
 import { createSupabaseServerClient } from '../../../lib/supabase/server';
 import {
   getEligibleProductAffiliates,
@@ -124,7 +125,8 @@ if (supabase) {
                       Synthetic staging demonstration. This is not a real available contact, and no external outreach is sent.
                     </p>
                   )}
-                  <h3><a href={`/profiles/${person.profile_id}`}>{person.display_name}</a></h3>
+                  <div class="member-identity-inline"><MemberAvatar displayName={person.display_name} avatarId={person.avatar_id} size="small" /><h3><a href={`/profiles/${person.profile_id}`}>{person.display_name}</a></h3></div>
+                  {person.username && <p class="field-help">@{person.username}</p>}
                   <p>{person.professional_summary}</p>
                   <p class="field-help">
                     <strong>{

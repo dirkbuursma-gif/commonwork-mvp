@@ -1,0 +1,7 @@
+---
+import { getMemberInitials, MEMBER_AVATARS, type MemberAvatarId } from '../../lib/member-identity';
+interface Props { displayName: string; avatarId: MemberAvatarId | string | null | undefined; size?: 'regular' | 'small'; }
+const { displayName, avatarId = 'initials', size = 'regular' } = Astro.props;
+const avatar = MEMBER_AVATARS.find((item) => item.id === avatarId) ?? MEMBER_AVATARS[0];
+---
+<span class:list={['member-avatar', `member-avatar--${size}`, `member-avatar--${avatar.id}`]} aria-hidden="true">{avatar.id === 'initials' ? getMemberInitials(displayName) : avatar.glyph}</span>

@@ -17,6 +17,8 @@ export interface MemberProfile {
 export interface DiscoverableProfile {
   id: string;
   display_name: string;
+  username: string | null;
+  avatar_id: 'initials' | 'compass' | 'leaf' | 'orbit' | 'wave' | 'spark' | 'grid' | 'sun';
   professional_summary: string;
   what_i_contribute: string;
   what_i_am_exploring: string;
@@ -89,7 +91,7 @@ export async function getDiscoverableProfile(
 ): Promise<DiscoverableProfile | null> {
   const { data, error } = await client
     .from('discoverable_profiles')
-    .select('id, display_name, professional_summary, what_i_contribute, what_i_am_exploring, base_country_code, markets_served')
+    .select('id, display_name, username, avatar_id, professional_summary, what_i_contribute, what_i_am_exploring, base_country_code, markets_served')
     .eq('id', profileId)
     .maybeSingle();
   if (error) throw error;

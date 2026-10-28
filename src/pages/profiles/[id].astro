@@ -20,6 +20,8 @@ import {
   getProfileCompetencies,
 } from '../../lib/competence-data';
 import { getMyContactMethods, getMyIntroductionBlocks, getMyPrivacyRequests } from '../../lib/introduction-data';
+import { getMyIdentity, MEMBER_AVATARS, type MemberIdentity } from '../../lib/member-identity';
+import MemberAvatar from '../../components/app/MemberAvatar.astro';
 
 const user = Astro.locals.user;
 const localPreview = user?.isLocalTestUser === true;
@@ -28,6 +30,7 @@ const isOwner = requestedId === 'me' || requestedId === user?.id;
 const profileId = requestedId === 'me' ? (user?.id ?? '') : requestedId;
 const supabase = localPreview ? null : createSupabaseServerClient(Astro);
 let profile: MemberProfile | DiscoverableProfile | null = null;
+let identity: MemberIdentity | null = null;
 let competencies: ProfileCompetence[] = [];
 let evidence: CompetenceEvidence[] = [];
 let preferences: ContactPreferences | DiscoverableContactPreferences | null = null;
@@ -42,6 +45,7 @@ if (!localPreview && supabase && profileId) {
       ? await getMyProfile(supabase)
       : await getDiscoverableProfile(supabase, profileId);
     if (profile) {
+      if (isOwner) identity = await getMyIdentity(supabase);
       [competencies, preferences] = await Promise.all([
         getProfileCompetencies(supabase, profileId),
         isOwner
@@ -100,6 +104,16 @@ const contactStatusMessages: Record<string, string> = {
   'block-action-failed': 'The block preference could not be saved.',
 };
 const isBlockedByMe = blockedMembers.some((entry) => entry.blocked_profile_id === profileId);
+const identityStatusMessages: Record<string, string> = {
+  'identity-saved': 'Your identity was saved.',
+  'identity-invalid': 'Check your display name, avatar, or username format.',
+  'username-invalid': 'Use 3–30 letters or numbers with single hyphens between them.',
+  'username-unavailable': 'That username is unavailable. Try another one.',
+  'identity-save-failed': 'Your identity could not be saved. Please try again.',
+};
+const discoverableIdentity = profile && 'username' in profile ? profile : null;
+const shownAvatarId = isOwner ? identity?.avatar_id : discoverableIdentity?.avatar_id;
+const shownUsername = isOwner ? identity?.username : discoverableIdentity?.username ?? null;
 ---
 
 <AppLayout title="Competence profile" section="competence">
@@ -117,11 +131,14 @@ const isBlockedByMe = blockedMembers.some((entry) => entry.blocked_profile_id ==
   ) : (
     <>
       {status === 'preferences-saved' && <p class="form-notice" role="status">Conversation preferences saved.</p>}
+      {status && identityStatusMessages[status] && <p class="form-notice" role={status.includes('failed') || status.includes('invalid') || status.includes('unavailable') ? 'alert' : 'status'}>{identityStatusMessages[status]}</p>}
       {status && contactStatusMessages[status] && <p class="form-notice" role={status === 'contact-method-failed' || status === 'contact-method-invalid' ? 'alert' : 'status'}>{contactStatusMessages[status]}</p>}
       <div class="page-head">
         <div>
           <div class="eyebrow">Competence profile</div>
+          <MemberAvatar displayName={profile.display_name} avatarId={shownAvatarId} />
           <h1>{profile.display_name}</h1>
+          {shownUsername && <p class="profile-handle">@{shownUsername}</p>}
           <p class="subtitle">{profile.professional_summary}</p>
         </div>
         {isOwner && <a class="btn" href="/onboarding?step=contribution">Edit profile</a>}
@@ -129,6 +146,17 @@ const isBlockedByMe = blockedMembers.some((entry) => entry.blocked_profile_id ==
 
       <div class="profile-grid">
         <div class="stack">
+          {isOwner && (
+            <section id="identity" class="panel panel-pad" aria-labelledby="identity-title">
+              <div class="panel-head"><div><h2 id="identity-title">Member identity</h2><p>Your display name is not verified identity. Existing introduction snapshots are not changed.</p></div></div>
+              <form method="post" action="/api/member-identity" class="contact-method-form">
+                <label class="field" for="identity-display-name">Display name<input id="identity-display-name" name="display_name" required maxlength="120" value={identity?.display_name ?? profile.display_name} /></label>
+                <label class="field" for="identity-avatar">Built-in avatar<select id="identity-avatar" name="avatar_id" value={identity?.avatar_id ?? 'initials'}>{MEMBER_AVATARS.map((avatar) => <option value={avatar.id}>{avatar.label}</option>)}</select></label>
+                {identity?.username ? <p class="field-help">Username @{identity.username} is claimed and cannot be changed in this release.</p> : <label class="field" for="identity-username">Username <span class="field-optional">Optional · claim once</span><input id="identity-username" name="username" minlength="3" maxlength="30" pattern="[A-Za-z0-9]+(-[A-Za-z0-9]+)*" autocomplete="off" autocapitalize="none" spellcheck="false" /><span class="field-help">Use 3–30 letters or numbers, with single internal hyphens. No email-based handle will be assigned.</span></label>}
+                <button class="btn primary" type="submit">Save identity</button>
+              </form>
+            </section>
+          )}
           <section class="panel panel-pad">
             <div class="panel-head"><div><h2>What I can contribute</h2></div></div>
             <p>{profile.what_i_contribute}</p>

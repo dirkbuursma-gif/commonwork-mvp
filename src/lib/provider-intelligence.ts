@@ -47,6 +47,8 @@ export interface ProviderProduct {
 export interface EligibleProductAffiliate {
   profile_id: string;
   display_name: string;
+  username: string | null;
+  avatar_id: 'initials' | 'compass' | 'leaf' | 'orbit' | 'wave' | 'spark' | 'grid' | 'sun';
   professional_summary: string;
   what_i_contribute: string;
   affiliation_role: string;
@@ -76,6 +78,8 @@ export interface CategoryCompetency {
 export interface RelevantExpert {
   id: string;
   display_name: string;
+  username: string | null;
+  avatar_id: 'initials' | 'compass' | 'leaf' | 'orbit' | 'wave' | 'spark' | 'grid' | 'sun';
   professional_summary: string;
   what_i_contribute: string;
   what_i_am_exploring: string;
@@ -226,7 +230,7 @@ export async function getEligibleProductAffiliates(
   const [profilesResult, preferencesResult, organisationsResult] = await Promise.all([
     client
       .from('discoverable_profiles')
-      .select('id, display_name, professional_summary, what_i_contribute')
+      .select('id, display_name, username, avatar_id, professional_summary, what_i_contribute')
       .in('id', profileIds),
     client
       .from('discoverable_contact_preferences')
@@ -265,6 +269,8 @@ export async function getEligibleProductAffiliates(
     return [{
       profile_id: profile.id,
       display_name: profile.display_name,
+      username: profile.username,
+      avatar_id: profile.avatar_id,
       professional_summary: profile.professional_summary,
       what_i_contribute: profile.what_i_contribute,
       affiliation_role: affiliation.role_title ?? '',
@@ -318,7 +324,7 @@ export async function getRelevantExperts(
 
   const { data: profiles, error: profileError } = await client
     .from('discoverable_profiles')
-    .select('id, display_name, professional_summary, what_i_contribute, what_i_am_exploring')
+    .select('id, display_name, username, avatar_id, professional_summary, what_i_contribute, what_i_am_exploring')
     .in('id', profileIds);
   if (profileError) throw profileError;
   return (profiles ?? []).map((profile) => ({

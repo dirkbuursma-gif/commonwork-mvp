@@ -1,5 +1,6 @@
 ---
 import AppLayout from '../../layouts/AppLayout.astro';
+import MemberAvatar from '../../components/app/MemberAvatar.astro';
 import { createSupabaseServerClient } from '../../lib/supabase/server';
 import {
   getMatchEvidence,
@@ -175,7 +176,7 @@ function reasonText(reason: MatchReason) {
             return (
               <article class="match-card">
                 <header class="match-card-head">
-                  <div><span class={`relevance-band ${match.relevance_band}`}>{relevanceLabel}</span><h3><a href={`/profiles/${matchedMember.id}`}>{matchedMember.display_name}</a></h3>{affiliationByProfileId.get(matchedMember.id)?.organisations && <p class="field-help">{affiliationByProfileId.get(matchedMember.id)!.role_title ? `${affiliationByProfileId.get(matchedMember.id)!.role_title}, ` : ''}{affiliationByProfileId.get(matchedMember.id)!.organisations!.name} · {organisationTypeLabel(affiliationByProfileId.get(matchedMember.id)!.organisations!.organisation_type)}. Commercial affiliation, shown so you can weigh their perspective.</p>}<p>{matchedMember.professional_summary}</p></div>
+                  <div class="match-member-identity"><span class={`relevance-band ${match.relevance_band}`}>{relevanceLabel}</span><div class="member-identity-inline"><MemberAvatar displayName={matchedMember.display_name} avatarId={matchedMember.avatar_id} size="small" /><h3><a href={`/profiles/${matchedMember.id}`}>{matchedMember.display_name}</a></h3></div>{matchedMember.username && <p class="field-help">@{matchedMember.username}</p>}{affiliationByProfileId.get(matchedMember.id)?.organisations && <p class="field-help">{affiliationByProfileId.get(matchedMember.id)!.role_title ? `${affiliationByProfileId.get(matchedMember.id)!.role_title}, ` : ''}{affiliationByProfileId.get(matchedMember.id)!.organisations!.name} · {organisationTypeLabel(affiliationByProfileId.get(matchedMember.id)!.organisations!.organisation_type)}. Commercial affiliation, shown so you can weigh their perspective.</p>}<p>{matchedMember.professional_summary}</p></div>
                   <div class="match-actions">
                     {match.status === 'saved' && <span class="need-status saved">Saved</span>}
                     {need.status === 'active' && (!need.expires_at || new Date(need.expires_at) > new Date()) && <a class="btn primary" href={`/introductions/request/${match.id}`}>Request introduction</a>}

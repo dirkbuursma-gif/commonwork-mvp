@@ -1,0 +1,26 @@
+---
+import MemberAvatar from './MemberAvatar.astro';
+import type { MemberAvatarId, MemberIdentity } from '../../lib/member-identity';
+interface Props { identity: Pick<MemberIdentity, 'display_name' | 'username' | 'avatar_id'>; compact?: boolean; }
+const { identity, compact = false } = Astro.props;
+const displayName = identity.display_name.trim() || 'Member';
+const avatarId: MemberAvatarId = identity.avatar_id || 'initials';
+---
+{compact ? (
+  <details class="member-identity-compact">
+    <summary aria-label="Member identity and profile links">
+      <MemberAvatar displayName={displayName} avatarId={avatarId} size="small" />
+      <span class="member-identity-compact-copy"><strong>{displayName}</strong>{identity.username && <span>@{identity.username}</span>}</span>
+      <span class="member-identity-chevron" aria-hidden="true">⌄</span>
+    </summary>
+    <nav aria-label="Member profile links"><a href="/profiles/me">View profile</a><a href="/onboarding?step=contribution">Edit profile</a><a href="/introductions">My introductions</a></nav>
+  </details>
+) : (
+  <section class="member-identity-card" aria-label="Your identity">
+    <a class="member-identity-primary" href="/profiles/me" aria-label="View profile">
+      <MemberAvatar displayName={displayName} avatarId={avatarId} />
+      <span class="member-identity-copy"><strong>{displayName}</strong>{identity.username && <span>@{identity.username}</span>}</span>
+    </a>
+    <nav aria-label="Member profile links"><a href="/onboarding?step=contribution">Edit profile</a><a href="/introductions">My introductions</a></nav>
+  </section>
+)}

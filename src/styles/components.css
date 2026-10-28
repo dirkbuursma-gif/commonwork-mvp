@@ -95,6 +95,122 @@
   text-align: left;
 }
 
+.member-identity-card {
+  display: grid;
+  gap: 10px;
+  padding: 12px 9px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--card);
+}
+
+.member-identity-primary {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 10px;
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.member-identity-copy,
+.member-identity-compact-copy {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.member-identity-copy strong,
+.member-identity-compact-copy strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: .86rem;
+}
+
+.member-identity-copy > span,
+.member-identity-compact-copy > span {
+  color: var(--muted);
+  font-size: .75rem;
+}
+
+.member-identity-card nav,
+.member-identity-compact nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  font-size: .75rem;
+}
+
+.member-identity-card nav a,
+.member-identity-compact nav a {
+  color: var(--brand-primary);
+  font-weight: 650;
+  text-decoration: none;
+}
+
+.member-identity-card nav a:hover,
+.member-identity-compact nav a:hover {
+  text-decoration: underline;
+}
+
+.member-avatar {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--green) 26%, var(--line));
+  border-radius: 50%;
+  background: var(--soft);
+  color: var(--green);
+  font-size: .86rem;
+  font-weight: 750;
+}
+
+.member-avatar--small {
+  width: 36px;
+  height: 36px;
+  flex-basis: 36px;
+  font-size: .76rem;
+}
+
+.member-avatar--leaf { color: var(--success); }
+.member-avatar--orbit { color: var(--blue); }
+.member-avatar--wave { color: var(--brand-accent); }
+.member-avatar--spark { color: var(--brand-primary); }
+.member-avatar--grid { color: var(--muted); }
+.member-avatar--sun { color: var(--warning); }
+
+.member-identity-inline {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: .65rem;
+}
+
+.member-identity-inline h2,
+.member-identity-inline h3 { margin-block: 0; }
+.profile-handle { margin: .25rem 0 0; color: var(--muted); font-size: .9rem; }
+
+.member-identity-compact {
+  display: none;
+}
+
+.member-identity-compact summary {
+  display: flex;
+  min-height: 44px;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.member-identity-compact summary::-webkit-details-marker { display: none; }
+.member-identity-compact-copy { max-width: 150px; }
+.member-identity-compact summary:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+.member-identity-chevron { color: var(--muted); }
+
 .profile-copy {
   display: grid;
   min-width: 0;
@@ -1216,6 +1332,27 @@ main {
     padding-inline: 0;
   }
 
+  .member-identity-card { display: none; }
+  .sidebar .member-identity-compact { position: relative; display: block; }
+  .sidebar .member-identity-compact summary { justify-content: center; width: 48px; min-height: 48px; }
+  .sidebar .member-identity-compact-copy,
+  .sidebar .member-identity-chevron { display: none; }
+  .sidebar .member-identity-compact[open] nav {
+    position: absolute;
+    z-index: 40;
+    top: 0;
+    left: calc(100% + 8px);
+    display: grid;
+    min-width: 190px;
+    gap: 0;
+    padding: 6px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: var(--panel);
+    box-shadow: var(--shadow-card);
+  }
+  .sidebar .member-identity-compact nav a { min-height: 44px; padding: 12px; }
+
   .dashboard-grid {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -1247,6 +1384,25 @@ main {
     height: 62px;
     padding: 0 16px;
   }
+
+  .shared-topbar .shell-navigation { width: 100%; justify-content: space-between; }
+  .shared-topbar .member-identity-compact { position: relative; display: block; margin-left: auto; }
+  .member-identity-compact[open] nav {
+    position: absolute;
+    z-index: 30;
+    top: calc(100% + 8px);
+    right: 0;
+    display: grid;
+    min-width: 190px;
+    gap: 0;
+    padding: 6px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: var(--panel);
+    box-shadow: var(--shadow-card);
+  }
+  .member-identity-compact nav a { min-height: 44px; padding: 12px; }
+  .member-identity-compact-copy { max-width: 135px; }
 
   main {
     padding: 24px 16px 100px;
