@@ -2,22 +2,30 @@
 import AppNav from '../components/app/AppNav.astro';
 import WorkspaceExplore from '../components/app/WorkspaceExplore.astro';
 import ThemeToggle from '../components/app/ThemeToggle.astro';
+import MemberIdentityCard from '../components/app/MemberIdentityCard.astro';
 import SupportContact from '../components/app/SupportContact.astro';
+import { createSupabaseServerClient } from '../lib/supabase/server';
+import { getMyIdentity, type MemberIdentity } from '../lib/member-identity';
 import '../styles/tokens.css';
 import '../styles/global.css';
 import '../styles/components.css';
 interface Props { title: string; section: 'today' | 'competence' | 'find' | 'introductions' | 'events' | 'intelligence' | 'none'; description?: string; editorial?: boolean; }
 const { title, section, description = 'Commonwork connects competence to real business needs through trusted introductions.', editorial = false } = Astro.props;
 const user = Astro.locals.user;
-const email = user?.email ?? 'Member';
-const name = (typeof user?.user_metadata?.full_name === 'string' && user.user_metadata.full_name) || email.split('@')[0] || 'Member';
+let identity: MemberIdentity = { profile_id: user?.id ?? '', display_name: 'Member', username: null, avatar_id: 'initials' };
+if (user && !user.isLocalTestUser) {
+  const client = createSupabaseServerClient(Astro);
+  if (client) {
+    try { identity = await getMyIdentity(client) ?? identity; } catch { /* Keep the email-free fallback identity. */ }
+  }
+}
 ---
 <!doctype html>
 <html lang="en" data-theme="light"><head><meta charset="utf-8" /><link rel="icon" type="image/svg+xml" sizes="any" href="/favicon.svg?v=commonwork-1" /><meta name="viewport" content="width=device-width, initial-scale=1" /><meta name="theme-color" content="#f5f2f0" /><meta name="description" content={description} /><title>{title} · Commonwork</title></head>
 <body class:list={{ 'public-site': editorial }}>
 <a class="shell-skip" href="#main-content">Skip to content</a>
-<div class="app-frame"><AppNav active={section} name={name} email={email} /><div class="main-shell">
-<header class="topbar shared-topbar"><div class="shell-navigation"><button class="btn sidebar-toggle" type="button" aria-controls="workspace-sidebar" aria-expanded="true" aria-label="Toggle workspace sidebar">My workspace</button><WorkspaceExplore /></div><div class="topbar-actions">
+<div class="app-frame"><AppNav active={section} identity={identity} /><div class="main-shell">
+<header class="topbar shared-topbar"><div class="shell-navigation"><button class="btn sidebar-toggle" type="button" aria-controls="workspace-sidebar" aria-expanded="true" aria-label="Toggle workspace sidebar">My workspace</button><WorkspaceExplore /><MemberIdentityCard identity={identity} compact={true} /></div><div class="topbar-actions">
 {user?.isLocalTestUser && <form class="dev-session-form" method="post" action="/api/auth/end-test-session"><span class="dev-session-label">Local test session</span><button class="btn" type="submit">End test session</button></form>}
 {user && !user.isLocalTestUser && <form method="post" action="/api/auth/sign-out"><button class="btn" type="submit">Sign out</button></form>}<ThemeToggle /></div></header>
 <main id="main-content" class:list={{ 'editorial-main': editorial }}><div class="breadcrumb shell-breadcrumb">Commonwork <span aria-hidden="true">/</span> {title}</div><slot /></main><SupportContact />

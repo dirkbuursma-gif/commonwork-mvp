@@ -1,8 +1,9 @@
 ---
 import BrandMark from '../BrandMark.astro';
-interface Props { active: 'today' | 'competence' | 'find' | 'introductions' | 'events' | 'intelligence' | 'none'; name: string; email: string; }
-const { active, name, email } = Astro.props;
-const initials = name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join('');
+import MemberIdentityCard from './MemberIdentityCard.astro';
+import type { MemberIdentity } from '../../lib/member-identity';
+interface Props { active: 'today' | 'competence' | 'find' | 'introductions' | 'events' | 'intelligence' | 'none'; identity: MemberIdentity; }
+const { active, identity } = Astro.props;
 const links = [
   { id: 'today', label: 'Today', short: 'Today', href: '/today' },
   { id: 'competence', label: 'My competence', short: 'Offer', href: '/competence' },
@@ -13,8 +14,9 @@ const links = [
 ---
 <aside class="sidebar" id="workspace-sidebar">
   <a class="brand" href="/today" aria-label="Commonwork workspace home"><BrandMark /><span>Commonwork</span></a>
+  <MemberIdentityCard identity={identity} />
+  <MemberIdentityCard identity={identity} compact={true} />
   <nav class="nav-group" aria-label="Workspace"><span class="nav-label">My workspace</span>{links.map((link) => <a class:list={['nav-link', { active: active === link.id }]} href={link.href} aria-label={link.label} title={link.label} aria-current={active === link.id ? 'page' : undefined}><span class="nav-glyph" aria-hidden="true">·</span><span>{link.label}</span></a>)}</nav>
-  <div class="profile-chip" aria-label={`Signed in as ${name}`}><span class="avatar" aria-hidden="true">{initials || 'CW'}</span><span class="profile-copy"><strong>{name}</strong><span>{email}</span></span></div>
 </aside>
 <nav class="mobile-nav" aria-label="Workspace">{links.map((link) => <a class:list={['nav-link', { active: active === link.id }]} href={link.href} aria-label={link.label} aria-current={active === link.id ? 'page' : undefined}><span class="nav-glyph" aria-hidden="true">·</span><span>{link.short}</span></a>)}</nav>
 <style is:global>

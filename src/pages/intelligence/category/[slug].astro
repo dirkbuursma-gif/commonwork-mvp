@@ -1,5 +1,6 @@
 ---
 import AppLayout from '../../../layouts/AppLayout.astro';
+import MemberAvatar from '../../../components/app/MemberAvatar.astro';
 import EmptyState from '../../../components/app/EmptyState.astro';
 import { createSupabaseServerClient } from '../../../lib/supabase/server';
 import {
@@ -87,7 +88,7 @@ if (supabase) {
 
       <section class="stack" aria-labelledby="experts-title">
         <div class="panel-head"><div><div class="eyebrow">Member network</div><h2 id="experts-title">Relevant experts</h2><p>Only complete profiles and competencies members chose to make discoverable appear here.</p></div><a class="btn" href="/find">Find competence</a></div>
-        {experts.length ? <div class="intelligence-experts">{experts.map((expert) => <a class="intelligence-expert" href={`/profiles/${expert.id}`}><strong>{expert.display_name}</strong><span>{expert.professional_summary}</span><span class="field-help">{expert.competencies.join(' · ')}</span></a>)}</div> : <section class="panel panel-pad"><EmptyState title="No discoverable experts yet" description="Explore provider intelligence while members build and share relevant competence." /></section>}
+        {experts.length ? <div class="intelligence-experts">{experts.map((expert) => <a class="intelligence-expert" href={`/profiles/${expert.id}`}><MemberAvatar displayName={expert.display_name} avatarId={expert.avatar_id} size="small" /><strong>{expert.display_name}</strong>{expert.username && <span class="field-help">@{expert.username}</span>}<span>{expert.professional_summary}</span><span class="field-help">{expert.competencies.join(' · ')}</span></a>)}</div> : <section class="panel panel-pad"><EmptyState title="No discoverable experts yet" description="Explore provider intelligence while members build and share relevant competence." /></section>}
       </section>
     </div>
   </AppLayout>

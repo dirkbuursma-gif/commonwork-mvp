@@ -66,6 +66,8 @@ export interface MatchReason {
 export interface MemberProfileSummary {
   id: string;
   display_name: string;
+  username: string | null;
+  avatar_id: 'initials' | 'compass' | 'leaf' | 'orbit' | 'wave' | 'spark' | 'grid' | 'sun';
   professional_summary: string;
   what_i_contribute: string;
   what_i_am_exploring: string;
@@ -84,7 +86,7 @@ export interface MatchEvidence {
 
 const needColumns = 'id, owner_profile_id, title, business_outcome, problem_statement, relevant_context, what_requester_offers, conversation_type, visibility, status, expires_at, retailer_organisation_id, retailer_segment, current_stack_note, project_context, created_at, updated_at';
 const matchColumns = 'id, need_id, matched_profile_id, relevance_band, status, calculated_at, created_at, updated_at';
-const profileColumns = 'id, display_name, professional_summary, what_i_contribute, what_i_am_exploring';
+const profileColumns = 'id, display_name, username, avatar_id, professional_summary, what_i_contribute, what_i_am_exploring';
 const reasonColumns = 'id, match_id, reason_type, competency_id, evidence_id, explanation, created_at';
 
 export async function getNeed(client: SupabaseClient, needId: string): Promise<CompetenceNeed | null> {

@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { createSupabaseServerClient } from '../../lib/supabase/server';
 import { isCountryCode, isValidMarketsServed } from '../../lib/country-codes';
+import { isValidUsername, MEMBER_AVATARS, normalizeUsername, saveMyIdentity } from '../../lib/member-identity';
 
 const categories = new Set(['knowledge', 'practical_capability', 'way_of_working']);
 const evidenceStatuses = new Set(['declared', 'demonstrated']);
@@ -34,6 +35,8 @@ export const POST: APIRoute = async (context) => {
 
   if (action === 'save-profile') {
     const displayName = value(form, 'display_name');
+    const avatarId = value(form, 'avatar_id') || 'initials';
+    const username = value(form, 'username');
     const professionalSummary = value(form, 'professional_summary');
     const whatIContribute = value(form, 'what_i_contribute');
     const whatIAmExploring = value(form, 'what_i_am_exploring');
@@ -42,8 +45,12 @@ export const POST: APIRoute = async (context) => {
     const marketValues = form.getAll('markets_served');
     const marketsServed = marketValues.filter((item): item is string => typeof item === 'string');
 
-    if (!displayName || !professionalSummary || !whatIContribute || !['private', 'members'].includes(visibility)) {
+    if (!displayName || !professionalSummary || !whatIContribute || !['private', 'members'].includes(visibility)
+      || !MEMBER_AVATARS.some((avatar) => avatar.id === avatarId)) {
       return failure(context, 'invalid', 'contribution');
+    }
+    if (username && !isValidUsername(username)) {
+      return failure(context, 'username-invalid', 'contribution');
     }
     if (
       marketValues.length !== marketsServed.length
@@ -54,7 +61,6 @@ export const POST: APIRoute = async (context) => {
     }
 
     const profileFields = {
-      display_name: displayName,
       professional_summary: professionalSummary,
       what_i_contribute: whatIContribute,
       what_i_am_exploring: whatIAmExploring,
@@ -62,12 +68,19 @@ export const POST: APIRoute = async (context) => {
       markets_served: marketsServed,
       profile_visibility: visibility,
     };
-    const { data: currentProfile, error: profileReadError } = await supabase.rpc('get_my_profile');
-    if (profileReadError) return failure(context, 'save-failed', 'contribution');
-    const hasProfile = Array.isArray(currentProfile) ? currentProfile.length > 0 : Boolean(currentProfile);
-    const { error } = hasProfile
-      ? await supabase.from('profiles').update(profileFields).eq('id', user.id)
-      : await supabase.from('profiles').insert({ id: user.id, ...profileFields });
+    try {
+      await saveMyIdentity(supabase, {
+        displayName,
+        avatarId: avatarId as (typeof MEMBER_AVATARS)[number]['id'],
+        username: username ? normalizeUsername(username) : null,
+      });
+    } catch (identityError) {
+      const code = identityError && typeof identityError === 'object' && 'code' in identityError
+        ? String(identityError.code)
+        : '';
+      return failure(context, code === '23505' ? 'username-unavailable' : 'identity-save-failed', 'contribution');
+    }
+    const { error } = await supabase.from('profiles').update(profileFields).eq('id', user.id);
 
     return failure(context, error ? 'save-failed' : 'saved', error ? 'contribution' : 'competencies');
   }

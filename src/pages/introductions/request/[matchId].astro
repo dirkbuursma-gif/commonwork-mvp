@@ -1,5 +1,6 @@
 ---
 import AppLayout from '../../../layouts/AppLayout.astro';
+import MemberAvatar from '../../../components/app/MemberAvatar.astro';
 import { getMyContactMethods, getAvailableConnectors, getIntroductionMatch, getPotentialIntroducers } from '../../../lib/introduction-data';
 import type { ContactMethod, AvailableConnector, IntroductionMatchContext } from '../../../lib/introduction-data';
 import { createSupabaseServerClient } from '../../../lib/supabase/server';
@@ -10,7 +11,7 @@ const supabase = localPreview ? null : createSupabaseServerClient(Astro);
 const matchId = Astro.params.matchId ?? '';
 let matchContext: IntroductionMatchContext | null = null;
 let contactMethods: ContactMethod[] = [];
-let introducers: Array<{ id: string; display_name: string }> = [];
+let introducers: Array<{ id: string; display_name: string; username: string | null; avatar_id: 'initials' | 'compass' | 'leaf' | 'orbit' | 'wave' | 'spark' | 'grid' | 'sun' }> = [];
 let connectors: AvailableConnector[] = [];
 let loadError = false;
 
@@ -51,7 +52,7 @@ const errorMessage = status === 'request-unavailable' ? 'This match is no longer
         <input type="hidden" name="match_id" value={matchContext.match.id} />
         <section class="stack">
           <article class="panel panel-pad">
-            <div class="eyebrow">Relevant person</div><h2>{matchContext.matchedMember.display_name}</h2>
+            <div class="eyebrow">Relevant person</div><div class="member-identity-inline"><MemberAvatar displayName={matchContext.matchedMember.display_name} avatarId={matchContext.matchedMember.avatar_id} size="small" /><h2>{matchContext.matchedMember.display_name}</h2></div>{matchContext.matchedMember.username && <p class="field-help">@{matchContext.matchedMember.username}</p>}
             <p>{matchContext.matchedMember.professional_summary}</p>
             <p>{matchContext.matchedMember.what_i_contribute}</p>
             <div class="relevance-band {matchContext.match.relevance_band}">{matchContext.match.relevance_band === 'strong' ? 'Strong relevance' : matchContext.match.relevance_band === 'good' ? 'Good relevance' : 'Possible relevance'}</div>
@@ -74,11 +75,11 @@ const errorMessage = status === 'request-unavailable' ? 'This match is no longer
               <label><input type="radio" name="route" value="suggested_introducer" /> <span><strong>Suggested introducer</strong><small>Nominate someone you know who may know both people. They must confirm that before Commonwork presents them as an introducer.</small></span></label>
               <label><input type="radio" name="route" value="trusted_connector" /> <span><strong>Trusted Connector</strong><small>A vetted Commonwork Connector facilitates after both people consent.</small></span></label>
             </fieldset>
-            <label class="field route-field" data-route-field="suggested_introducer" hidden>Person you are nominating
-              <select name="suggested_introducer_id"><option value="">Choose a member</option>{introducers.map((person) => <option value={person.id}>{person.display_name}</option>)}</select>
+              <label class="field route-field" data-route-field="suggested_introducer" hidden>Person you are nominating
+              <select name="suggested_introducer_id"><option value="">Choose a member</option>{introducers.map((person) => <option value={person.id}>{person.display_name}{person.username ? ` (@${person.username})` : ''}</option>)}</select>
             </label>
             <label class="field route-field" data-route-field="trusted_connector" hidden>Trusted Connector
-              <select name="trusted_connector_id"><option value="">Choose an available Connector</option>{connectors.map((connector) => <option value={connector.profile_id}>{connector.display_name}</option>)}</select>
+              <select name="trusted_connector_id"><option value="">Choose an available Connector</option>{connectors.map((connector) => <option value={connector.profile_id}>{connector.display_name}{connector.username ? ` (@${connector.username})` : ''}</option>)}</select>
             </label>
             <label class="field route-field" data-route-field="intermediary" hidden>Why are you asking them?<textarea name="intermediary_note" maxlength="800" rows="2" placeholder="What context makes this person suitable to facilitate?"></textarea></label>
           </article>

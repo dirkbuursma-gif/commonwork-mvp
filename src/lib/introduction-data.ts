@@ -115,6 +115,8 @@ export interface BlockedIntroductionMember {
 export interface AvailableConnector {
   profile_id: string;
   display_name: string;
+  username: string | null;
+  avatar_id: 'initials' | 'compass' | 'leaf' | 'orbit' | 'wave' | 'spark' | 'grid' | 'sun';
   professional_summary: string;
   what_i_contribute: string;
 }
@@ -181,20 +183,20 @@ export async function getIntroductionMatch(
 export async function getPotentialIntroducers(
   client: SupabaseClient,
   excludedProfileIds: string[],
-): Promise<Array<{ id: string; display_name: string }>> {
+): Promise<Array<{ id: string; display_name: string; username: string | null; avatar_id: AvailableConnector['avatar_id'] }>> {
   const { data, error } = await client
     .from('discoverable_profiles')
-    .select('id, display_name')
+    .select('id, display_name, username, avatar_id')
     .order('display_name', { ascending: true });
   if (error) throw error;
   const excluded = new Set(excludedProfileIds);
-  return ((data ?? []) as Array<{ id: string; display_name: string }>).filter((profile) => !excluded.has(profile.id));
+  return ((data ?? []) as Array<{ id: string; display_name: string; username: string | null; avatar_id: AvailableConnector['avatar_id'] }>).filter((profile) => !excluded.has(profile.id));
 }
 
 export async function getAvailableConnectors(client: SupabaseClient): Promise<AvailableConnector[]> {
   const { data, error } = await client
     .from('available_connectors')
-    .select('profile_id, display_name, professional_summary, what_i_contribute')
+    .select('profile_id, display_name, username, avatar_id, professional_summary, what_i_contribute')
     .order('display_name', { ascending: true });
   if (error) throw error;
   return (data ?? []) as AvailableConnector[];

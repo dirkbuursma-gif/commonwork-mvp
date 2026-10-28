@@ -11,6 +11,7 @@ import type {
   MemberProfile,
   ProfileCompetence,
 } from '../lib/competence-data';
+import { getMyIdentity, MEMBER_AVATARS, type MemberIdentity } from '../lib/member-identity';
 import {
   getCanonicalCompetencies,
   getCompetenceEvidence,
@@ -51,6 +52,10 @@ const notices: Record<string, string> = {
   saved: 'Profile details saved.',
   'save-failed': 'We could not save that change. Please review the details and try again.',
   'preview-readonly': 'The local preview session is read-only. Use a real Supabase sign-in to save profile data.',
+  'username-invalid': 'Use 3–30 letters or numbers with single hyphens between them.',
+  'username-unavailable': 'That username is unavailable. Try another one.',
+  'identity-invalid': 'Check your display name and avatar choice, then try again.',
+  'identity-save-failed': 'We could not save your identity. Please try again.',
 };
 
 let profile: MemberProfile | null = null;
@@ -58,15 +63,17 @@ let competencies: ProfileCompetence[] = [];
 let evidence: CompetenceEvidence[] = [];
 let canonicalCompetencies: CanonicalCompetence[] = [];
 let preferences: ContactPreferences | null = null;
+let identity: MemberIdentity | null = null;
 let loadError = false;
 
 if (!localPreview && supabase && user) {
   try {
-    [profile, competencies, canonicalCompetencies, preferences] = await Promise.all([
+    [profile, competencies, canonicalCompetencies, preferences, identity] = await Promise.all([
       getMyProfile(supabase),
       getProfileCompetencies(supabase, user.id),
       getCanonicalCompetencies(supabase),
       getContactPreferences(supabase, user.id),
+      getMyIdentity(supabase),
     ]);
     evidence = await getCompetenceEvidence(supabase, competencies.map((item) => item.id));
   } catch {
@@ -142,6 +149,19 @@ const isReadyForConversations = evidence.length > 0;
               Professional summary
               <textarea id="professional-summary" name="professional_summary" required maxlength="1200" rows="3" placeholder="Describe the work you do and the problems you understand.">{profile?.professional_summary ?? ''}</textarea>
             </label>
+            <label class="field" for="avatar-id">Built-in avatar
+              <select id="avatar-id" name="avatar_id" value={identity?.avatar_id ?? 'initials'}>
+                {MEMBER_AVATARS.map((avatar) => <option value={avatar.id}>{avatar.label}</option>)}
+              </select>
+            </label>
+            {identity?.username ? (
+              <p class="field-help">Your username is @{identity.username}. Initial claims cannot be changed in this slice.</p>
+            ) : (
+              <label class="field" for="member-username">Username <span class="field-optional">Optional · claim once</span>
+                <input id="member-username" name="username" minlength="3" maxlength="30" pattern="[A-Za-z0-9]+(-[A-Za-z0-9]+)*" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="For example, alex-jensen" aria-describedby="member-username-help" />
+                <span class="field-help" id="member-username-help">3–30 letters or numbers; single hyphens are allowed between segments. Usernames are permanent in this first release.</span>
+              </label>
+            )}
             <label class="field" for="what-contribute">
               What can you contribute to another professional?
               <textarea id="what-contribute" name="what_i_contribute" required maxlength="2000" rows="4" placeholder="For example: a method, practical experience, a useful introduction or a perspective from work you've done.">{profile?.what_i_contribute ?? ''}</textarea>
