@@ -98,6 +98,33 @@ test('existing members need no username and shell identity never uses auth email
   }
 });
 
+test('identity forms preselect the saved avatar and keep it when only the name changes', async ({ browser }) => {
+  const member = await createLocalMember('Avatar Member');
+  const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  try {
+    const { error } = await member.client.rpc('save_my_identity', {
+      target_display_name: 'Avatar Member', target_avatar_id: 'spark', target_username: null,
+    });
+    expect(error).toBeNull();
+    const page = await context.newPage();
+    await addSession(page, member);
+    await page.goto('/profiles/me#identity');
+    await expect(page.getByLabel('Built-in avatar')).toHaveValue('spark');
+    await page.goto('/onboarding?step=contribution');
+    await expect(page.getByLabel('Built-in avatar')).toHaveValue('spark');
+
+    await page.goto('/profiles/me#identity');
+    await page.getByLabel('Display name').fill('Avatar Member Renamed');
+    await page.getByRole('button', { name: 'Save identity' }).click();
+    await expect(page).toHaveURL(/status=identity-saved/);
+    const { data } = await member.client.rpc('get_my_identity');
+    expect(identityRow(data)).toMatchObject({ display_name: 'Avatar Member Renamed', avatar_id: 'spark' });
+  } finally {
+    await context.close();
+    await member.remove();
+  }
+});
+
 test('identity RPC preserves profile data and direct username writes are denied', async () => {
   const member = await createLocalMember('Before Identity');
   const outsider = await createLocalMember('Other Member');
