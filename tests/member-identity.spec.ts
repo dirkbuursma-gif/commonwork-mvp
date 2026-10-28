@@ -107,9 +107,6 @@ test('identity RPC preserves profile data and direct username writes are denied'
   let organisationId: string | null = null;
   try {
     await addProfile(admin, member.id, 'Before Identity');
-    const { error: directNameError } = await member.client.from('profiles')
-      .update({ display_name: 'Forged display name' }).eq('id', member.id);
-    expect(directNameError).toBeTruthy();
     const { error: directAvatarError } = await member.client.from('profiles')
       .update({ avatar_id: 'sun' }).eq('id', member.id);
     expect(directAvatarError).toBeTruthy();
@@ -210,6 +207,41 @@ test('identity RPC preserves profile data and direct username writes are denied'
     if (organisationId) await admin.from('organisations').delete().eq('id', organisationId);
     if (providerId) await admin.from('providers').delete().eq('id', providerId);
     await Promise.all([member.remove(), outsider.remove()]);
+  }
+});
+
+test('legacy onboarding profile saves still allow the owner but deny another member', async () => {
+  const owner = await createLocalMember('Legacy Owner');
+  const other = await createLocalMember('Other Legacy Member');
+  const admin = createLocalAdminClient();
+  try {
+    await addProfile(admin, owner.id, 'Legacy Owner');
+    const profileFields = {
+      display_name: 'Updated Legacy Owner',
+      professional_summary: 'Updated through the pre-identity onboarding payload.',
+      what_i_contribute: 'Practical experience.',
+      what_i_am_exploring: 'Better product data.',
+      base_country_code: 'PT',
+      markets_served: ['PT'],
+      profile_visibility: 'private',
+    };
+    const { data: saved, error: saveError } = await owner.client.from('profiles')
+      .update(profileFields).eq('id', owner.id).select('id');
+    expect(saveError).toBeNull();
+    expect(saved).toEqual([{ id: owner.id }]);
+
+    const { data: denied, error: deniedError } = await other.client.from('profiles')
+      .update({ ...profileFields, display_name: 'Cross-member overwrite' }).eq('id', owner.id).select('id');
+    expect(deniedError).toBeNull();
+    expect(denied).toEqual([]);
+
+    const { data: profile, error: readError } = await admin.from('profiles')
+      .select('display_name, professional_summary, what_i_contribute, what_i_am_exploring, base_country_code, markets_served, profile_visibility, username, avatar_id')
+      .eq('id', owner.id).single();
+    expect(readError).toBeNull();
+    expect(profile).toEqual({ ...profileFields, username: null, avatar_id: initialAvatar });
+  } finally {
+    await Promise.all([owner.remove(), other.remove()]);
   }
 });
 

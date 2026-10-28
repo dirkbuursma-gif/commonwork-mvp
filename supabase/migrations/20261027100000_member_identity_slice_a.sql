@@ -95,7 +95,6 @@ for each row execute function public.guard_profile_username();
 
 -- Preserve existing profile edits while preventing direct authenticated handle writes.
 revoke insert (username), update (username) on public.profiles from public, anon, authenticated;
-revoke update (display_name) on public.profiles from public, anon, authenticated;
 
 create or replace function public.refresh_onboarding_from_change()
 returns trigger
