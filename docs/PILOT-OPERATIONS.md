@@ -92,6 +92,18 @@ npm run connector:remove -- member@example.com
 
 Review Connector assignments and audit records after changes. Reassignment is limited to two changes per introduction. The CLI is the only supported Connector administration interface in this release.
 
+### Product representatives (follower count)
+
+A product representative may read one private follower count for one product on the protected member product page. The assignment is explicit and operator-granted per member and product. It is never derived from affiliation, membership or payment, and it grants no editing, publishing, follower identities, exports or contact rights. The member needs active workspace membership, and an administrator cannot grant it to themselves. The same operator credentials, environment and production-confirmation rules as the Connector CLI apply. Grants and revocations are written to `product_representative_admin_audit`.
+
+```sh
+npm run representative:list -- some-product-slug
+npm run representative:grant -- member@example.com some-product-slug
+npm run representative:revoke -- member@example.com some-product-slug
+```
+
+The count covers active follows from members whose workspace membership is active. It measures interest within Commonwork, not product use, endorsement or market popularity. Representatives never see who follows.
+
 The same operator credentials and environment rules apply to report and privacy commands. List commands show summaries; use `view` only when case details are needed. Status changes require a 3-2,000 character `--note`, are executed through active-administrator-only database functions, and are written to `commonwork_pilot_audit` in the same transaction.
 
 ```sh

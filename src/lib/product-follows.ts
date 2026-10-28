@@ -50,6 +50,18 @@ export async function getMyFollowedProductCount(client: SupabaseClient): Promise
   return typeof data === 'number' ? data : 0;
 }
 
+/**
+ * Representative-only aggregate. Returns null for anyone not authorised (never a zero), the integer
+ * for an authorised representative, or 'unavailable' if an authorised read fails.
+ */
+export async function getRepresentativeFollowerCount(client: SupabaseClient, productId: string): Promise<number | 'unavailable' | null> {
+  if (!uuidPattern.test(productId)) return null;
+  const status = await client.rpc('is_product_representative', { target_product_id: productId });
+  if (status.error || status.data !== true) return null;
+  const count = await client.rpc('get_product_follower_count', { target_product_id: productId });
+  return !count.error && typeof count.data === 'number' ? count.data : 'unavailable';
+}
+
 export async function listMyFollowedProducts(client: SupabaseClient, page: number): Promise<FollowedProduct[]> {
   const { data, error } = await client.rpc('list_my_followed_products', {
     page_limit: FOLLOWING_PAGE_SIZE,
