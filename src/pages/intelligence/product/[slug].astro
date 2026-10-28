@@ -2,6 +2,8 @@
 import AppLayout from '../../../layouts/AppLayout.astro';
 import EmptyState from '../../../components/app/EmptyState.astro';
 import MemberAvatar from '../../../components/app/MemberAvatar.astro';
+import ProductFollowControl from '../../../components/app/ProductFollowControl.astro';
+import { getProductFollowState, type ProductFollowState } from '../../../lib/product-follows';
 import { createSupabaseServerClient } from '../../../lib/supabase/server';
 import {
   getEligibleProductAffiliates,
@@ -23,6 +25,7 @@ type ProductAffiliation = {
 };
 
 let affiliation: ProductAffiliation | null = null;
+let followState: ProductFollowState | null = null;
 let eligibleAffiliates: EligibleProductAffiliate[] = [];
 const journeyContext = getCatalogueJourneyContext(
   Astro.url.searchParams.get('from_event'),
@@ -40,6 +43,7 @@ if (supabase) {
       );
     }
     if (result && user) {
+      try { followState = await getProductFollowState(supabase, Astro.params.slug ?? ''); } catch { followState = null; }
       const { data } = await supabase
         .from('profile_product_affiliations')
         .select('verification_status, role_title')
@@ -75,6 +79,7 @@ if (supabase) {
       </div>
     </div>
     <div class="stack">
+      {followState && <section class="panel panel-pad"><ProductFollowControl state={followState} productName={result.product.name} surface="product" slug={result.product.slug} event={journeyContext?.eventSlug ?? null} /></section>}
       {result.product.is_seed_data && <p class="intelligence-disclosure" role="note">Local demo catalogue: this record is a removable review fixture, not a certification or endorsement.</p>}
       {journeyContext && (
         <section class="panel panel-pad">

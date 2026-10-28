@@ -1,0 +1,34 @@
+---
+import { followStatusMessages, isFollowStatus, type FollowSurface, type ProductFollowState } from '../../lib/product-follows';
+interface Props {
+  state: ProductFollowState;
+  productName: string;
+  surface: Exclude<FollowSurface, 'following'>;
+  slug: string;
+  event?: string | null;
+}
+const { state, productName, surface, slug, event = null } = Astro.props;
+const status = Astro.url.searchParams.get('follow');
+const message = isFollowStatus(status) ? followStatusMessages[status] : null;
+---
+<section class="product-follow" aria-label="Follow this product">
+  {message && <p id="follow-status" class="form-notice" role={status === 'failed' || status === 'unavailable' ? 'alert' : 'status'} tabindex="-1">{message}</p>}
+  <form method="post" action="/api/product-follows">
+    <input type="hidden" name="product_id" value={state.product_id} />
+    <input type="hidden" name="intent" value={state.following ? 'unfollow' : 'follow'} />
+    <input type="hidden" name="surface" value={surface} />
+    <input type="hidden" name="slug" value={slug} />
+    {event && <input type="hidden" name="from_event" value={event} />}
+    <button class:list={['btn', state.following ? 'product-follow-active' : 'primary']} type="submit" aria-label={state.following ? `Following ${productName}. Select to unfollow.` : `Follow ${productName}`}>
+      {state.following ? 'Following' : 'Follow product'}
+    </button>
+  </form>
+  <p class="field-help">Following is private interest only. It is not an endorsement, use, competence, affiliation or an introduction, and others cannot see which products you follow.</p>
+</section>
+<style>
+.product-follow{display:grid;gap:.6rem;margin-top:1.25rem}
+.product-follow form{margin:0}
+.product-follow .btn{min-height:44px;min-width:44px}
+.product-follow .field-help,.product-follow .form-notice{margin:0;max-width:60ch}
+.product-follow-active{border:2px solid var(--brand-primary);font-weight:700}
+</style>

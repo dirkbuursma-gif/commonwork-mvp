@@ -154,6 +154,18 @@
   text-decoration: underline;
 }
 
+.member-identity-count {
+  display: inline-block;
+  min-width: 1.4em;
+  margin-left: 6px;
+  padding: 0 6px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: .7rem;
+  line-height: 1.5;
+  text-align: center;
+}
+
 .member-avatar {
   display: grid;
   width: 42px;

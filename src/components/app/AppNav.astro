@@ -2,8 +2,8 @@
 import BrandMark from '../BrandMark.astro';
 import MemberIdentityCard from './MemberIdentityCard.astro';
 import type { MemberIdentity } from '../../lib/member-identity';
-interface Props { active: 'today' | 'competence' | 'find' | 'introductions' | 'events' | 'intelligence' | 'none'; identity: MemberIdentity; }
-const { active, identity } = Astro.props;
+interface Props { active: 'today' | 'competence' | 'find' | 'introductions' | 'events' | 'intelligence' | 'none'; identity: MemberIdentity; followingCount?: number | null; }
+const { active, identity, followingCount = null } = Astro.props;
 const links = [
   { id: 'today', label: 'Today', short: 'Today', href: '/today' },
   { id: 'competence', label: 'My competence', short: 'Offer', href: '/competence' },
@@ -14,8 +14,8 @@ const links = [
 ---
 <aside class="sidebar" id="workspace-sidebar">
   <a class="brand" href="/today" aria-label="Commonwork workspace home"><BrandMark /><span>Commonwork</span></a>
-  <MemberIdentityCard identity={identity} />
-  <MemberIdentityCard identity={identity} compact={true} />
+  <MemberIdentityCard identity={identity} followingCount={followingCount} />
+  <MemberIdentityCard identity={identity} followingCount={followingCount} compact={true} />
   <nav class="nav-group" aria-label="Workspace"><span class="nav-label">My workspace</span>{links.map((link) => <a class:list={['nav-link', { active: active === link.id }]} href={link.href} aria-label={link.label} title={link.label} aria-current={active === link.id ? 'page' : undefined}><span class="nav-glyph" aria-hidden="true">·</span><span>{link.label}</span></a>)}</nav>
 </aside>
 <nav class="mobile-nav" aria-label="Workspace">{links.map((link) => <a class:list={['nav-link', { active: active === link.id }]} href={link.href} aria-label={link.label} aria-current={active === link.id ? 'page' : undefined}><span class="nav-glyph" aria-hidden="true">·</span><span>{link.short}</span></a>)}</nav>

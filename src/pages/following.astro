@@ -1,0 +1,113 @@
+---
+import AppLayout from '../layouts/AppLayout.astro';
+import EmptyState from '../components/app/EmptyState.astro';
+import { createSupabaseServerClient } from '../lib/supabase/server';
+import {
+  FOLLOWING_PAGE_SIZE,
+  followStatusMessages,
+  getMyFollowedProductCount,
+  isFollowStatus,
+  listMyFollowedProducts,
+  type FollowedProduct,
+} from '../lib/product-follows';
+
+export const prerender = false;
+Astro.response.headers.set('Cache-Control', 'private, no-store');
+Astro.response.headers.set('Vary', 'Cookie');
+
+const user = Astro.locals.user;
+const localPreview = user?.isLocalTestUser === true;
+const client = localPreview ? null : createSupabaseServerClient(Astro);
+let total = 0;
+let items: FollowedProduct[] = [];
+let page = 1;
+let pageCount = 1;
+let loadError = false;
+if (client) {
+  try {
+    total = await getMyFollowedProductCount(client);
+    pageCount = Math.max(1, Math.ceil(total / FOLLOWING_PAGE_SIZE));
+    const requested = Number(Astro.url.searchParams.get('page'));
+    page = Number.isSafeInteger(requested) && requested > 0 ? Math.min(requested, pageCount) : 1;
+    items = total > 0 ? await listMyFollowedProducts(client, page) : [];
+  } catch {
+    loadError = true;
+  }
+}
+const status = Astro.url.searchParams.get('follow');
+const message = isFollowStatus(status) ? followStatusMessages[status] : null;
+const pageLink = (target: number) => (target > 1 ? `/following?page=${target}` : '/following');
+---
+<AppLayout title="Following products" section="none">
+  <div class="page-head">
+    <div>
+      <div class="eyebrow">Private to you</div>
+      <h1>Following products</h1>
+      <p class="subtitle">A private list of published products you are interested in. Following is interest only. It is not an endorsement, use, competence, affiliation or an introduction, and others cannot see this list.</p>
+    </div>
+  </div>
+  {message && <p id="follow-status" class="form-notice" role={status === 'failed' || status === 'unavailable' ? 'alert' : 'status'} tabindex="-1">{message}</p>}
+  {localPreview ? (
+    <p class="form-notice" role="status">The local preview identity is read-only. Sign in with a local member account.</p>
+  ) : loadError || !client ? (
+    <p class="form-notice error" role="alert">We could not load your following list. Please try again shortly.</p>
+  ) : total === 0 ? (
+    <section class="panel panel-pad">
+      <EmptyState title="You are not following any products" description="Follow a published product from the catalogue to keep a private list of products you are interested in." symbol="＋">
+        <a class="btn primary" href="/catalogue">Browse providers &amp; products</a>
+      </EmptyState>
+    </section>
+  ) : (
+    <section aria-labelledby="following-heading">
+      <h2 id="following-heading" class="following-summary">
+        <span id="following-total">{total}</span> {total === 1 ? 'product' : 'products'} followed
+        {pageCount > 1 && <span class="following-page"> · page {page} of {pageCount}</span>}
+      </h2>
+      <ul class="following-list">
+        {items.map((item) => (
+          <li class="panel panel-pad following-item">
+            <div class="following-copy">
+              {item.available ? (
+                <>
+                  <h3>{item.product_name}</h3>
+                  <p class="field-help">By {item.provider_name}</p>
+                  <a href={`/intelligence/product/${item.product_slug}?workspace=1`} aria-label={`Product details for ${item.product_name}`}>Product details</a>
+                </>
+              ) : (
+                <>
+                  <h3>Product no longer available</h3>
+                  <p class="field-help">This product is not currently published. Your private follow is kept until you unfollow it.</p>
+                </>
+              )}
+            </div>
+            <form method="post" action="/api/product-follows">
+              <input type="hidden" name="product_id" value={item.product_id} />
+              <input type="hidden" name="intent" value="unfollow" />
+              <input type="hidden" name="surface" value="following" />
+              <input type="hidden" name="page" value={String(page)} />
+              <button class="btn" type="submit" aria-label={item.available ? `Unfollow ${item.product_name}` : 'Unfollow unavailable product'}>Unfollow</button>
+            </form>
+          </li>
+        ))}
+      </ul>
+      {pageCount > 1 && (
+        <nav class="following-pagination" aria-label="Following pagination">
+          {page > 1 ? <a class="btn" href={pageLink(page - 1)} rel="prev">Previous</a> : <span class="field-help">Previous</span>}
+          <span aria-current="page">Page {page} of {pageCount}</span>
+          {page < pageCount ? <a class="btn" href={pageLink(page + 1)} rel="next">Next</a> : <span class="field-help">Next</span>}
+        </nav>
+      )}
+    </section>
+  )}
+</AppLayout>
+<style>
+.following-summary{font-size:1.05rem;margin:1.25rem 0 .75rem}
+.following-list{list-style:none;margin:0;padding:0;display:grid;gap:.75rem}
+.following-item{display:flex;align-items:center;justify-content:space-between;gap:1rem;overflow-wrap:anywhere}
+.following-copy{min-width:0}.following-copy h3{margin:0 0 .25rem;font-size:1.05rem}.following-copy p{margin:0 0 .4rem}
+.following-copy a{display:inline-flex;align-items:center;min-height:44px;font-weight:700}
+.following-item form{margin:0;flex:none}.following-item .btn{min-height:44px;min-width:44px}
+.following-pagination{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:.75rem;margin-top:1.25rem}
+.following-pagination .btn{min-height:44px;min-width:44px}
+@media(max-width:600px){.following-item{flex-direction:column;align-items:stretch}.following-item .btn{width:100%}}
+</style>

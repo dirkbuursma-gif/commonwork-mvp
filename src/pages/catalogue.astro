@@ -7,6 +7,8 @@ import { filterPublicCatalogue, type PublicCatalogueEntry, type CatalogueTerm } 
 import { getEventCatalogueSelections } from '../lib/event-catalogue';
 import { getLisbonEventContextBySlug, matchesLisbonEventContext } from '../lib/events/lisbon-context';
 import { resolveEventResourceAccess } from '../lib/events/event-code-server';
+import ProductFollowControl from '../components/app/ProductFollowControl.astro';
+import { getProductFollowState, type ProductFollowState } from '../lib/product-follows';
 export const prerender = false;
 Astro.response.headers.set('Cache-Control', 'private, no-store');
 Astro.response.headers.set('Vary', 'Cookie');
@@ -34,6 +36,10 @@ try {
   if (result.error || !Array.isArray(result.data)) throw new Error('Catalogue unavailable');
   entries = result.data as PublicCatalogueEntry[];
 } catch { loadError = true; }
+let followState: ProductFollowState | null = null;
+if (member && client && product && entries.some((entry) => entry.slug === product)) {
+  try { followState = await getProductFollowState(client, product); } catch { followState = null; }
+}
 const uniqueTerms = (terms: CatalogueTerm[]) => [...new Map(terms.map((term) => [term.slug, term])).values()].sort((a, b) => a.name.localeCompare(b.name));
 const categories = uniqueTerms(entries.flatMap((entry) => entry.categories));
 const competencies = uniqueTerms(entries.flatMap((entry) => entry.competencies));
@@ -96,6 +102,7 @@ if (session && relatedSelections.length) { const access = await resolveEventReso
       </div></details>
       <p class="catalogue-evidence">Evidence: {entry.evidence_maturity || 'Not assessed'}</p>
       {product === entry.slug && productTools && <aside class="catalogue-member-tools" aria-label="Member product tools"><p class="catalogue-label">Member workspace</p><p>Explore relevant expertise or manage your product affiliation. Sign-in and workspace membership are required.</p><a href={productTools} aria-label={productAction}>{member ? 'Open member tools' : user ? 'Continue to member tools' : 'Sign in for member tools'}</a></aside>}
+      {product === entry.slug && followState && <ProductFollowControl state={followState} productName={entry.name} surface="catalogue" slug={entry.slug} />}
     </article>)}</section>
     <nav aria-label="Catalogue pagination">{page > 1 && <a href={link({ page: String(page - 1) })}>Previous</a>} {page < pageCount && <a href={link({ page: String(page + 1) })}>Next</a>}</nav>
   </>}

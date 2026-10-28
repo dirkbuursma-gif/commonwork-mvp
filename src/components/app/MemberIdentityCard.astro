@@ -1,8 +1,9 @@
 ---
 import MemberAvatar from './MemberAvatar.astro';
 import type { MemberAvatarId, MemberIdentity } from '../../lib/member-identity';
-interface Props { identity: Pick<MemberIdentity, 'display_name' | 'username' | 'avatar_id'>; compact?: boolean; }
-const { identity, compact = false } = Astro.props;
+interface Props { identity: Pick<MemberIdentity, 'display_name' | 'username' | 'avatar_id'>; compact?: boolean; followingCount?: number | null; }
+const { identity, compact = false, followingCount = null } = Astro.props;
+const followingLabel = followingCount === null ? 'Following products' : `Following products, ${followingCount}`;
 const displayName = identity.display_name.trim() || 'Member';
 const avatarId: MemberAvatarId = identity.avatar_id || 'initials';
 ---
@@ -13,7 +14,7 @@ const avatarId: MemberAvatarId = identity.avatar_id || 'initials';
       <span class="member-identity-compact-copy"><strong>{displayName}</strong>{identity.username && <span>@{identity.username}</span>}</span>
       <span class="member-identity-chevron" aria-hidden="true">⌄</span>
     </summary>
-    <nav aria-label="Member profile links"><a href="/profiles/me">View profile</a><a href="/onboarding?step=contribution">Edit profile</a><a href="/introductions">My introductions</a></nav>
+    <nav aria-label="Member profile links"><a href="/profiles/me">View profile</a><a href="/onboarding?step=contribution">Edit profile</a><a href="/introductions">My introductions</a><a href="/following" aria-label={followingLabel}>Following products{followingCount !== null && <span class="member-identity-count" aria-hidden="true">{followingCount}</span>}</a></nav>
   </details>
 ) : (
   <section class="member-identity-card" aria-label="Your identity">
@@ -21,6 +22,6 @@ const avatarId: MemberAvatarId = identity.avatar_id || 'initials';
       <MemberAvatar displayName={displayName} avatarId={avatarId} />
       <span class="member-identity-copy"><strong>{displayName}</strong>{identity.username && <span>@{identity.username}</span>}</span>
     </a>
-    <nav aria-label="Member profile links"><a href="/onboarding?step=contribution">Edit profile</a><a href="/introductions">My introductions</a></nav>
+    <nav aria-label="Member profile links"><a href="/onboarding?step=contribution">Edit profile</a><a href="/introductions">My introductions</a><a href="/following" aria-label={followingLabel}>Following products{followingCount !== null && <span class="member-identity-count" aria-hidden="true">{followingCount}</span>}</a></nav>
   </section>
 )}
