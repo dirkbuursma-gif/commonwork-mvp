@@ -2,6 +2,8 @@
 import AppLayout from '../../../layouts/AppLayout.astro';
 import EmptyState from '../../../components/app/EmptyState.astro';
 import MemberAvatar from '../../../components/app/MemberAvatar.astro';
+import ProductFollowControl from '../../../components/app/ProductFollowControl.astro';
+import { getProductFollowState, getRepresentativeFollowerCount, type ProductFollowState } from '../../../lib/product-follows';
 import { createSupabaseServerClient } from '../../../lib/supabase/server';
 import {
   getEligibleProductAffiliates,
@@ -13,6 +15,8 @@ import { getCatalogueJourneyContext } from '../../../lib/event-catalogue';
 import '../../../styles/intelligence.css';
 
 const user = Astro.locals.user;
+Astro.response.headers.set('Cache-Control', 'private, no-store');
+Astro.response.headers.set('Vary', 'Cookie');
 const localPreview = user?.isLocalTestUser === true;
 const supabase = localPreview ? null : createSupabaseServerClient(Astro);
 let result = null;
@@ -23,6 +27,8 @@ type ProductAffiliation = {
 };
 
 let affiliation: ProductAffiliation | null = null;
+let followState: ProductFollowState | null = null;
+let followerCount: number | 'unavailable' | null = null;
 let eligibleAffiliates: EligibleProductAffiliate[] = [];
 const journeyContext = getCatalogueJourneyContext(
   Astro.url.searchParams.get('from_event'),
@@ -40,6 +46,8 @@ if (supabase) {
       );
     }
     if (result && user) {
+      try { followState = await getProductFollowState(supabase, Astro.params.slug ?? ''); } catch { followState = null; }
+      try { followerCount = await getRepresentativeFollowerCount(supabase, result.product.id); } catch { followerCount = null; }
       const { data } = await supabase
         .from('profile_product_affiliations')
         .select('verification_status, role_title')
@@ -75,6 +83,20 @@ if (supabase) {
       </div>
     </div>
     <div class="stack">
+      {followState && <section class="panel panel-pad"><ProductFollowControl state={followState} productName={result.product.name} surface="product" slug={result.product.slug} event={journeyContext?.eventSlug ?? null} /></section>}
+      {followerCount !== null && (
+        <section class="panel panel-pad" aria-labelledby="representative-followers-heading">
+          <div class="eyebrow">Product representative view</div>
+          <h2 id="representative-followers-heading">Product followers</h2>
+          <p class="field-help">Visible only to representatives authorised for this product. It is not shown to other members or publicly.</p>
+          {typeof followerCount === 'number' ? (
+            <p><strong id="product-follower-count">{followerCount}</strong> {followerCount === 1 ? 'member follows' : 'members follow'} this product</p>
+          ) : (
+            <p role="status">The follower figure is temporarily unavailable.</p>
+          )}
+          <p class="field-help">This measures interest within Commonwork. It is not product use, endorsement or overall market popularity. It counts current follows from members with active workspace access, and you cannot see who they are.</p>
+        </section>
+      )}
       {result.product.is_seed_data && <p class="intelligence-disclosure" role="note">Local demo catalogue: this record is a removable review fixture, not a certification or endorsement.</p>}
       {journeyContext && (
         <section class="panel panel-pad">
