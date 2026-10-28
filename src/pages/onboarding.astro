@@ -150,8 +150,8 @@ const isReadyForConversations = evidence.length > 0;
               <textarea id="professional-summary" name="professional_summary" required maxlength="1200" rows="3" placeholder="Describe the work you do and the problems you understand.">{profile?.professional_summary ?? ''}</textarea>
             </label>
             <label class="field" for="avatar-id">Built-in avatar
-              <select id="avatar-id" name="avatar_id" value={identity?.avatar_id ?? 'initials'}>
-                {MEMBER_AVATARS.map((avatar) => <option value={avatar.id}>{avatar.label}</option>)}
+              <select id="avatar-id" name="avatar_id">
+                {MEMBER_AVATARS.map((avatar) => <option value={avatar.id} selected={avatar.id === (identity?.avatar_id ?? 'initials')}>{avatar.label}</option>)}
               </select>
             </label>
             {identity?.username ? (
