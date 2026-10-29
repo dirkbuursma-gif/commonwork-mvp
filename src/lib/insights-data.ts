@@ -10,6 +10,10 @@ export interface EditorialInsight {
   desk: 'Product Data' | 'Standards & Regulation' | 'Ecosystem';
   format: 'Analysis' | 'Brief' | 'Vendor Watch';
   status: 'draft' | 'published';
+  content_type: 'commonwork_insight' | 'company_insight' | 'company_update';
+  provider_id: string | null;
+  provider_product_id: string | null;
+  public_author_name: string | null;
   linked_product_slug: string | null;
   published_at: string | null;
   created_at: string;
@@ -17,7 +21,7 @@ export interface EditorialInsight {
 }
 
 const editorialFields =
-  'id, slug, title, deck, summary, body, desk, format, status, linked_product_slug, published_at, created_at, updated_at';
+  'id, slug, title, deck, summary, body, desk, format, status, content_type, provider_id, provider_product_id, public_author_name, linked_product_slug, published_at, first_published_at, withdrawn_at, created_at, updated_at';
 
 export async function listEditorialInsights(supabase: SupabaseClient): Promise<EditorialInsight[]> {
   const { data, error } = await supabase

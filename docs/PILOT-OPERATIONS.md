@@ -104,6 +104,26 @@ npm run representative:revoke -- member@example.com some-product-slug
 
 The count covers active follows from members whose workspace membership is active. It measures interest within Commonwork, not product use, endorsement or market popularity. Representatives never see who follows.
 
+### Founding company publishing pilot
+
+Company writers are separate from Commonwork administrators and product representatives. A writer must have active workspace membership, a curator-approved company affiliation, an explicit provider- or product-scoped writer assignment and an active company entitlement. This release's supported entitlement is complimentary founding-pilot access only; no payment is collected or inferred. Paid grants are rejected until a separately reviewed billing-evidence pathway exists. Grant records a review date 90 days later; access does not automatically expire or become chargeable. An authorized administrator must explicitly revoke or expire access after review.
+
+Use the trusted CLI with an active Commonwork administrator identity. Writer identity is an exact profile UUID, not a display-name lookup. Confirm that identity independently before any grant. Product scope, when provided, must belong to the selected company. The CLI refuses member-controlled access and applies the same environment labels and production confirmation guard as other administrator tools.
+
+```sh
+npm run company-publishing -- entitlement-grant plumbed
+npm run company-publishing -- writer-grant <profile-uuid> plumbed
+npm run company-publishing -- writer-grant <profile-uuid> geoffy <product-slug>
+npm run company-publishing -- list plumbed
+npm run company-publishing -- writer-revoke <profile-uuid> plumbed
+npm run company-publishing -- entitlement-expire plumbed
+npm run company-publishing -- entitlement-revoke plumbed
+```
+
+The first company publication by each author requires a Commonwork editorial administrator's explicit approval. Subsequent publication remains conditional on current membership, verified company affiliation, scope and entitlement. Company-only articles notify company followers; product-scoped articles notify company and matching product followers once per recipient/article. Notifications are recipient-private in-app records only; no publication email is queued. Withdrawal, draft saves, edits and republishing do not create new publication notifications. Company follows are distinct from product follows and do not expose follower identities to writers.
+
+Production catalogue publication still requires reviewed company details, website and provenance. Development and local acceptance use clearly labelled synthetic fixtures; missing real writer accounts must not be resolved by guessing from names.
+
 The same operator credentials and environment rules apply to report and privacy commands. List commands show summaries; use `view` only when case details are needed. Status changes require a 3-2,000 character `--note`, are executed through active-administrator-only database functions, and are written to `commonwork_pilot_audit` in the same transaction.
 
 ```sh

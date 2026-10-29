@@ -1,0 +1,23 @@
+---
+import { isProviderFollowStatus, providerFollowStatusMessages, type ProviderFollowState } from '../../lib/company-follows';
+interface Props { state: ProviderFollowState; providerName: string; slug: string; surface?: 'provider' | 'following' }
+const { state, providerName, slug, surface = 'provider' } = Astro.props;
+const status = Astro.url.searchParams.get('company_follow');
+const message = isProviderFollowStatus(status) ? providerFollowStatusMessages[status] : null;
+---
+<section class="provider-follow" aria-label="Follow this company">
+  {message && <p class="form-notice" role={status === 'failed' || status === 'unavailable' ? 'alert' : 'status'}>{message}</p>}
+  <form method="post" action="/api/company-follows">
+    <input type="hidden" name="provider_id" value={state.provider_id} />
+    <input type="hidden" name="intent" value={state.following ? 'unfollow' : 'follow'} />
+    <input type="hidden" name="surface" value={surface} />
+    <input type="hidden" name="slug" value={slug} />
+    <button class:list={['btn', state.following ? 'provider-follow-active' : 'primary']} type="submit" aria-label={state.following ? `Following ${providerName}. Select to unfollow.` : `Follow ${providerName}`}>
+      {state.following ? 'Following company' : 'Follow company'}
+    </button>
+  </form>
+  <p class="field-help">Company following is private. It is not an endorsement, and companies cannot see who follows them.</p>
+</section>
+<style>
+.provider-follow{display:grid;gap:.6rem;margin-top:1rem}.provider-follow form{margin:0}.provider-follow .btn{min-height:44px;min-width:44px}.provider-follow .field-help,.provider-follow .form-notice{margin:0;max-width:60ch}.provider-follow-active{border:2px solid var(--brand-primary);font-weight:700}
+</style>

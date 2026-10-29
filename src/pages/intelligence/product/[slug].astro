@@ -30,6 +30,7 @@ let affiliation: ProductAffiliation | null = null;
 let followState: ProductFollowState | null = null;
 let followerCount: number | 'unavailable' | null = null;
 let eligibleAffiliates: EligibleProductAffiliate[] = [];
+let productPublications: Array<{ slug: string; title: string; summary: string; content_type: string; published_at: string | null }> = [];
 const journeyContext = getCatalogueJourneyContext(
   Astro.url.searchParams.get('from_event'),
   Astro.params.slug,
@@ -44,6 +45,11 @@ if (supabase) {
         result.product.id,
         result.provider.id,
       );
+      const { data } = await supabase.from('insight_articles')
+        .select('slug, title, summary, content_type, published_at')
+        .eq('provider_product_id', result.product.id).eq('status', 'published')
+        .order('published_at', { ascending: false }).limit(10);
+      productPublications = (data ?? []) as typeof productPublications;
     }
     if (result && user) {
       try { followState = await getProductFollowState(supabase, Astro.params.slug ?? ''); } catch { followState = null; }
@@ -98,6 +104,7 @@ if (supabase) {
         </section>
       )}
       {result.product.is_seed_data && <p class="intelligence-disclosure" role="note">Local demo catalogue: this record is a removable review fixture, not a certification or endorsement.</p>}
+      {productPublications.length > 0 && <section class="stack" aria-labelledby="product-publications-title"><div class="panel-head"><div><div class="eyebrow">Product publications</div><h2 id="product-publications-title">Updates about {result.product.name}</h2></div></div><div class="intelligence-grid">{productPublications.map((publication) => <article class="panel panel-pad intelligence-card"><span class="eyebrow">{publication.content_type === 'company_update' ? 'Product update' : 'Insight'}</span><h3>{publication.title}</h3><p>{publication.summary}</p><a class="text-link" href={`/insights/${publication.slug}`}>Read publication</a></article>)}</div></section>}
       {journeyContext && (
         <section class="panel panel-pad">
           <div class="eyebrow">From the event</div>

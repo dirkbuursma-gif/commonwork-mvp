@@ -5,14 +5,15 @@ import { createProducts, followRows, removeProducts } from './helpers/product-fi
 const ORIGIN = 'http://127.0.0.1:4322';
 const previousKeys = [
   'exported_at', 'authentication_email', 'profile', 'competencies', 'contact_preferences', 'contact_methods',
-  'needs', 'introductions', 'feedback', 'privacy_requests', 'notifications', 'blocked_members',
+  'needs', 'introductions', 'feedback', 'privacy_requests', 'notifications', 'blocked_members', 'provider_follows',
 ];
 type ExportedFollow = { product_id: string; followed_at: string; available: boolean; product_slug: string | null; product_name: string | null; provider_name: string | null };
+type ExportedProviderFollow = { provider_id: string; followed_at: string; available: boolean | null; provider_slug: string | null; provider_name: string | null };
 
 async function exportOf(member: { client: { rpc: (name: string) => PromiseLike<{ data: unknown; error: unknown }> } }) {
   const { data, error } = await member.client.rpc('export_my_member_data');
   expect(error).toBeNull();
-  return data as Record<string, unknown> & { product_follows: ExportedFollow[] };
+  return data as Record<string, unknown> & { product_follows: ExportedFollow[]; provider_follows: ExportedProviderFollow[] };
 }
 
 test('the export keeps every existing field and adds only the member\'s own active follows with followed_at', async () => {
@@ -26,11 +27,14 @@ test('the export keeps every existing field and adds only the member\'s own acti
     const empty = await exportOf(member);
     expect(Object.keys(empty).sort()).toEqual([...previousKeys, 'product_follows'].sort());
     expect(empty.product_follows).toEqual([]);
+    expect(empty.provider_follows).toEqual([]);
     expect(empty).toMatchObject({ authentication_email: member.email, profile: { id: member.id } });
 
     expect((await member.client.rpc('follow_product', { target_product_id: first!.productId })).error).toBeNull();
     expect((await member.client.rpc('follow_product', { target_product_id: second!.productId })).error).toBeNull();
+    expect((await member.client.rpc('follow_provider', { target_provider_id: first!.providerId })).error).toBeNull();
     expect((await neighbour.client.rpc('follow_product', { target_product_id: other!.productId })).error).toBeNull();
+    expect((await neighbour.client.rpc('follow_provider', { target_provider_id: other!.providerId })).error).toBeNull();
     expect((await neighbour.client.rpc('follow_product', { target_product_id: first!.productId })).error).toBeNull();
 
     const stored = new Map((await followRows(admin, member.id)).map((row) => [row.provider_product_id as string, row.followed_at as string]));
@@ -43,15 +47,19 @@ test('the export keeps every existing field and adds only the member\'s own acti
     }
     const firstRow = exported.product_follows.find((row) => row.product_id === first!.productId)!;
     expect(firstRow).toMatchObject({ product_slug: first!.slug, product_name: first!.name, provider_name: first!.providerName });
+    expect(exported.provider_follows).toHaveLength(1);
+    expect(exported.provider_follows[0]).toMatchObject({ provider_id: first!.providerId, available: true, provider_slug: expect.any(String), provider_name: first!.providerName });
     for (const key of previousKeys) expect(exported, key).toHaveProperty(key);
 
     // Cross-member isolation in both directions: nothing of the neighbour appears, and vice versa.
     const memberJson = JSON.stringify(exported);
     expect(memberJson).not.toContain(other!.productId);
     expect(memberJson).not.toContain(other!.name);
+    expect(memberJson).not.toContain(other!.providerId);
     expect(memberJson).not.toContain(neighbour.id);
     const neighbourExport = await exportOf(neighbour);
     expect(new Set(neighbourExport.product_follows.map((row) => row.product_id))).toEqual(new Set([other!.productId, first!.productId]));
+    expect(neighbourExport.provider_follows.map((row) => row.provider_id)).toEqual([other!.providerId]);
     expect(JSON.stringify(neighbourExport)).not.toContain(second!.productId);
     expect(JSON.stringify(neighbourExport)).not.toContain(member.id);
 
@@ -81,6 +89,7 @@ test('unavailable products appear only as a stable reference and followed_at, wi
   const member = await createLocalMember('Unavailable Export Member');
   try {
     for (const target of [byProduct!, byProvider!, live!]) expect((await member.client.rpc('follow_product', { target_product_id: target.productId })).error).toBeNull();
+    expect((await member.client.rpc('follow_provider', { target_provider_id: byProvider!.providerId })).error).toBeNull();
     expect((await admin.from('provider_publication_status').update({ status: 'draft' }).eq('provider_product_id', byProduct!.productId)).error).toBeNull();
     expect((await admin.from('provider_publication_status').update({ status: 'draft' }).eq('provider_id', byProvider!.providerId)).error).toBeNull();
 
@@ -95,6 +104,7 @@ test('unavailable products appear only as a stable reference and followed_at, wi
       expect(json, secret).not.toContain(secret);
     }
     expect(exported.product_follows.find((entry) => entry.product_id === live!.productId)).toMatchObject({ available: true, product_name: live!.name });
+    expect(exported.provider_follows).toEqual([expect.objectContaining({ provider_id: byProvider!.providerId, available: false, provider_slug: null, provider_name: null })]);
   } finally {
     await removeProducts(admin, [byProduct!, byProvider!, live!]);
     await member.remove();
@@ -109,6 +119,7 @@ test('the owner download endpoint returns the extended export only to the signed
   const anonymous = await playwrightRequest.newContext({ baseURL: ORIGIN });
   try {
     expect((await member.client.rpc('follow_product', { target_product_id: product!.productId })).error).toBeNull();
+    expect((await member.client.rpc('follow_provider', { target_provider_id: product!.providerId })).error).toBeNull();
     await context.addCookies(member.cookies.map(({ name, value }) => ({ name, value, url: ORIGIN })));
     const download = await context.request.get(`${ORIGIN}/api/privacy`);
     expect(download.status()).toBe(200);
@@ -117,6 +128,7 @@ test('the owner download endpoint returns the extended export only to the signed
     const body = await download.json();
     expect(body).toMatchObject({ authentication_email: member.email });
     expect(body.product_follows).toEqual([expect.objectContaining({ product_id: product!.productId, available: true, product_name: product!.name })]);
+    expect(body.provider_follows).toEqual([expect.objectContaining({ provider_id: product!.providerId, available: true })]);
 
     const signedOut = await anonymous.get('/api/privacy', { maxRedirects: 0 });
     expect(signedOut.status()).toBe(303);

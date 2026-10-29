@@ -20,6 +20,7 @@
     "representative:grant": "node scripts/product-representatives.mjs grant",
     "representative:revoke": "node scripts/product-representatives.mjs revoke",
     "representative:list": "node scripts/product-representatives.mjs list",
+    "company-publishing": "node scripts/company-publishing.mjs",
     "signals:report": "node scripts/signals-report.mjs",
     "report:list": "node scripts/pilot-operations.mjs report:list",
     "report:view": "node scripts/pilot-operations.mjs report:view",

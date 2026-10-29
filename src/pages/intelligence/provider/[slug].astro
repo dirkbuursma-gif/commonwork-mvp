@@ -1,6 +1,8 @@
 ---
 import AppLayout from '../../../layouts/AppLayout.astro';
 import EmptyState from '../../../components/app/EmptyState.astro';
+import ProviderFollowControl from '../../../components/app/ProviderFollowControl.astro';
+import { getProviderFollowState, type ProviderFollowState } from '../../../lib/company-follows';
 import { createSupabaseServerClient } from '../../../lib/supabase/server';
 import { getProviderBySlug, recordCatalogueView, type ProviderProduct, type ProviderSummary } from '../../../lib/provider-intelligence';
 import '../../../styles/intelligence.css';
@@ -11,12 +13,24 @@ const supabase = localPreview ? null : createSupabaseServerClient(Astro);
 let provider: ProviderSummary | null = null;
 let products: ProviderProduct[] = [];
 let loadError = false;
+let followState: ProviderFollowState | null = null;
+let companyPublications: Array<{ slug: string; title: string; summary: string; content_type: string; published_at: string | null }> = [];
 
 if (supabase) {
   try {
     const result = await getProviderBySlug(supabase, Astro.params.slug ?? '');
     provider = result?.provider ?? null;
     products = result?.products ?? [];
+    if (result) {
+      const { data } = await supabase.from('insight_articles')
+        .select('slug, title, summary, content_type, published_at')
+        .eq('provider_id', result.provider.id).eq('status', 'published')
+        .order('published_at', { ascending: false }).limit(10);
+      companyPublications = (data ?? []) as typeof companyPublications;
+    }
+    if (result && user) {
+      try { followState = await getProviderFollowState(supabase, Astro.params.slug ?? ''); } catch { followState = null; }
+    }
     if (result) await recordCatalogueView(supabase, 'provider', Astro.params.slug ?? '');
   } catch {
     loadError = true;
@@ -33,6 +47,7 @@ if (supabase) {
 ) : (
   <AppLayout title={provider.name} section="intelligence">
     <div class="page-head"><div><div class="eyebrow">Provider profile</div><h1>{provider.name}</h1><p class="subtitle">{provider.summary}</p></div></div>
+    {followState && <section class="panel panel-pad"><ProviderFollowControl state={followState} providerName={provider.name} slug={provider.slug} /></section>}
     {provider.is_seed_data && <p class="intelligence-disclosure" role="note">Local demo catalogue: this provider record is a removable review fixture.</p>}
     {provider.public_disclosure_note && <p class="intelligence-disclosure">{provider.public_disclosure_note}</p>}
     {provider.website_url && <p><a class="text-link" href={provider.website_url} target="_blank" rel="noopener noreferrer">Provider website</a></p>}
@@ -40,5 +55,6 @@ if (supabase) {
       <div class="panel-head"><div><div class="eyebrow">Published products</div><h2 id="products-title">Products from {provider.name}</h2></div></div>
       {products.length ? <div class="intelligence-grid">{products.map((product) => <a class="panel panel-pad intelligence-card" href={`/intelligence/product/${product.slug}`}><span class="eyebrow">{product.operating_layer || product.contribution_role}</span><h3>{product.name}</h3><p>{product.summary}</p><span class="field-help">Evidence: {product.evidence_maturity || 'not assessed'}</span><span class="text-link">View product profile</span></a>)}</div> : <section class="panel panel-pad"><EmptyState title="No published products" description="No product records are published for this provider." /></section>}
     </section>
+    {companyPublications.length > 0 && <section class="stack" aria-labelledby="company-publications-title"><div class="panel-head"><div><div class="eyebrow">Company publications</div><h2 id="company-publications-title">Updates from {provider.name}</h2></div></div><div class="intelligence-grid">{companyPublications.map((publication) => <article class="panel panel-pad intelligence-card"><span class="eyebrow">{publication.content_type === 'company_update' ? 'Company update' : 'Insight'}</span><h3>{publication.title}</h3><p>{publication.summary}</p><a class="text-link" href={`/insights/${publication.slug}`}>Read publication</a></article>)}</div></section>}
   </AppLayout>
 )}

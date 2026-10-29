@@ -88,6 +88,8 @@ export interface IntroductionNotification {
   id: string;
   profile_id: string;
   introduction_id: string | null;
+  insight_article_id: string | null;
+  insight_article_slug: string | null;
   type: string;
   title: string;
   body: string;
@@ -226,7 +228,7 @@ export async function getMyIntroductionFeedback(client: SupabaseClient, introduc
 export async function getMyIntroductionNotifications(client: SupabaseClient): Promise<IntroductionNotification[]> {
   const { data, error } = await client
     .from('notifications')
-    .select('id, profile_id, introduction_id, type, title, body, read_at, created_at')
+    .select('id, profile_id, introduction_id, insight_article_id, insight_article_slug, type, title, body, read_at, created_at')
     .order('created_at', { ascending: false })
     .limit(30);
   if (error) throw error;
