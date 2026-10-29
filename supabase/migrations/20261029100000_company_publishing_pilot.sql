@@ -1,6 +1,5 @@
 begin;
 
-alter table public.organisations drop constraint if exists organisations_check;
 alter table public.organisations drop constraint if exists organisations_check1;
 alter table public.organisations drop constraint if exists organisations_organisation_type_check;
 alter table public.organisations

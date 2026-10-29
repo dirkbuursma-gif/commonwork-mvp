@@ -71,6 +71,11 @@ test('company publishing requires all gates and sends one private in-app notice 
   try {
     const pilotCompany = await createPilotCompany(admin, 'advisor');
     company = pilotCompany;
+    const invalidSeedOrganisation = await admin.from('organisations').insert({
+      slug: `pilot-invalid-seed-${randomUUID()}`, name: 'Synthetic Invalid Seed', organisation_type: 'advisor',
+      provider_id: company.providerId, is_seed_data: true, seed_batch: null,
+    });
+    expect(invalidSeedOrganisation.error?.code).toBe('23514');
     const [createdProduct, wrongProduct] = await createProducts(admin, 'company-publishing', 2);
     product = createdProduct!;
     wrongOwnerProduct = wrongProduct!;
