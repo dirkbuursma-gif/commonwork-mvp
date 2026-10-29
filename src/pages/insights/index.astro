@@ -13,6 +13,7 @@ const articles = (await getCollection('insights'))
   .filter((article) => !selectedTopic || article.data.desk === selectedTopic.desk)
   .sort((a, b) => b.data.publishDate.valueOf() - a.data.publishDate.valueOf());
 let editorialArticles: EditorialInsight[] = [];
+const providerNames = new Map<string, string>();
 const supabase = createSupabaseServerClient(Astro);
 if (supabase) {
   try {
@@ -22,6 +23,8 @@ if (supabase) {
         !articles.some((retained) => retained.id === article.slug) &&
         (!selectedTopic || article.desk === selectedTopic.desk)
       );
+    const { data: companyRows } = await supabase.rpc('list_public_company_articles');
+    for (const row of companyRows ?? []) providerNames.set(row.slug, row.provider_name);
   } catch {
     editorialArticles = [];
   }
@@ -86,7 +89,7 @@ const formatDate = (date: Date) =>
           </div>
           <h2>{article.title}</h2>
           <p class="insight-summary">{article.summary || article.deck}</p>
-          <p class="insight-byline">By Commonwork Insights</p>
+          <p class="insight-byline">{article.content_type === 'commonwork_insight' ? 'By Commonwork Insights' : `By ${article.public_author_name ?? 'Company author'} for ${providerNames.get(article.slug) ?? 'the represented company'}`}</p>
           <a class="insight-read-link" href={`/insights/${article.slug}`}>Read review</a>
         </article>
       ))}

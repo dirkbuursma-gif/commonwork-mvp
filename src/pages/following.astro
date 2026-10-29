@@ -2,6 +2,7 @@
 import AppLayout from '../layouts/AppLayout.astro';
 import EmptyState from '../components/app/EmptyState.astro';
 import { createSupabaseServerClient } from '../lib/supabase/server';
+import { FOLLOWED_PROVIDER_PAGE_SIZE, getMyFollowedProviderCount, isProviderFollowStatus, listMyFollowedProviders, providerFollowStatusMessages, type FollowedProvider } from '../lib/company-follows';
 import {
   FOLLOWING_PAGE_SIZE,
   followStatusMessages,
@@ -20,45 +21,58 @@ const localPreview = user?.isLocalTestUser === true;
 const client = localPreview ? null : createSupabaseServerClient(Astro);
 let total = 0;
 let items: FollowedProduct[] = [];
+let providerTotal = 0;
+let providerItems: FollowedProvider[] = [];
+let providerPage = 1;
+let providerPageCount = 1;
 let page = 1;
 let pageCount = 1;
 let loadError = false;
 if (client) {
   try {
     total = await getMyFollowedProductCount(client);
+    providerTotal = await getMyFollowedProviderCount(client);
     pageCount = Math.max(1, Math.ceil(total / FOLLOWING_PAGE_SIZE));
     const requested = Number(Astro.url.searchParams.get('page'));
     page = Number.isSafeInteger(requested) && requested > 0 ? Math.min(requested, pageCount) : 1;
     items = total > 0 ? await listMyFollowedProducts(client, page) : [];
+    providerPageCount = Math.max(1, Math.ceil(providerTotal / FOLLOWED_PROVIDER_PAGE_SIZE));
+    const requestedCompanyPage = Number(Astro.url.searchParams.get('company_page'));
+    providerPage = Number.isSafeInteger(requestedCompanyPage) && requestedCompanyPage > 0 ? Math.min(requestedCompanyPage, providerPageCount) : 1;
+    providerItems = providerTotal > 0 ? await listMyFollowedProviders(client, providerPage) : [];
   } catch {
     loadError = true;
   }
 }
 const status = Astro.url.searchParams.get('follow');
 const message = isFollowStatus(status) ? followStatusMessages[status] : null;
+const companyStatus = Astro.url.searchParams.get('company_follow');
+const companyMessage = isProviderFollowStatus(companyStatus) ? providerFollowStatusMessages[companyStatus] : null;
 const pageLink = (target: number) => (target > 1 ? `/following?page=${target}` : '/following');
 ---
-<AppLayout title="Following products" section="none">
+<AppLayout title="Following companies and products" section="none">
   <div class="page-head">
     <div>
       <div class="eyebrow">Private to you</div>
-      <h1>Following products</h1>
-      <p class="subtitle">A private list of published products you are interested in. Following is interest only. It is not an endorsement, use, competence, affiliation or an introduction, and others cannot see this list.</p>
+      <h1>Following companies and products</h1>
+      <p class="subtitle">A private list of published companies and products you are interested in. Following is interest only. It is not an endorsement, use, competence, affiliation or an introduction, and others cannot see this list.</p>
     </div>
   </div>
   {message && <p id="follow-status" class="form-notice" role={status === 'failed' || status === 'unavailable' ? 'alert' : 'status'} tabindex="-1">{message}</p>}
+  {companyMessage && <p id="company-follow-status" class="form-notice" role={companyStatus === 'failed' || companyStatus === 'unavailable' ? 'alert' : 'status'} tabindex="-1">{companyMessage}</p>}
   {localPreview ? (
     <p class="form-notice" role="status">The local preview identity is read-only. Sign in with a local member account.</p>
   ) : loadError || !client ? (
     <p class="form-notice error" role="alert">We could not load your following list. Please try again shortly.</p>
-  ) : total === 0 ? (
+  ) : total === 0 && providerTotal === 0 ? (
     <section class="panel panel-pad">
-      <EmptyState title="You are not following any products" description="Follow a published product from the catalogue to keep a private list of products you are interested in." symbol="＋">
+      <EmptyState title="You are not following any products" description="Follow a published company or product to keep a private list of your interests." symbol="＋">
         <a class="btn primary" href="/catalogue">Browse providers &amp; products</a>
       </EmptyState>
     </section>
   ) : (
-    <section aria-labelledby="following-heading">
+    <>
+    {total > 0 && <section aria-labelledby="following-heading">
       <h2 id="following-heading" class="following-summary">
         <span id="following-total">{total}</span> {total === 1 ? 'product' : 'products'} followed
         {pageCount > 1 && <span class="following-page"> · page {page} of {pageCount}</span>}
@@ -97,7 +111,34 @@ const pageLink = (target: number) => (target > 1 ? `/following?page=${target}` :
           {page < pageCount ? <a class="btn" href={pageLink(page + 1)} rel="next">Next</a> : <span class="field-help">Next</span>}
         </nav>
       )}
-    </section>
+    </section>}
+    {providerTotal > 0 && <section aria-labelledby="following-companies-heading">
+      <h2 id="following-companies-heading" class="following-summary">{providerTotal} {providerTotal === 1 ? 'company' : 'companies'} followed{providerPageCount > 1 && <span class="following-page"> · page {providerPage} of {providerPageCount}</span>}</h2>
+      <ul class="following-list">
+        {providerItems.map((item) => (
+          <li class="panel panel-pad following-item">
+            <div class="following-copy">
+              {item.available && item.provider_slug && item.provider_name ? (
+                <><h3>{item.provider_name}</h3><a href={`/intelligence/provider/${item.provider_slug}`} aria-label={`Company details for ${item.provider_name}`}>Company details</a></>
+              ) : <><h3>Company no longer available</h3><p class="field-help">This company is not currently published. Your private follow is kept until you unfollow it.</p></>}
+            </div>
+            <form method="post" action="/api/company-follows">
+              <input type="hidden" name="provider_id" value={item.provider_id} />
+              <input type="hidden" name="intent" value="unfollow" />
+              <input type="hidden" name="surface" value="following" />
+              <input type="hidden" name="slug" value={item.provider_slug ?? 'unavailable'} />
+              <button class="btn" type="submit" aria-label={item.available ? `Unfollow ${item.provider_name}` : 'Unfollow unavailable company'}>Unfollow</button>
+            </form>
+          </li>
+        ))}
+      </ul>
+      {providerPageCount > 1 && <nav class="following-pagination" aria-label="Company following pagination">
+        {providerPage > 1 ? <a class="btn" href={`/following?company_page=${providerPage - 1}`} rel="prev">Previous</a> : <span class="field-help">Previous</span>}
+        <span aria-current="page">Page {providerPage} of {providerPageCount}</span>
+        {providerPage < providerPageCount ? <a class="btn" href={`/following?company_page=${providerPage + 1}`} rel="next">Next</a> : <span class="field-help">Next</span>}
+      </nav>}
+    </section>}
+    </>
   )}
 </AppLayout>
 <style>

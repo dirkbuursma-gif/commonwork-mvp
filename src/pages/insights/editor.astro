@@ -15,7 +15,17 @@ if (!supabase) return new Response('Insights editorial tools are not configured.
 const { data: allowed } = await supabase.rpc('can_edit_insights');
 if (allowed !== true) return new Response('Insights editor access required.', { status: 403 });
 
-const articles = await listEditorialInsights(supabase);
+const articles = (await listEditorialInsights(supabase)).filter((article) => article.content_type === 'commonwork_insight');
+const { data: pendingCompanyReviewRows } = await supabase.rpc('list_pending_company_first_publications');
+const pendingCompanyPublications = (pendingCompanyReviewRows ?? []) as Array<{
+  profile_id: string;
+  display_name: string;
+  article_id: string;
+  slug: string;
+  title: string;
+  provider_name: string;
+  requested_at: string;
+}>;
 const selectedId = Astro.url.searchParams.get('edit');
 const selected = articles.find((article) => article.id === selectedId);
 const status = Astro.url.searchParams.get('status');
@@ -34,6 +44,16 @@ const status = Astro.url.searchParams.get('status');
   {status && <p class="form-notice" role="status">Editorial action: {status.replace('-', ' ')}.</p>}
 
   <div class="stack">
+    {pendingCompanyPublications?.length > 0 && (
+      <section class="panel panel-pad" aria-labelledby="company-review-heading">
+        <h2 id="company-review-heading">First company publications awaiting review</h2>
+        <ul class="event-material-list">
+          {pendingCompanyPublications.map((item) => (
+            <li class="event-material"><div><span class="event-material-kind">{item.provider_name} · {item.display_name}</span><p class="event-material-title">{item.title}</p></div><div class="intelligence-meta"><a class="btn" href={`/insights/${item.slug}?preview=draft`}>Preview</a><form method="post" action="/api/insights/company-review"><input type="hidden" name="article_id" value={item.article_id} /><button class="btn primary" name="action" value="approve">Approve and publish</button></form><form method="post" action="/api/insights/company-review"><input type="hidden" name="article_id" value={item.article_id} /><button class="btn" name="action" value="reject">Reject</button></form></div></li>
+          ))}
+        </ul>
+      </section>
+    )}
     <section class="panel panel-pad">
       <h2>{selected ? `Edit ${selected.title}` : 'New draft'}</h2>
       <form class="stack" method="post" action="/api/insights/editor">

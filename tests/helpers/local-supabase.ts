@@ -29,6 +29,7 @@ export interface LocalMember {
   provisionAdministrator: () => Promise<void>;
   runConnectorAdminCli: (arguments_: string[], environment?: string) => string;
   runRepresentativeAdminCli: (arguments_: string[], environment?: string) => string;
+  runCompanyPublishingAdminCli: (arguments_: string[], environment?: string) => string;
   runPilotOperationsCli: (arguments_: string[], environment?: string) => string;
   enqueueTestNotification: (type: string) => Promise<string>;
   getTestEmailDelivery: (notificationId: string) => Promise<Record<string, unknown> | null>;
@@ -190,6 +191,17 @@ export async function createLocalMember(displayName: string, options: { workspac
       },
     }),
     runRepresentativeAdminCli: (arguments_, environment = 'local') => execFileSync(process.execPath, ['scripts/product-representatives.mjs', ...arguments_], {
+      cwd: process.cwd(),
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        SUPABASE_URL: config.apiUrl,
+        SUPABASE_SERVICE_ROLE_KEY: config.serviceRoleKey,
+        COMMONWORK_ADMIN_PROFILE_ID: data.user.id,
+        COMMONWORK_ENV: environment,
+      },
+    }),
+    runCompanyPublishingAdminCli: (arguments_, environment = 'local') => execFileSync(process.execPath, ['scripts/company-publishing.mjs', ...arguments_], {
       cwd: process.cwd(),
       encoding: 'utf8',
       env: {

@@ -1,0 +1,62 @@
+---
+import AppLayout from '../../layouts/AppLayout.astro';
+import { createSupabaseServerClient } from '../../lib/supabase/server';
+
+export const prerender = false;
+Astro.response.headers.set('Cache-Control', 'private, no-store');
+Astro.response.headers.set('Vary', 'Cookie');
+const user = Astro.locals.user;
+if (!user || user.isLocalTestUser) return Astro.redirect('/sign-in', 303);
+const supabase = createSupabaseServerClient(Astro);
+if (!supabase) return new Response('Company publishing is not configured.', { status: 503 });
+const { data: scopeRows, error: scopeError } = await supabase.rpc('list_my_company_publishing_scopes');
+if (scopeError || !scopeRows?.length) return new Response('Company publishing access required.', { status: 403 });
+const scopes = scopeRows as Array<{ provider_id: string; provider_name: string; provider_slug: string; provider_product_id: string | null; product_name: string | null; product_slug: string | null }>;
+type CompanyPublication = { id: string; slug: string; title: string; deck: string; summary: string; body: string; desk: string; format: string; status: 'draft' | 'published'; content_type: 'company_insight' | 'company_update'; provider_id: string; provider_product_id: string | null; public_author_name: string | null; published_at: string | null; first_published_at: string | null; withdrawn_at: string | null; created_at: string; updated_at: string; is_author: boolean };
+const { data: publicationRows, error: publicationError } = await supabase.rpc('list_my_company_publications');
+if (publicationError) return new Response('Company publications could not be loaded.', { status: 500 });
+const articles = (publicationRows ?? []) as CompanyPublication[];
+const selectedId = Astro.url.searchParams.get('edit');
+const selected = articles.find((article) => article.id === selectedId && article.is_author);
+const status = Astro.url.searchParams.get('status');
+const messages: Record<string, string> = {
+  saved: 'Draft saved.', 'review-required': 'Your first publication is awaiting Commonwork editorial review.',
+  published: 'Publication is live.', withdrawn: 'Publication withdrawn.', invalid: 'Check the publication details and try again.',
+  'save-failed': 'The draft could not be saved in this company scope.', 'action-failed': 'The publication action could not be completed.',
+};
+const selectedScope = selected ? scopes.find((scope) => scope.provider_id === selected.provider_id && scope.provider_product_id === selected.provider_product_id) : null;
+const editableScopes = selectedScope ? [selectedScope] : scopes;
+---
+<AppLayout title="Company publishing" section="publishing">
+  <div class="page-head"><div><div class="eyebrow">Company publishing</div><h1>Drafts and updates</h1><p class="subtitle">Write on behalf of an explicitly assigned company or product. Your name and represented company appear with published content.</p></div><a class="btn" href="/insights">View Insights</a></div>
+  {status && messages[status] && <p class="form-notice" role="status">{messages[status]}</p>}
+  <section class="panel panel-pad">
+    <h2>{selected ? 'Edit your draft' : 'New company publication'}</h2>
+    <form class="stack" method="post" action="/api/company-publishing">
+      <input type="hidden" name="action" value="save" />
+      {selected && <input type="hidden" name="article_id" value={selected.id} />}
+      <label>Company or assigned product
+        <select name="scope" required>
+          {editableScopes.map((scope) => <option value={`${scope.provider_id}:${scope.provider_product_id ?? ''}`} selected={selected?.provider_id === scope.provider_id && selected.provider_product_id === scope.provider_product_id}>{scope.provider_name}{scope.product_name ? ` · ${scope.product_name}` : ' · Company'}</option>)}
+        </select>
+      </label>
+      <label>Publication type<select name="content_type"><option value="company_insight" selected={selected?.content_type === 'company_insight'}>Insight</option><option value="company_update" selected={selected?.content_type === 'company_update'}>Company or product update</option></select></label>
+      <label>Title<input name="title" required maxlength="200" value={selected?.title ?? ''} /></label>
+      <label>URL name<input name="slug" required maxlength="100" pattern="[a-z0-9]+(?:-[a-z0-9]+)*" value={selected?.slug ?? ''} /></label>
+      <label>Deck<textarea name="deck" maxlength="1000" rows="3">{selected?.deck ?? ''}</textarea></label>
+      <label>Summary<textarea name="summary" maxlength="1000" rows="3">{selected?.summary ?? ''}</textarea></label>
+      <label>Body<textarea name="body" maxlength="50000" rows="14">{selected?.body ?? ''}</textarea></label>
+      <input type="hidden" name="desk" value={selected?.desk ?? 'Ecosystem'} />
+      <input type="hidden" name="format" value={selected?.format ?? 'Brief'} />
+      {selected?.status === 'published' && <p class="field-help">Saving edits withdraws the live version. Republish explicitly when ready; it will not notify followers again.</p>}
+      <button class="btn primary" type="submit">Save draft</button>
+    </form>
+  </section>
+  <section class="stack" aria-labelledby="company-publications-heading">
+    <h2 id="company-publications-heading">Your company publications</h2>
+    {articles.length ? <ul class="event-material-list">{articles.map((item) => {
+      const isAuthor = item.is_author;
+      return <li class="event-material"><div><span class="event-material-kind">{item.status} · {item.content_type === 'company_update' ? 'update' : 'insight'}</span><p class="event-material-title">{item.title}</p></div><div class="intelligence-meta">{isAuthor && <a class="btn" href={`/company/publishing?edit=${item.id}`}>Edit</a>}<a class="btn" href={`/insights/${item.slug}${item.status === 'draft' ? '?preview=draft' : ''}`}>Preview</a>{isAuthor && item.status === 'draft' && <form method="post" action="/api/company-publishing"><input type="hidden" name="article_id" value={item.id} /><button class="btn" name="action" value="publish">Publish</button></form>}{isAuthor && item.status === 'published' && <form method="post" action="/api/company-publishing"><input type="hidden" name="article_id" value={item.id} /><button class="btn" name="action" value="withdraw">Withdraw</button></form>}</div></li>;
+    })}</ul> : <p class="event-note">No company publications yet.</p>}
+  </section>
+</AppLayout>

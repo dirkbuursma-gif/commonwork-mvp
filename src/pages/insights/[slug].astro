@@ -14,11 +14,21 @@ const article = articles.find((entry) => entry.id === slug && insightArticleSlug
 const renderedArticle = article ? await render(article) : null;
 const ArticleContent = renderedArticle?.Content;
 let editorialArticle = null;
+let companyName: string | null = null;
+let productName: string | null = null;
 if (!article && slug) {
   const supabase = createSupabaseServerClient(Astro);
   if (supabase) {
     try {
-      editorialArticle = await getEditorialInsight(supabase, slug);
+      const { data: companyRows, error: companyError } = await supabase.rpc('get_company_article_view', { target_slug: slug });
+      const companyRow = companyError ? null : (companyRows ?? [])[0];
+      if (companyRow) {
+        editorialArticle = { ...companyRow, linked_product_slug: companyRow.product_slug };
+        companyName = companyRow.provider_name;
+        productName = companyRow.product_name;
+      } else {
+        editorialArticle = await getEditorialInsight(supabase, slug);
+      }
       if (editorialArticle?.status === 'draft' && Astro.url.searchParams.get('preview') !== 'draft') {
         editorialArticle = null;
       }
@@ -110,10 +120,14 @@ const formatDate = (date: Date) =>
         </div>
         <h1>{editorialArticle.title}</h1>
         <p class="insight-deck">{editorialArticle.deck}</p>
-        <p class="insight-article-byline">Commonwork Insights</p>
+        {editorialArticle.content_type === 'commonwork_insight' ? (
+          <p class="insight-article-byline">Commonwork Insights</p>
+        ) : (
+          <p class="insight-article-byline">By {editorialArticle.public_author_name ?? 'Company author'} for {companyName ?? 'the represented company'}{productName ? ` · ${productName}` : ''}</p>
+        )}
       </header>
       <div class="insight-prose">
-        {editorialArticle.body.split(/\n\s*\n/).filter(Boolean).map((paragraph) => <p>{paragraph}</p>)}
+        {editorialArticle.body.split(/\n\s*\n/).filter(Boolean).map((paragraph: string) => <p>{paragraph}</p>)}
       </div>
       {editorialArticle.linked_product_slug && (
         <aside class="insight-about-callout" aria-label="Related catalogue entry">

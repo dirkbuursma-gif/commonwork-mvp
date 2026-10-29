@@ -68,7 +68,7 @@ function introLabel(item: (typeof introductions)[number]) {
           <div class="panel-head"><div><h2 id="notifications-title">Updates</h2><p>Private, in-app introduction notifications.</p></div></div>
           <ul class="introduction-notifications">
             {notifications.filter((notification) => !notification.read_at).map((notification) => (
-              <li><div><strong>{notification.title}</strong><p>{notification.body}</p></div><div class="notification-actions">{notification.introduction_id && <a class="btn" href={`/introductions/${notification.introduction_id}`}>Open</a>}<form method="post" action={`/api/notifications/${notification.id}`}><button class="btn" type="submit">Mark read</button></form></div></li>
+              <li><div><strong>{notification.title}</strong><p>{notification.body}</p></div><div class="notification-actions">{notification.introduction_id && <a class="btn" href={`/introductions/${notification.introduction_id}`}>Open</a>}{notification.insight_article_slug && <a class="btn" href={`/insights/${notification.insight_article_slug}`}>Read publication</a>}<form method="post" action={`/api/notifications/${notification.id}`}><button class="btn" type="submit">Mark read</button></form></div></li>
             ))}
           </ul>
         </section>
