@@ -159,6 +159,15 @@ test('company publishing requires all gates and sends one private in-app notice 
     expect((await writer.client.rpc('publish_company_content', { target_article_id: articleId })).data).toBe('review_required');
     expect((await admin.from('notifications').select('id').eq('insight_article_id', articleId)).data).toEqual([]);
     expect((await outsider.client.from('insight_articles').select('id').eq('id', articleId)).data).toEqual([]);
+    const anonymousDraftContext = await playwrightRequest.newContext({ baseURL: ORIGIN });
+    try {
+      const anonymousDraft = await anonymousDraftContext.get(`/insights/${articleSlug}?preview=draft`);
+      expect(anonymousDraft.status()).toBe(404);
+      expect(await anonymousDraft.text()).not.toContain('Synthetic company update');
+      expect(await anonymousDraft.text()).not.toContain(writer.id);
+    } finally {
+      await anonymousDraftContext.dispose();
+    }
     expect((await outsider.client.rpc('save_company_content', {
       target_article_id: null, target_slug: `outside-${randomUUID()}`, target_title: 'Denied', target_deck: '', target_summary: '',
       target_body: '', target_desk: 'Ecosystem', target_format: 'Brief', target_content_type: 'company_update',
