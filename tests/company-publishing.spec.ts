@@ -302,9 +302,19 @@ test('company publishing requires all gates and sends one private in-app notice 
   } finally {
     await Promise.all([operatorContext?.close(), writerContext?.close()].filter(Boolean));
     if (company) {
+      await admin.from('company_publication_review_audit').delete().eq('provider_id', company.providerId);
       await admin.from('insight_articles').delete().eq('provider_id', company.providerId);
-      await admin.from('providers').delete().eq('id', company.providerId);
+      await admin.from('company_operator_audit').delete().eq('provider_id', company.providerId);
+      await admin.from('company_membership_audit').delete().eq('provider_id', company.providerId);
+      await admin.from('company_publishing_assignment_audit').delete().eq('provider_id', company.providerId);
+      await admin.from('company_publishing_entitlement_audit').delete().eq('provider_id', company.providerId);
+      await admin.from('company_memberships').delete().eq('provider_id', company.providerId);
+      await admin.from('company_publishing_assignments').delete().eq('provider_id', company.providerId);
+      await admin.from('company_publishing_entitlements').delete().eq('provider_id', company.providerId);
+      await admin.from('provider_follows').delete().eq('provider_id', company.providerId);
+      await admin.from('provider_publication_status').delete().eq('provider_id', company.providerId);
       await admin.from('organisations').delete().eq('id', company.organisationId);
+      await admin.from('providers').delete().eq('id', company.providerId);
     }
     if (product) await removeProducts(admin, [product, ...(wrongOwnerProduct ? [wrongOwnerProduct] : [])]);
     await Promise.all(members.map((member) => member.remove()));
