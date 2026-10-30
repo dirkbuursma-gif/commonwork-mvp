@@ -126,6 +126,16 @@ Production catalogue publication still requires reviewed company details, websit
 
 The same operator credentials and environment rules apply to report and privacy commands. List commands show summaries; use `view` only when case details are needed. Status changes require a 3-2,000 character `--note`, are executed through active-administrator-only database functions, and are written to `commonwork_pilot_audit` in the same transaction.
 
+## Company membership operations
+
+Use the administrator-only `/admin/companies` application workspace for real company records, people, Business membership terms, affiliations, catalogue status, writer assignments and company audit history. Access is checked in middleware/page code and again by every database RPC. The normal application client is used; no service-role key is exposed to the browser. Seed/demo companies cannot be converted into real company records through this interface.
+
+Search for existing providers and unlinked organisations before creating records. Company creation requires provenance fields; a provider profile starts as a draft. Do not invent products for advisory or research companies. Catalogue publication requires an accurate sourced summary and an explicit review action. Link people by exact email only after an existing account is confirmed; this flow neither creates accounts nor sends invitations. For people without accepted accounts, use the separately approved existing invitation process, then link after acceptance. Do not create an account from a name match.
+
+The assignable plan is Business. Community and Professional are retained as unconfigured, unavailable plan definitions, not quoted benefits. Record seat count and seat terms separately from each person's writer scope. An active membership does not automatically grant the publishing entitlement or writer assignments. Grant/revoke those explicitly; publishing also requires a verified affiliation and active workspace membership. Complimentary founding terms receive a review date 90 days after activation, with no automatic expiry, charge or conversion. A commercial agreement requires recorded agreement evidence; it does not mean payment was received. Membership suspension/revocation removes effective publishing access without deleting company content or audit history.
+
+The offer document is [Business Membership Offer Template](./BUSINESS-MEMBERSHIP-OFFER-TEMPLATE.md). It is not approval to send an offer. Prices, currency, billing period, tax treatment, seat terms, renewal and cancellation must be agreed before quoting. Never present unconfigured Professional/Community benefits, unlimited introductions, personal research, consulting, or planned features as included.
+
 ```sh
 npm run report:list
 npm run report:view -- <report-id>

@@ -18,6 +18,7 @@ let identity: MemberIdentity = { profile_id: user?.id ?? '', display_name: 'Memb
 let followingCount: number | null = null;
 let companyFollowingCount: number | null = null;
 let hasCompanyPublishing = false;
+let hasCompanyAdministration = false;
 if (user && !user.isLocalTestUser) {
   const client = createSupabaseServerClient(Astro);
   if (client) {
@@ -30,6 +31,8 @@ if (user && !user.isLocalTestUser) {
     if (companyCountResult.status === 'fulfilled') companyFollowingCount = companyCountResult.value;
     const { data: publishingScopes } = await client.rpc('list_my_company_publishing_scopes');
     hasCompanyPublishing = Boolean(publishingScopes?.length);
+    const { data: canEditInsights } = await client.rpc('can_edit_insights');
+    hasCompanyAdministration = canEditInsights === true;
   }
 }
 ---
@@ -39,6 +42,7 @@ if (user && !user.isLocalTestUser) {
 <a class="shell-skip" href="#main-content">Skip to content</a>
 <div class="app-frame"><AppNav active={section} identity={identity} followingCount={followingCount} companyFollowingCount={companyFollowingCount} hasCompanyPublishing={hasCompanyPublishing} /><div class="main-shell">
 <header class="topbar shared-topbar"><div class="shell-navigation"><button class="btn sidebar-toggle" type="button" aria-controls="workspace-sidebar" aria-expanded="true" aria-label="Toggle workspace sidebar">My workspace</button><WorkspaceExplore /><MemberIdentityCard identity={identity} followingCount={followingCount} companyFollowingCount={companyFollowingCount} compact={true} /></div><div class="topbar-actions">
+{hasCompanyAdministration && <a class="btn" href="/admin/companies">Companies</a>}
 {user?.isLocalTestUser && <form class="dev-session-form" method="post" action="/api/auth/end-test-session"><span class="dev-session-label">Local test session</span><button class="btn" type="submit">End test session</button></form>}
 {user && !user.isLocalTestUser && <form method="post" action="/api/auth/sign-out"><button class="btn" type="submit">Sign out</button></form>}<ThemeToggle /></div></header>
 <main id="main-content" class:list={{ 'editorial-main': editorial }}><div class="breadcrumb shell-breadcrumb">Commonwork <span aria-hidden="true">/</span> {title}</div><slot /></main><SupportContact />

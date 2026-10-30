@@ -1,0 +1,258 @@
+---
+import AppLayout from '../../layouts/AppLayout.astro';
+import { createSupabaseServerClient } from '../../lib/supabase/server';
+
+export const prerender = false;
+Astro.response.headers.set('Cache-Control', 'private, no-store');
+Astro.response.headers.set('Vary', 'Cookie');
+const user = Astro.locals.user;
+if (!user || user.isLocalTestUser) return Astro.redirect('/sign-in', 303);
+const supabase = createSupabaseServerClient(Astro);
+if (!supabase) return new Response('Company administration is not configured.', { status: 503 });
+const { data: allowed } = await supabase.rpc('can_edit_insights');
+if (allowed !== true) return new Response('Application administrator access required.', { status: 403 });
+
+const search = (Astro.url.searchParams.get('search') ?? '').trim().slice(0, 120);
+const selectedProviderId = Astro.url.searchParams.get('company') ?? '';
+const { data: companyRows, error: searchError } = await supabase.rpc('admin_search_companies', { search_term: search });
+const companies = (companyRows ?? []) as Array<{
+  provider_id: string | null; provider_slug: string | null; provider_name: string; organisation_id: string | null;
+  organisation_slug: string | null; organisation_type: string | null; catalogue_status: string | null;
+  membership_status: string | null; commercial_status: string | null; is_seed_data: boolean;
+}>;
+let overview: Record<string, any> | null = null;
+let audit: Array<Record<string, any>> = [];
+let overviewError = false;
+if (/^[0-9a-f-]{36}$/i.test(selectedProviderId)) {
+  const [{ data, error }, { data: auditRows }] = await Promise.all([
+    supabase.rpc('admin_company_overview', { target_provider_id: selectedProviderId }),
+    supabase.rpc('admin_company_audit', { target_provider_id: selectedProviderId }),
+  ]);
+  overview = data as Record<string, any> | null;
+  overviewError = Boolean(error || !data);
+  audit = (auditRows ?? []) as Array<Record<string, any>>;
+}
+const provider = overview?.provider;
+const organisation = overview?.organisation;
+const membership = overview?.membership;
+const catalogue = overview?.catalogue;
+const entitlement = overview?.publishing_entitlement;
+const products = (overview?.products ?? []) as Array<{ id: string; slug: string; name: string; status: string | null }>;
+const people = (overview?.people ?? []) as Array<{
+  profile_id: string; email: string; display_name: string; role_title: string; is_primary: boolean;
+  verification_status: string; verification_basis: string; verified_at: string | null; verified_by: string | null;
+  workspace_status: string; assignments: Array<{ id: string; provider_product_id: string | null; status: string; granted_at: string; revoked_at: string | null }>;
+}>;
+const linkedCompany = companies.find((company) => company.provider_id === selectedProviderId);
+const selectedOrganisationId = organisation?.id ?? linkedCompany?.organisation_id ?? '';
+const currentStatus = Astro.url.searchParams.get('status');
+---
+
+<AppLayout title="Company administration" section="none">
+  <div class="page-head">
+    <div><div class="eyebrow">Operator workspace</div><h1>Company membership</h1><p class="subtitle">Manage verified company records, membership terms, affiliations and explicit publishing scopes.</p></div>
+    <a class="btn" href="/insights/editor">Insights review</a>
+  </div>
+  <p class="form-notice" role="note">Application administrator access is required. Company affiliation, membership and publishing rights are separate. No account is created or invited here.</p>
+  <div class="stack">
+    <section class="panel panel-pad" aria-labelledby="company-search-heading">
+      <h2 id="company-search-heading">Find a company before creating one</h2>
+      <form method="get" class="admin-company-search">
+        <label>Company, provider or organisation name<input name="search" value={search} maxlength="120" autocomplete="off" /></label>
+        <button class="btn" type="submit">Search</button>
+      </form>
+      {searchError && <p class="form-notice error" role="status">Company search is unavailable.</p>}
+      {companies.length > 0 && <ul class="event-material-list">{companies.map((company) => <li class="event-material">
+        <div><span class="event-material-kind">{company.is_seed_data ? 'Seed/demo · not a real company' : company.provider_id ? company.catalogue_status ?? 'draft' : 'Organisation not linked to a provider'}</span><p class="event-material-title">{company.provider_name}</p><p class="field-help">{company.provider_slug ? `/${company.provider_slug}` : 'Select to link this record'}{company.organisation_type ? ` · ${company.organisation_type}` : ''}{company.membership_status ? ` · ${company.membership_status} membership` : ''}</p></div>
+        {company.provider_id && !company.is_seed_data ? <a class="btn" href={`/admin/companies?company=${company.provider_id}`}>Manage</a> : company.provider_id ? <span class="field-help">Read-only seed</span> : <button class="btn select-existing-organisation" type="button" disabled={company.is_seed_data} data-organisation-id={company.organisation_id} data-organisation-slug={company.organisation_slug} data-organisation-type={company.organisation_type} data-organisation-name={company.provider_name}>Link existing organisation</button>}
+      </li>)}</ul>}
+      {search && !companies.length && !searchError && <p class="event-note">No matching company or unlinked organisation found.</p>}
+    </section>
+
+    {currentStatus && <p class="form-notice" role="status">{currentStatus.replaceAll('-', ' ')}.</p>}
+    <p class="form-notice error" role="status" data-admin-notice hidden></p>
+    {overviewError && <p class="form-notice error" role="alert">The selected company could not be loaded.</p>}
+
+    <section class="panel panel-pad" aria-labelledby="company-record-heading">
+      <h2 id="company-record-heading">{provider ? `Company record · ${provider.name}` : 'Create a company record'}</h2>
+      <p class="field-help">The provider and organisation records represent one company. Catalogue profiles start as drafts. Do not add product records for advisory or research companies.</p>
+      {provider?.is_seed_data && <p class="form-notice error" role="alert">This is a seed/demo company. Create or select a real company record instead; seed records cannot be onboarded here.</p>}
+      <form class="stack" data-admin-action hidden={Boolean(provider?.is_seed_data)}>
+        <input type="hidden" name="action" value="save-company" />
+        <input type="hidden" name="provider_id" value={provider?.id ?? ''} />
+        <input type="hidden" name="organisation_id" value={selectedOrganisationId} data-organisation-input />
+        <div class="admin-form-grid">
+          <label>Company name<input name="provider_name" required minlength="2" maxlength="160" value={provider?.name ?? ''} /></label>
+          <label>Company URL name<input name="provider_slug" required pattern="[a-z0-9]+(?:-[a-z0-9]+)*" value={provider?.slug ?? ''} /></label>
+          <label>Provider type<select name="provider_type">{['organisation', 'service_partner', 'software_vendor'].map((type) => <option value={type} selected={provider?.provider_type === type}>{type.replaceAll('_', ' ')}</option>)}</select></label>
+          <label>Organisation URL name<input name="organisation_slug" required pattern="[a-z0-9]+(?:-[a-z0-9]+)*" value={organisation?.slug ?? linkedCompany?.organisation_slug ?? ''} /></label>
+          <label>Organisation type<select name="organisation_type">{['advisor', 'research', 'vendor', 'other'].map((type) => <option value={type} selected={(organisation?.organisation_type ?? linkedCompany?.organisation_type) === type}>{type}</option>)}</select></label>
+          <label>Website<input name="website_url" type="url" inputmode="url" placeholder="https://" value={provider?.website_url ?? ''} /></label>
+          <label>Provider source system<input name="source_system" required minlength="2" maxlength="80" value={provider?.source_system ?? ''} /></label>
+          <label>Provider source record ID<input name="source_record_id" required minlength="1" maxlength="160" value={provider?.source_record_id ?? ''} /></label>
+          <label>Source evidence URL<input name="source_url" type="url" inputmode="url" placeholder="https://" value={provider?.source_url ?? ''} /></label>
+        </div>
+        <label>Provider summary<textarea name="provider_summary" maxlength="1600" rows="3">{provider?.summary ?? ''}</textarea></label>
+        <label>Organisation summary<textarea name="organisation_summary" maxlength="1600" rows="3">{organisation?.summary ?? ''}</textarea></label>
+        <button class="btn primary" type="submit">Save company draft</button>
+      </form>
+    </section>
+
+    {provider && !provider.is_seed_data && <>
+      <section class="panel panel-pad" aria-labelledby="catalogue-heading">
+        <h2 id="catalogue-heading">Catalogue visibility</h2>
+        <p>Current profile: <strong>{catalogue?.status ?? 'draft'}</strong>. Public profiles require a sourced company summary. Products are never created from this page.</p>
+        <form class="admin-form-grid" data-admin-action>
+          <input type="hidden" name="action" value="catalogue-status" /><input type="hidden" name="provider_id" value={provider.id} />
+          <label>Profile status<select name="catalogue_status">{['draft', 'published', 'retired'].map((status) => <option value={status} selected={(catalogue?.status ?? 'draft') === status}>{status}</option>)}</select></label>
+          <label>Public disclosure note<input name="disclosure_note" maxlength="1200" value={catalogue?.public_disclosure_note ?? ''} /></label>
+          <button class="btn" type="submit">Save catalogue status</button>
+        </form>
+        {products.length > 0 && <div><h3>Existing products</h3><ul class="event-material-list">{products.map((product) => <li class="event-material"><div><strong>{product.name}</strong><p class="field-help">Current status: {product.status ?? 'draft'}</p></div><form class="admin-inline-form" data-admin-action><input type="hidden" name="action" value="product-catalogue-status" /><input type="hidden" name="provider_id" value={provider.id} /><input type="hidden" name="product_id" value={product.id} /><label>Status<select name="product_status">{['draft', 'published', 'retired'].map((status) => <option value={status} selected={(product.status ?? 'draft') === status}>{status}</option>)}</select></label><label>Disclosure note<input name="product_disclosure_note" maxlength="1200" /></label><button class="btn" type="submit">Save product status</button></form></li>)}</ul></div>}
+      </section>
+
+      <section class="panel panel-pad" aria-labelledby="membership-heading">
+        <h2 id="membership-heading">Business membership</h2>
+        <p>Community and Professional are not assignable and have no configured benefits. Business records only the terms agreed for this company. A 90-day founding review is a review date, not an expiry, charge or conversion.</p>
+        <form class="stack" data-admin-action>
+          <input type="hidden" name="action" value="save-membership" /><input type="hidden" name="provider_id" value={provider.id} />
+          <div class="admin-form-grid">
+            <label>Membership status<select name="membership_status">{['active', 'suspended', 'revoked'].map((status) => <option value={status} selected={(membership?.status ?? 'active') === status}>{status}</option>)}</select></label>
+            <label>Commercial arrangement<select name="commercial_status"><option value="complimentary_founding" selected={(membership?.commercial_status ?? 'complimentary_founding') === 'complimentary_founding'}>Complimentary founding</option><option value="commercial_agreement" selected={membership?.commercial_status === 'commercial_agreement'}>Commercial agreement, manually activated</option></select></label>
+            <label>Included seats<select name="seat_limit_type"><option value="capped" selected={(membership?.seat_limit_type ?? 'capped') === 'capped'}>Capped</option><option value="uncapped" selected={membership?.seat_limit_type === 'uncapped'}>No seat cap</option></select></label>
+            <label>Included people<input name="included_seats" type="number" min="1" step="1" value={membership?.included_seats ?? ''} /></label>
+            <label>Agreement evidence URL<input name="agreement_evidence_url" type="url" inputmode="url" placeholder="Required for commercial agreement" value={membership?.agreement_evidence_url ?? ''} /></label>
+          </div>
+          <label>Seat and membership terms<textarea name="seat_terms" required minlength="2" maxlength="600" rows="3" placeholder="State who counts as an included person and any limits.">{membership?.seat_terms ?? ''}</textarea></label>
+          {membership?.commercial_status === 'complimentary_founding' && membership?.review_due_at && <p class="field-help">Founding review due: {new Date(membership.review_due_at).toLocaleDateString()}. No automatic expiry or paid conversion.</p>}
+          <button class="btn primary" type="submit">Save Business membership</button>
+        </form>
+        <div class="admin-benefits">
+          <h3>Included benefits in this membership</h3>
+          <ul>{((membership?.included_benefits ?? ['company_catalogue_profile', 'company_people_seats', 'company_insight_updates']) as string[]).map((benefit) => <li>{benefit === 'company_catalogue_profile' ? 'Company catalogue profile, subject to source review and publication approval.' : benefit === 'company_people_seats' ? `Company people up to the agreed seat terms (${people.length} connected${membership?.seat_limit_type === 'capped' ? ` / ${membership?.included_seats ?? 0} included` : ''}).` : 'Company insight and update publishing only for individually authorised writers.'}</li>)}</ul>
+          <h3>Feature availability now</h3>
+          <ul>
+            <li>Company catalogue: {catalogue?.status === 'published' ? 'public' : 'draft/private'}.</li>
+            <li>Company publishing entitlement: {entitlement?.status === 'active' ? `active (${entitlement.entitlement_type})` : 'not active'}.</li>
+            <li>Publishing also requires an active Business membership, verified company affiliation, active workspace access, and an explicit writer assignment.</li>
+            <li>Seat inclusion is independent of writer permission. Membership does not grant administrator or representative-count rights.</li>
+          </ul>
+        </div>
+        <form data-admin-action class="admin-inline-form">
+          <input type="hidden" name="action" value="publishing-entitlement" /><input type="hidden" name="provider_id" value={provider.id} />
+          <button class="btn" name="entitlement_action" value="grant">Enable eligible company publishing</button>
+          {entitlement?.status === 'active' && <button class="btn" name="entitlement_action" value="revoke">Revoke publishing entitlement</button>}
+        </form>
+      </section>
+
+      <section class="panel panel-pad" aria-labelledby="people-heading">
+        <h2 id="people-heading">People and authorisation</h2>
+        <p>Find an existing, confirmed account by exact email. This does not invite or create an account. If no account is found, use the existing invitation process and link the person only after they accept.</p>
+        <form class="admin-form-grid" data-admin-action data-member-search>
+          <input type="hidden" name="action" value="search-member" />
+          <label>Exact member email<input name="email" type="email" required maxlength="254" autocomplete="off" /></label>
+          <button class="btn" type="submit">Find account</button>
+        </form>
+        <div class="form-notice" role="status" data-member-result hidden></div>
+        <form class="admin-inline-form" data-admin-action data-workspace-access hidden>
+          <input type="hidden" name="action" value="workspace-access" /><input type="hidden" name="provider_id" value={provider.id} />
+          <input type="hidden" name="profile_id" /><button class="btn" name="workspace_action" value="grant">Grant platform workspace access</button>
+        </form>
+        <form class="admin-form-grid" data-admin-action data-member-connect hidden>
+          <input type="hidden" name="action" value="connect-member" /><input type="hidden" name="provider_id" value={provider.id} />
+          <input type="hidden" name="organisation_id" value={selectedOrganisationId} />
+          <input type="hidden" name="email" /><input type="hidden" name="is_primary" value="on" />
+          <label>Company role<input name="role_title" maxlength="160" placeholder="Optional role title" /></label>
+          <button class="btn" type="submit">Connect existing account</button>
+        </form>
+        <h3>Company people</h3>
+        {people.length ? <ul class="event-material-list">{people.map((person) => <li class="event-material admin-person-row">
+          <div><span class="event-material-kind">{person.verification_status.replaceAll('_', ' ')} · workspace {person.workspace_status}</span><p class="event-material-title">{person.display_name} · {person.email}</p><p class="field-help">{person.role_title || 'No role title'}{person.verification_basis ? ` · Basis: ${person.verification_basis}` : ''}{person.verified_at ? ` · Verified ${new Date(person.verified_at).toLocaleDateString()}` : ''}</p></div>
+          <div class="stack admin-person-actions">
+            <form data-admin-action><input type="hidden" name="action" value="workspace-access" /><input type="hidden" name="provider_id" value={provider.id} /><input type="hidden" name="profile_id" value={person.profile_id} /><button class="btn" name="workspace_action" value={person.workspace_status === 'active' ? 'revoke' : 'grant'}>{person.workspace_status === 'active' ? 'Revoke platform workspace access' : 'Grant platform workspace access'}</button></form>
+            {person.verification_status !== 'approved' ? <form data-admin-action class="admin-form-grid">
+              <input type="hidden" name="action" value="affiliation" /><input type="hidden" name="provider_id" value={provider.id} /><input type="hidden" name="organisation_id" value={selectedOrganisationId} /><input type="hidden" name="profile_id" value={person.profile_id} /><input type="hidden" name="verification_action" value="approve" />
+              <label>Approval basis<input name="verification_basis" required minlength="8" maxlength="1200" placeholder="How was the company relationship verified?" /></label><button class="btn" type="submit">Approve affiliation</button>
+            </form> : <form data-admin-action><input type="hidden" name="action" value="affiliation" /><input type="hidden" name="provider_id" value={provider.id} /><input type="hidden" name="organisation_id" value={selectedOrganisationId} /><input type="hidden" name="profile_id" value={person.profile_id} /><input type="hidden" name="verification_action" value="unverify" /><button class="btn" type="submit">Remove verification</button></form>}
+            {person.assignments.map((assignment) => assignment.status === 'active' && <form data-admin-action><input type="hidden" name="action" value="writer" /><input type="hidden" name="provider_id" value={provider.id} /><input type="hidden" name="profile_id" value={person.profile_id} /><input type="hidden" name="product_id" value={assignment.provider_product_id ?? ''} /><input type="hidden" name="writer_action" value="revoke" /><button class="btn" type="submit">Revoke {assignment.provider_product_id ? 'product' : 'company'} writer</button></form>)}
+            {person.verification_status === 'approved' && person.workspace_status === 'active' && <form data-admin-action class="admin-form-grid">
+              <input type="hidden" name="action" value="writer" /><input type="hidden" name="provider_id" value={provider.id} /><input type="hidden" name="profile_id" value={person.profile_id} /><input type="hidden" name="writer_action" value="grant" />
+              <label>Writer scope<select name="product_id"><option value="">Company-wide</option>{products.map((product) => <option value={product.id}>{product.name} ({product.status ?? 'draft'})</option>)}</select></label><button class="btn" type="submit">Grant writer scope</button>
+            </form>}
+          </div>
+        </li>)}</ul> : <p class="event-note">No member accounts connected.</p>}
+      </section>
+
+      <section class="panel panel-pad" aria-labelledby="audit-heading">
+        <h2 id="audit-heading">Company audit history</h2>
+        {audit.length ? <ol class="admin-audit-list">{audit.map((entry) => <li><time datetime={entry.event_at}>{new Date(entry.event_at).toLocaleString()}</time><strong>{String(entry.category).replaceAll('_', ' ')} · {String(entry.action).replaceAll('_', ' ')}</strong><span>Actor {entry.actor_profile_id}{entry.target_profile_id ? ` · Person ${entry.target_profile_id}` : ''}</span>{entry.details?.verification_basis && <span>Basis: {entry.details.verification_basis}</span>}{entry.details?.feedback && <span>Feedback: {entry.details.feedback}</span>}{entry.details?.agreement_evidence_url && <a href={entry.details.agreement_evidence_url} rel="noreferrer">Agreement evidence</a>}</li>)}</ol> : <p class="event-note">No operator changes recorded.</p>}
+      </section>
+    </>}
+  </div>
+</AppLayout>
+
+<script>
+const forms = document.querySelectorAll<HTMLFormElement>('form[data-admin-action]');
+const resultBox = document.querySelector<HTMLElement>('[data-member-result]');
+const connectForm = document.querySelector<HTMLFormElement>('[data-member-connect]');
+const searchForm = document.querySelector<HTMLFormElement>('[data-member-search]');
+const workspaceAccessForm = document.querySelector<HTMLFormElement>('[data-workspace-access]');
+const adminNotice = document.querySelector<HTMLElement>('[data-admin-notice]');
+
+for (const form of forms) {
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const submitter = (event as SubmitEvent).submitter as HTMLButtonElement | null;
+    const data = new FormData(form);
+    if (submitter?.name) data.set(submitter.name, submitter.value);
+    if (form === searchForm && resultBox) resultBox.hidden = false;
+    const response = await fetch('/api/admin/companies', { method: 'POST', body: data, headers: { Accept: 'application/json' } });
+    const result = await response.json() as { ok: boolean; code?: string; message: string; companyId?: string; found?: boolean; member?: { profile_id: string; email: string; display_name: string; account_status: string; workspace_status: string } | null };
+    if (adminNotice) adminNotice.hidden = true;
+    if (form === searchForm && resultBox) {
+      resultBox.textContent = result.found && result.member
+        ? `${result.member.display_name} · ${result.member.email} · ${result.member.account_status} account · workspace ${result.member.workspace_status}`
+        : result.message || 'No confirmed account found. Use the existing invitation process, then search again after acceptance.';
+      if (result.found && result.member && connectForm) {
+        connectForm.hidden = false;
+        connectForm.querySelector<HTMLInputElement>('input[name="email"]')!.value = result.member.email;
+      } else if (connectForm) connectForm.hidden = true;
+      if (result.found && result.member && workspaceAccessForm) {
+        workspaceAccessForm.hidden = false;
+        workspaceAccessForm.querySelector<HTMLInputElement>('input[name="profile_id"]')!.value = result.member.profile_id;
+        const accessButton = workspaceAccessForm.querySelector<HTMLButtonElement>('button[name="workspace_action"]')!;
+        accessButton.value = result.member.workspace_status === 'active' ? 'revoke' : 'grant';
+        accessButton.textContent = result.member.workspace_status === 'active' ? 'Revoke platform workspace access' : 'Grant platform workspace access';
+        accessButton.disabled = result.member.account_status !== 'confirmed';
+      } else if (workspaceAccessForm) workspaceAccessForm.hidden = true;
+      return;
+    }
+    if (!result.ok) {
+      if (adminNotice) {
+        adminNotice.hidden = false;
+        adminNotice.textContent = `${result.message}${result.code ? ` (${result.code})` : ''}`;
+      }
+      return;
+    }
+    if (result.companyId) window.location.assign(`/admin/companies?company=${encodeURIComponent(result.companyId)}&status=${encodeURIComponent(result.message)}`);
+  });
+}
+
+for (const button of document.querySelectorAll<HTMLButtonElement>('.select-existing-organisation')) {
+  button.addEventListener('click', () => {
+    const form = document.querySelector<HTMLInputElement>('form[data-admin-action] input[name="action"][value="save-company"]')?.form;
+    if (!form) return;
+    form.querySelector<HTMLInputElement>('input[name="organisation_id"]')!.value = button.dataset.organisationId ?? '';
+    form.querySelector<HTMLInputElement>('input[name="provider_name"]')!.value = button.dataset.organisationName ?? '';
+    form.querySelector<HTMLInputElement>('input[name="organisation_slug"]')!.value = button.dataset.organisationSlug ?? '';
+    const type = form.querySelector<HTMLSelectElement>('select[name="organisation_type"]');
+    if (type && button.dataset.organisationType) type.value = button.dataset.organisationType;
+    form.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  });
+}
+</script>
+
+<style>
+.admin-company-search,.admin-inline-form{display:flex;align-items:end;gap:12px;flex-wrap:wrap}.admin-company-search label{flex:1 1 260px}.admin-form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:end;gap:12px}.admin-form-grid label{min-width:0}.admin-benefits{margin-top:20px;padding-top:16px;border-top:1px solid var(--line)}.admin-benefits h3{margin:0 0 8px}.admin-benefits ul{margin:0;padding-left:22px}.admin-person-row{align-items:flex-start}.admin-person-actions{min-width:min(100%,560px);flex:1}.admin-audit-list{display:grid;gap:10px;margin:0;padding-left:22px}.admin-audit-list li{display:grid;gap:4px}.admin-audit-list time,.admin-audit-list span{color:var(--muted);font-size:.85rem}
+@media(max-width:700px){.admin-form-grid{grid-template-columns:minmax(0,1fr)}.admin-person-row{display:grid}}
+</style>
