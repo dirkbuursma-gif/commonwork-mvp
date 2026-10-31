@@ -1,4 +1,6 @@
 import type { APIRoute } from 'astro';
+import { createClient } from '@supabase/supabase-js';
+import { getAuthCallbackUrl } from '../../../lib/auth-callback-url';
 import { createSupabaseServerClient } from '../../../lib/supabase/server';
 
 export const prerender = false;
@@ -77,6 +79,103 @@ export const POST: APIRoute = async (context) => {
     });
     if (error) return failure(error);
     return reply(200, { ok: true, companyId: providerId, message: 'Catalogue status updated.' });
+  }
+
+  if (action === 'invite-member') {
+    const email = value(form, 'email').toLowerCase();
+    if (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return reply(400, { ok: false, message: 'Enter a valid email address.' });
+    }
+
+    const { data: prepared, error: prepareError } = await client.rpc('admin_prepare_company_invitation', {
+      target_provider_id: providerId,
+      exact_email: email,
+    });
+    if (prepareError) return failure(prepareError);
+    const invitation = Array.isArray(prepared) ? prepared[0] as {
+      invitation_id: string; invitation_status: string; delivery_status: string;
+      auth_user_id: string | null; should_send: boolean;
+    } | undefined : undefined;
+    if (!invitation) return reply(500, { ok: false, message: 'The invitation could not be prepared.' });
+
+    if (!invitation.should_send) {
+      const message = invitation.invitation_status === 'existing_account'
+        ? 'A confirmed account already exists. No email was sent; use Find account to connect the person separately.'
+        : invitation.delivery_status === 'sent'
+          ? 'This invitation is already pending. No duplicate email was sent.'
+          : invitation.delivery_status === 'unknown'
+            ? 'This invitation is pending, but email delivery could not be confirmed. No duplicate email was sent.'
+            : invitation.delivery_status === 'sending'
+              ? 'This invitation is already being processed. No duplicate email was sent.'
+              : 'An unconfirmed account already exists. It remains pending; no invitation email was resent.';
+      return reply(200, { ok: true, companyId: providerId, invitation, message });
+    }
+
+    const supabaseUrl = process.env.SUPABASE_URL || import.meta.env.PUBLIC_SUPABASE_URL;
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (!supabaseUrl || !serviceRoleKey) {
+      await client.rpc('admin_finish_company_invitation', {
+        target_invitation_id: invitation.invitation_id,
+        target_delivery_status: 'failed',
+      });
+      return reply(503, { ok: false, message: 'Server-side invitation delivery is not configured.' });
+    }
+
+    const redirectTo = getAuthCallbackUrl(context.request.url, {
+      appBaseUrl: process.env.APP_BASE_URL,
+      isDevelopment: import.meta.env.DEV,
+    });
+    if (!redirectTo) {
+      await client.rpc('admin_finish_company_invitation', {
+        target_invitation_id: invitation.invitation_id,
+        target_delivery_status: 'failed',
+      });
+      return reply(503, { ok: false, message: 'The application callback URL is not configured safely.' });
+    }
+    const invitationRedirectTo = new URL(redirectTo);
+    invitationRedirectTo.searchParams.set('invitation_id', invitation.invitation_id);
+
+    const authAdmin = createClient(supabaseUrl, serviceRoleKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+    let deliveryStatus: 'sent' | 'failed' | 'unknown' = 'sent';
+    let invitedUserId: string | null = null;
+    try {
+      const { data, error } = await authAdmin.auth.admin.inviteUserByEmail(email, { redirectTo: invitationRedirectTo.toString() });
+      if (error) {
+        deliveryStatus = typeof error.status === 'number' && error.status < 500 ? 'failed' : 'unknown';
+      } else {
+        invitedUserId = data.user?.id ?? null;
+      }
+    } catch (error) {
+      const status = error && typeof error === 'object' && 'status' in error ? error.status : null;
+      deliveryStatus = typeof status === 'number' && status < 500 ? 'failed' : 'unknown';
+    }
+
+    const { error: finishError } = await client.rpc('admin_finish_company_invitation', {
+      target_invitation_id: invitation.invitation_id,
+      target_delivery_status: deliveryStatus,
+      target_auth_user_id: invitedUserId,
+    });
+    if (finishError) {
+      return reply(502, {
+        ok: false,
+        companyId: providerId,
+        message: 'Invitation delivery may have completed, but its status could not be saved. Do not send a duplicate.',
+      });
+    }
+
+    const message = deliveryStatus === 'sent'
+      ? 'Invitation email sent. Accepting it confirms the account only; access and company permissions remain separate.'
+      : deliveryStatus === 'failed'
+        ? 'Auth did not accept the invite request. The invitation is marked failed and can be retried if no account was created.'
+        : 'Email delivery could not be confirmed. The invitation remains pending and will not be resent automatically.';
+    return reply(deliveryStatus === 'sent' ? 200 : 502, {
+      ok: deliveryStatus === 'sent',
+      companyId: providerId,
+      invitation: { ...invitation, invitation_status: deliveryStatus === 'failed' ? 'failed' : 'pending', delivery_status: deliveryStatus },
+      message,
+    });
   }
 
   if (action === 'product-catalogue-status') {

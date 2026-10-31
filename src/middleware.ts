@@ -78,7 +78,10 @@ export const onRequest = defineMiddleware(async (context, next) => {
     response.headers.set('Cache-Control', 'private, no-store');
     return response;
   }
-  const user = local ? localTestUser : await getCurrentUser(context);
+  let user = local ? localTestUser : await getCurrentUser(context);
+  if (companyAdministrationRoute && user?.isLocalTestUser === true && hasSupabaseAuthCookie(context.request)) {
+    user = await getCurrentUser(context) ?? user;
+  }
   if (!user) {
     const returnPath = validateReturnPath(`${pathname}${new URL(context.request.url).search}`);
     const target = new URL('/sign-in', context.request.url);

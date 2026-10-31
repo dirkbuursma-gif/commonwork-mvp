@@ -22,15 +22,20 @@ const companies = (companyRows ?? []) as Array<{
 }>;
 let overview: Record<string, any> | null = null;
 let audit: Array<Record<string, any>> = [];
+let invitations: Array<Record<string, any>> = [];
 let overviewError = false;
+let invitationsError = false;
 if (/^[0-9a-f-]{36}$/i.test(selectedProviderId)) {
-  const [{ data, error }, { data: auditRows }] = await Promise.all([
+  const [{ data, error }, { data: auditRows }, { data: invitationRows, error: invitationError }] = await Promise.all([
     supabase.rpc('admin_company_overview', { target_provider_id: selectedProviderId }),
     supabase.rpc('admin_company_audit', { target_provider_id: selectedProviderId }),
+    supabase.rpc('admin_list_company_invitations', { target_provider_id: selectedProviderId }),
   ]);
   overview = data as Record<string, any> | null;
   overviewError = Boolean(error || !data);
   audit = (auditRows ?? []) as Array<Record<string, any>>;
+  invitations = (invitationRows ?? []) as Array<Record<string, any>>;
+  invitationsError = Boolean(invitationError);
 }
 const provider = overview?.provider;
 const organisation = overview?.organisation;
@@ -53,7 +58,7 @@ const currentStatus = Astro.url.searchParams.get('status');
     <div><div class="eyebrow">Operator workspace</div><h1>Company membership</h1><p class="subtitle">Manage verified company records, membership terms, affiliations and explicit publishing scopes.</p></div>
     <a class="btn" href="/insights/editor">Insights review</a>
   </div>
-  <p class="form-notice" role="note">Application administrator access is required. Company affiliation, membership and publishing rights are separate. No account is created or invited here.</p>
+  <p class="form-notice" role="note">Application administrator access is required. Company affiliation, membership and publishing rights are separate from account invitations.</p>
   <div class="stack">
     <section class="panel panel-pad" aria-labelledby="company-search-heading">
       <h2 id="company-search-heading">Find a company before creating one</h2>
@@ -147,7 +152,32 @@ const currentStatus = Astro.url.searchParams.get('status');
 
       <section class="panel panel-pad" aria-labelledby="people-heading">
         <h2 id="people-heading">People and authorisation</h2>
-        <p>Find an existing, confirmed account by exact email. This does not invite or create an account. If no account is found, use the existing invitation process and link the person only after they accept.</p>
+        <p>Inviting confirms an account only. It does not grant platform access, company affiliation, membership or writer permissions.</p>
+        <form class="admin-form-grid" data-admin-action>
+          <input type="hidden" name="action" value="invite-member" /><input type="hidden" name="provider_id" value={provider.id} />
+          <label>Person's email<input name="email" type="email" required maxlength="254" autocomplete="off" /></label>
+          <button class="btn primary" type="submit">Invite person</button>
+        </form>
+        {invitationsError && <p class="form-notice error" role="status">Invitation status is unavailable.</p>}
+        <h3>Invitations</h3>
+        {invitations.length ? <ul class="event-material-list">{invitations.map((invitation) => {
+          const label = invitation.status === 'accepted'
+            ? 'Accepted'
+            : invitation.status === 'existing_account'
+              ? 'Existing confirmed account · no email sent'
+              : invitation.status === 'failed'
+                ? 'Invite failed · retry available if no account was created'
+                : invitation.delivery_status === 'sent'
+                  ? 'Pending · invitation email sent'
+                  : invitation.delivery_status === 'unknown'
+                    ? 'Pending · delivery unconfirmed; no duplicate sent'
+                    : invitation.delivery_status === 'sending'
+                      ? 'Pending · invite being processed'
+                      : 'Pending · existing unconfirmed account; no email resent';
+          return <li class="event-material"><div><span class="event-material-kind">{label}</span><p class="event-material-title">{invitation.email}</p><p class="field-help">Requested {new Date(invitation.created_at).toLocaleString()}{invitation.invite_sent_at ? ` · Sent ${new Date(invitation.invite_sent_at).toLocaleString()}` : ''}{invitation.accepted_at ? ` · Accepted ${new Date(invitation.accepted_at).toLocaleString()}` : ''}</p></div>
+            {invitation.status === 'failed' && <form data-admin-action class="admin-inline-form"><input type="hidden" name="action" value="invite-member" /><input type="hidden" name="provider_id" value={provider.id} /><input type="hidden" name="email" value={invitation.email} /><button class="btn" type="submit">Retry invite</button></form>}
+          </li>;
+        })}</ul> : <p class="event-note">No invitations for this company.</p>}
         <form class="admin-form-grid" data-admin-action data-member-search>
           <input type="hidden" name="action" value="search-member" />
           <label>Exact member email<input name="email" type="email" required maxlength="254" autocomplete="off" /></label>
@@ -185,7 +215,7 @@ const currentStatus = Astro.url.searchParams.get('status');
 
       <section class="panel panel-pad" aria-labelledby="audit-heading">
         <h2 id="audit-heading">Company audit history</h2>
-        {audit.length ? <ol class="admin-audit-list">{audit.map((entry) => <li><time datetime={entry.event_at}>{new Date(entry.event_at).toLocaleString()}</time><strong>{String(entry.category).replaceAll('_', ' ')} · {String(entry.action).replaceAll('_', ' ')}</strong><span>Actor {entry.actor_profile_id}{entry.target_profile_id ? ` · Person ${entry.target_profile_id}` : ''}</span>{entry.details?.verification_basis && <span>Basis: {entry.details.verification_basis}</span>}{entry.details?.feedback && <span>Feedback: {entry.details.feedback}</span>}{entry.details?.agreement_evidence_url && <a href={entry.details.agreement_evidence_url} rel="noreferrer">Agreement evidence</a>}</li>)}</ol> : <p class="event-note">No operator changes recorded.</p>}
+        {audit.length ? <ol class="admin-audit-list">{audit.map((entry) => <li><time datetime={entry.event_at}>{new Date(entry.event_at).toLocaleString()}</time><strong>{String(entry.category).replaceAll('_', ' ')} · {String(entry.action).replaceAll('_', ' ')}</strong><span>Actor {entry.actor_profile_id ?? entry.details?.auth_user_id ?? 'system'}{entry.target_profile_id ? ` · Person ${entry.target_profile_id}` : ''}</span>{entry.details?.verification_basis && <span>Basis: {entry.details.verification_basis}</span>}{entry.details?.feedback && <span>Feedback: {entry.details.feedback}</span>}{entry.details?.agreement_evidence_url && <a href={entry.details.agreement_evidence_url} rel="noreferrer">Agreement evidence</a>}</li>)}</ol> : <p class="event-note">No operator changes recorded.</p>}
       </section>
     </>}
   </div>

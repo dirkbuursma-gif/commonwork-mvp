@@ -16,7 +16,7 @@ export type EmailCodeAuthClient = {
   auth: {
     signInWithOtp(credentials: {
       email: string;
-      options: { shouldCreateUser: false };
+      options: { shouldCreateUser: false; emailRedirectTo: string };
     }): PromiseLike<AuthResult>;
     verifyOtp(params: { email: string; token: string; type: 'email' }): PromiseLike<AuthResult>;
   };
@@ -75,11 +75,12 @@ function isClientError(error: NonNullable<AuthErrorLike>): boolean {
 export async function requestEmailCode(
   supabase: EmailCodeAuthClient,
   email: string,
+  emailRedirectTo: string,
   onFailure?: (error: unknown) => void,
 ): Promise<EmailCodeRequestOutcome> {
   let error: AuthErrorLike;
   try {
-    ({ error } = await supabase.auth.signInWithOtp({ email, options: { shouldCreateUser: false } }));
+    ({ error } = await supabase.auth.signInWithOtp({ email, options: { shouldCreateUser: false, emailRedirectTo } }));
   } catch (thrown) {
     onFailure?.(thrown);
     return 'unavailable';
