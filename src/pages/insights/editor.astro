@@ -38,7 +38,7 @@ const status = Astro.url.searchParams.get('status');
       <h1>Insights editor</h1>
       <p class="subtitle">Create and review drafts, then explicitly publish or unpublish them.</p>
     </div>
-    <a class="btn" href="/insights">View Insights</a>
+    <div class="intelligence-meta"><a class="btn" href="/admin/companies">Manage companies</a><a class="btn" href="/insights">View Insights</a></div>
   </div>
 
   {status && <p class="form-notice" role="status">Editorial action: {status.replace('-', ' ')}.</p>}
@@ -47,9 +47,10 @@ const status = Astro.url.searchParams.get('status');
     {pendingCompanyPublications?.length > 0 && (
       <section class="panel panel-pad" aria-labelledby="company-review-heading">
         <h2 id="company-review-heading">First company publications awaiting review</h2>
+        <p class="field-help">Review authority follows administrator accounts. Separate accounts belonging to one person are not identity-linked, so that review is not independent.</p>
         <ul class="event-material-list">
           {pendingCompanyPublications.map((item) => (
-            <li class="event-material"><div><span class="event-material-kind">{item.provider_name} · {item.display_name}</span><p class="event-material-title">{item.title}</p></div><div class="intelligence-meta"><a class="btn" href={`/insights/${item.slug}?preview=draft`}>Preview</a><form method="post" action="/api/insights/company-review"><input type="hidden" name="article_id" value={item.article_id} /><button class="btn primary" name="action" value="approve">Approve and publish</button></form><form method="post" action="/api/insights/company-review"><input type="hidden" name="article_id" value={item.article_id} /><button class="btn" name="action" value="reject">Reject</button></form></div></li>
+            <li class="event-material"><div><span class="event-material-kind">{item.provider_name} · {item.display_name}</span><p class="event-material-title">{item.title}</p></div><div class="intelligence-meta"><a class="btn" href={`/insights/${item.slug}?preview=draft`}>Preview</a><form method="post" action="/api/insights/company-review"><input type="hidden" name="article_id" value={item.article_id} /><button class="btn primary" name="action" value="approve">Approve and publish</button></form><form class="company-review-return" method="post" action="/api/insights/company-review"><input type="hidden" name="article_id" value={item.article_id} /><label>Feedback required to return<textarea name="feedback" minlength="8" maxlength="1200" required rows="2"></textarea></label><button class="btn" name="action" value="reject">Return with feedback</button></form></div></li>
           ))}
         </ul>
       </section>

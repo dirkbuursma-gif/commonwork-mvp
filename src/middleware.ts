@@ -70,6 +70,7 @@ export const onRequest = defineMiddleware(async (context, next) => {
   const join = eventJoinPath.test(pathname) && ['GET', 'HEAD', 'POST'].includes(context.request.method);
   const editorial = (context.request.method === 'GET' || context.request.method === 'HEAD')
     && pathname !== '/events/manage' && pathname !== '/insights/editor' && publicEditorialPath.test(pathname);
+  const companyAdministrationRoute = pathname === '/admin/companies' || pathname === '/api/admin/companies';
   if (editorial || join) {
     const user = local ? localTestUser : hasSupabaseAuthCookie(context.request) ? await getCurrentUser(context) : null;
     if (user) context.locals.user = user;
@@ -77,7 +78,10 @@ export const onRequest = defineMiddleware(async (context, next) => {
     response.headers.set('Cache-Control', 'private, no-store');
     return response;
   }
-  const user = local ? localTestUser : await getCurrentUser(context);
+  let user = local ? localTestUser : await getCurrentUser(context);
+  if (companyAdministrationRoute && user?.isLocalTestUser === true && hasSupabaseAuthCookie(context.request)) {
+    user = await getCurrentUser(context) ?? user;
+  }
   if (!user) {
     const returnPath = validateReturnPath(`${pathname}${new URL(context.request.url).search}`);
     const target = new URL('/sign-in', context.request.url);
@@ -86,7 +90,7 @@ export const onRequest = defineMiddleware(async (context, next) => {
   }
   context.locals.user = user;
   const ownAccount = isOwnAccountRequest(pathname, context.request.method);
-  if (!local && !ownAccount && !isEventResourceRequest(pathname, context.request.method)) {
+  if (!local && !ownAccount && !companyAdministrationRoute && !isEventResourceRequest(pathname, context.request.method)) {
     const client = createSupabaseServerClient(context);
     if (!client || !await readWorkspaceAccess(client)) {
       return new Response('Workspace membership is required. Event requests and approved event resources remain available.', {

@@ -46,6 +46,11 @@ test('callback diagnostics classify token-hash callbacks and allow only supporte
     pkceVerifierCookiePresent: true,
   });
 
+  expect(getAuthCallbackInput(new URLSearchParams('token_hash=hash&type=invite'), [])).toMatchObject({
+    branch: 'token_hash',
+    otpType: 'invite',
+  });
+
   expect(getAuthCallbackInput(new URLSearchParams('token_hash=hash&type=signup'), [])).toMatchObject({
     branch: 'token_hash',
     otpType: 'invalid',

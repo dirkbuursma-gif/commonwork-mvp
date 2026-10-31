@@ -12,8 +12,9 @@ export const POST: APIRoute = async (context) => {
   const form = await context.request.formData();
   const articleId = String(form.get('article_id') ?? '');
   const action = String(form.get('action') ?? '');
-  if (!/^[0-9a-f-]{36}$/i.test(articleId) || !['approve', 'reject'].includes(action)) return context.redirect('/insights/editor?status=review-invalid', 303);
-  const { error } = await client.rpc('review_company_first_publication', { target_article_id: articleId, target_action: action });
+  const feedback = String(form.get('feedback') ?? '').trim();
+  if (!/^[0-9a-f-]{36}$/i.test(articleId) || !['approve', 'reject'].includes(action) || feedback.length > 1200 || (action === 'reject' && feedback.length < 8)) return context.redirect('/insights/editor?status=review-invalid', 303);
+  const { error } = await client.rpc('review_company_first_publication', { target_article_id: articleId, target_action: action, target_feedback: feedback });
   return context.redirect(`/insights/editor?status=${error ? 'review-failed' : action === 'approve' ? 'review-approved' : 'review-rejected'}`, 303);
 };
 

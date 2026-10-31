@@ -48,13 +48,15 @@ export const GET: APIRoute = async (context) => {
   if (
     callbackInput.branch === 'token_hash' &&
     callbackInput.otpType !== 'email' &&
-    callbackInput.otpType !== 'magiclink'
+    callbackInput.otpType !== 'magiclink' &&
+    callbackInput.otpType !== 'invite'
   ) {
     recordDiagnostic(false, callbackInput.otpType === 'invalid' ? 'invalid_otp_type' : 'missing_parameters');
     return context.redirect('/sign-in?status=invalid-link', 303);
   }
 
   let error: unknown = null;
+  let companyInvitationAccepted = false;
   try {
     if (callbackInput.branch === 'code') {
       const code = callbackInput.code;
@@ -78,12 +80,37 @@ export const GET: APIRoute = async (context) => {
     error = authError;
   }
 
+  if (!error) context.cookies.delete('commonwork_local_test_session', { path: '/' });
+
+  if (
+    !error &&
+    callbackInput.branch === 'token_hash' &&
+    ['email', 'magiclink', 'invite'].includes(callbackInput.otpType)
+  ) {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user?.email) {
+        const invitationId = searchParams.get('invitation_id');
+        const { data: accepted } = await supabase.rpc('mark_company_invitation_accepted', {
+          target_invitation_id: invitationId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(invitationId)
+            ? invitationId
+            : null,
+        });
+        companyInvitationAccepted = accepted === true;
+      }
+    } catch {}
+  }
+
   recordDiagnostic(!error, error ? categorizeAuthCallbackError(error) : null);
   const destination = error ? new URL('/sign-in', context.request.url) : null;
   if (destination) {
     destination.searchParams.set('status', 'invalid-link');
     if (returnPath) destination.searchParams.set('return_to', returnPath);
     return context.redirect(`${destination.pathname}${destination.search}`, 303);
+  }
+  if (callbackInput.otpType === 'invite' || companyInvitationAccepted) {
+    const status = companyInvitationAccepted ? 'invitation-accepted' : 'email-verified';
+    return context.redirect(`/account?status=${status}`, 303);
   }
   return context.redirect(returnPath ?? '/today', 303);
 };

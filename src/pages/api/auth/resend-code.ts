@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro';
 import { createSupabaseServerClient } from '../../../lib/supabase/server';
+import { getAuthCallbackUrl } from '../../../lib/auth-callback-url';
 import { validateIntelligenceReturnPath } from '../../../lib/auth-return-path';
 import { logPilotFailure } from '../../../lib/observability';
 import {
@@ -22,8 +23,13 @@ export const POST: APIRoute = async (context) => {
 
   const supabase = createSupabaseServerClient(context);
   if (!supabase) return context.redirect(signInPath('/sign-in', 'configuration', returnPath), 303);
+  const emailRedirectTo = getAuthCallbackUrl(context.request.url, {
+    appBaseUrl: process.env.APP_BASE_URL,
+    isDevelopment: import.meta.env.DEV,
+  });
+  if (!emailRedirectTo) return context.redirect(signInPath('/sign-in', 'configuration', returnPath), 303);
 
-  const outcome = await requestEmailCode(supabase, pending.email, (error) =>
+  const outcome = await requestEmailCode(supabase, pending.email, emailRedirectTo, (error) =>
     logPilotFailure('email_code_send_failed', error, { action: 'email_code' }),
   );
   if (outcome === 'unavailable') return context.redirect(signInPath('/sign-in/code', 'unavailable', returnPath), 303);

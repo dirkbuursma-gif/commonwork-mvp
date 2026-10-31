@@ -19,6 +19,8 @@ const messages: Record<string, string> = {
   'export-requested': 'Your data export request has been recorded for operator review.',
   'request-cancelled': 'Your pending request has been cancelled.',
   'action-failed': 'We could not complete that account action. Please try again or contact support.',
+  'invitation-accepted': 'Invitation accepted. Platform workspace access and company permissions are granted separately.',
+  'email-verified': 'Your email is confirmed. Platform workspace access requires a separate administrator grant.',
 };
 const message = messages[Astro.url.searchParams.get('status') ?? ''];
 ---

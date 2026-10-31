@@ -126,11 +126,23 @@ test('company publishing requires all gates and sends one private in-app notice 
       target_provider_id: company.providerId, target_action: 'grant', target_entitlement_type: 'paid', actor_profile_id: operator.id,
     });
     expect(paidAttempt.error?.code).toBe('42501');
+    const membership = await operator.client.rpc('admin_save_company_membership', {
+      target_provider_id: company.providerId, target_status: 'active', target_commercial_status: 'complimentary_founding',
+      target_seat_limit_type: 'capped', target_included_seats: 12, target_seat_terms: 'Synthetic local acceptance seats only.',
+      target_agreement_evidence_url: null,
+    });
+    expect(membership.error).toBeNull();
     expect((await writer.client.rpc('list_my_company_publishing_scopes')).data).toEqual([]);
 
     expect(() => writer.runCompanyPublishingAdminCli(['entitlement-grant', pilotCompany.providerSlug, '--yes'])).toThrow();
-    expect(operator.runCompanyPublishingAdminCli(['entitlement-grant', company.providerSlug, '--yes'])).toContain('Granted complimentary founding-pilot publishing');
     expect(operator.runCompanyPublishingAdminCli(['writer-grant', writer.id, company.providerSlug, '--yes'])).toContain('Granted company publishing');
+    expect((await writer.client.rpc('list_my_company_publishing_scopes')).data).toEqual([]);
+    expect((await writer.client.rpc('save_company_content', {
+      target_article_id: null, target_slug: `no-entitlement-${randomUUID()}`, target_title: 'Denied without entitlement', target_deck: '',
+      target_summary: '', target_body: '', target_desk: 'Ecosystem', target_format: 'Brief', target_content_type: 'company_update',
+      target_provider_id: company.providerId, target_product_id: null,
+    })).error?.code).toBe('42501');
+    expect(operator.runCompanyPublishingAdminCli(['entitlement-grant', company.providerSlug, '--yes'])).toContain('Granted complimentary founding-pilot publishing');
     const initialEntitlement = await admin.from('company_publishing_entitlements').select('granted_at, review_due_at').eq('provider_id', company.providerId).single();
     expect(initialEntitlement.error).toBeNull();
     expect(new Date(initialEntitlement.data!.review_due_at!).getTime() - new Date(initialEntitlement.data!.granted_at).getTime()).toBe(90 * 24 * 60 * 60 * 1000);
@@ -290,9 +302,19 @@ test('company publishing requires all gates and sends one private in-app notice 
   } finally {
     await Promise.all([operatorContext?.close(), writerContext?.close()].filter(Boolean));
     if (company) {
+      await admin.from('company_publication_review_audit').delete().eq('provider_id', company.providerId);
       await admin.from('insight_articles').delete().eq('provider_id', company.providerId);
-      await admin.from('providers').delete().eq('id', company.providerId);
+      await admin.from('company_operator_audit').delete().eq('provider_id', company.providerId);
+      await admin.from('company_membership_audit').delete().eq('provider_id', company.providerId);
+      await admin.from('company_publishing_assignment_audit').delete().eq('provider_id', company.providerId);
+      await admin.from('company_publishing_entitlement_audit').delete().eq('provider_id', company.providerId);
+      await admin.from('company_memberships').delete().eq('provider_id', company.providerId);
+      await admin.from('company_publishing_assignments').delete().eq('provider_id', company.providerId);
+      await admin.from('company_publishing_entitlements').delete().eq('provider_id', company.providerId);
+      await admin.from('provider_follows').delete().eq('provider_id', company.providerId);
+      await admin.from('provider_publication_status').delete().eq('provider_id', company.providerId);
       await admin.from('organisations').delete().eq('id', company.organisationId);
+      await admin.from('providers').delete().eq('id', company.providerId);
     }
     if (product) await removeProducts(admin, [product, ...(wrongOwnerProduct ? [wrongOwnerProduct] : [])]);
     await Promise.all(members.map((member) => member.remove()));

@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro';
 import { createSupabaseServerClient } from '../../../lib/supabase/server';
+import { getAuthCallbackUrl } from '../../../lib/auth-callback-url';
 import { validateIntelligenceReturnPath } from '../../../lib/auth-return-path';
 import { logPilotFailure } from '../../../lib/observability';
 import { normalizeEmail, requestEmailCode, signInPath, writePendingSignIn } from '../../../lib/email-code-auth';
@@ -13,8 +14,13 @@ export const POST: APIRoute = async (context) => {
 
   const supabase = createSupabaseServerClient(context);
   if (!supabase) return context.redirect(signInPath('/sign-in', 'configuration', returnPath), 303);
+  const emailRedirectTo = getAuthCallbackUrl(context.request.url, {
+    appBaseUrl: process.env.APP_BASE_URL,
+    isDevelopment: import.meta.env.DEV,
+  });
+  if (!emailRedirectTo) return context.redirect(signInPath('/sign-in', 'configuration', returnPath), 303);
 
-  const outcome = await requestEmailCode(supabase, email, (error) =>
+  const outcome = await requestEmailCode(supabase, email, emailRedirectTo, (error) =>
     logPilotFailure('email_code_send_failed', error, { action: 'email_code' }),
   );
   if (outcome === 'rate_limited') return context.redirect(signInPath('/sign-in', 'rate-limited', returnPath), 303);

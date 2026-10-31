@@ -14,6 +14,7 @@ import {
   writePendingSignIn,
   type EmailCodeAuthClient,
 } from '../src/lib/email-code-auth';
+import { getAuthCallbackUrl } from '../src/lib/auth-callback-url';
 import { validateIntelligenceReturnPath } from '../src/lib/auth-return-path';
 import { logPilotFailure } from '../src/lib/observability';
 
@@ -50,27 +51,39 @@ test('email normalisation and code validation accept pasted codes without assumi
   expect(normalizeCode(undefined)).toBeNull();
 });
 
-test('requesting a code keeps shouldCreateUser false and uses no email redirect', async () => {
+test('callback URL uses the local app origin or configured HTTPS origin', () => {
+  expect(getAuthCallbackUrl('http://127.0.0.1:4322/api/auth/sign-in', { isDevelopment: true }))
+    .toBe('http://127.0.0.1:4322/auth/callback');
+  expect(getAuthCallbackUrl('https://app.example.test/api/auth/sign-in', { appBaseUrl: 'https://app.example.test' }))
+    .toBe('https://app.example.test/auth/callback');
+  expect(getAuthCallbackUrl('https://app.example.test/api/auth/sign-in', { appBaseUrl: 'http://app.example.test' }))
+    .toBeNull();
+});
+
+test('requesting a code keeps shouldCreateUser false and uses the auth callback', async () => {
   const { client, calls } = fakeClient({ error: null });
-  expect(await requestEmailCode(client, 'invited@example.com')).toBe('sent');
+  expect(await requestEmailCode(client, 'invited@example.com', 'http://127.0.0.1:4322/auth/callback')).toBe('sent');
   expect(calls).toEqual([
-    { method: 'signInWithOtp', args: { email: 'invited@example.com', options: { shouldCreateUser: false } } },
+    { method: 'signInWithOtp', args: { email: 'invited@example.com', options: {
+      shouldCreateUser: false, emailRedirectTo: 'http://127.0.0.1:4322/auth/callback',
+    } } },
   ]);
 });
 
 test('request outcomes: rate limit, hidden non-invited rejection and unavailable', async () => {
-  expect(await requestEmailCode(fakeClient({ error: { status: 429 } }).client, 'a@b.co')).toBe('rate_limited');
+  const callbackUrl = 'http://127.0.0.1:4322/auth/callback';
+  expect(await requestEmailCode(fakeClient({ error: { status: 429 } }).client, 'a@b.co', callbackUrl)).toBe('rate_limited');
   expect(
-    await requestEmailCode(fakeClient({ error: { status: 400, code: 'over_email_send_rate_limit' } }).client, 'a@b.co'),
+    await requestEmailCode(fakeClient({ error: { status: 400, code: 'over_email_send_rate_limit' } }).client, 'a@b.co', callbackUrl),
   ).toBe('rate_limited');
   // A rejected non-invited address must look identical to a successful send.
-  expect(await requestEmailCode(fakeClient({ error: { status: 422, code: 'otp_disabled' } }).client, 'a@b.co')).toBe('sent');
+  expect(await requestEmailCode(fakeClient({ error: { status: 422, code: 'otp_disabled' } }).client, 'a@b.co', callbackUrl)).toBe('sent');
 
   const failures: unknown[] = [];
   expect(
-    await requestEmailCode(fakeClient({ error: { status: 500 } }).client, 'a@b.co', (e) => failures.push(e)),
+    await requestEmailCode(fakeClient({ error: { status: 500 } }).client, 'a@b.co', callbackUrl, (e) => failures.push(e)),
   ).toBe('unavailable');
-  expect(await requestEmailCode(fakeClient(new Error('network')).client, 'a@b.co', (e) => failures.push(e))).toBe(
+  expect(await requestEmailCode(fakeClient(new Error('network')).client, 'a@b.co', callbackUrl, (e) => failures.push(e))).toBe(
     'unavailable',
   );
   expect(failures).toHaveLength(2);

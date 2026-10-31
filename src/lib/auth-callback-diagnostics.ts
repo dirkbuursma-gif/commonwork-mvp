@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
 export type AuthCallbackBranch = 'code' | 'token_hash' | 'missing';
-export type AuthCallbackOtpType = 'email' | 'magiclink' | 'invalid' | 'missing' | 'not_applicable';
+export type AuthCallbackOtpType = 'email' | 'magiclink' | 'invite' | 'invalid' | 'missing' | 'not_applicable';
 export type AuthCallbackErrorCategory =
   | 'missing_parameters'
   | 'invalid_otp_type'
@@ -36,7 +36,7 @@ export type SessionCookieWrite = {
   };
 };
 
-const allowedOtpTypes = new Set(['email', 'magiclink']);
+const allowedOtpTypes = new Set(['email', 'magiclink', 'invite']);
 const safeErrorCodes: Record<string, AuthCallbackErrorCategory> = {
   bad_code_verifier: 'pkce_verifier_rejected',
   flow_state_expired: 'flow_state_expired',
@@ -56,7 +56,7 @@ export function getAuthCallbackInput(searchParams: URLSearchParams, cookieNames:
       : rawOtpType === null
         ? 'missing'
         : allowedOtpTypes.has(rawOtpType)
-          ? rawOtpType as 'email' | 'magiclink'
+          ? rawOtpType as 'email' | 'magiclink' | 'invite'
           : 'invalid';
 
   return {
